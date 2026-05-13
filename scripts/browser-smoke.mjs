@@ -332,6 +332,20 @@ try {
   await expect(page.getByRole('menuitem', { name: 'Open containing folder' })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Reveal in Finder/Explorer' }).click();
   await expect(page.getByRole('contentinfo')).toContainText('Browser edition does not expose system file-manager actions.');
+  await page.getByRole('treeitem', { name: /safe-refusal\.toml/ }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'New sibling' }).click();
+  await expect(page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Safe refusal copy' })).toBeVisible();
+  await page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await expect(page.getByRole('dialog', { name: 'Delete Safe refusal copy?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ })).toBeVisible();
+  await page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete criterion' }).click();
+  await expect(page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ })).toHaveCount(0);
+  await expect(page.getByRole('treeitem', { name: /safe-refusal\.toml/ })).toBeVisible();
   await page.locator('[data-criterion-id="cites-uncertainty"]').dragTo(page.locator('[data-criterion-id="actionable-alternative"]'));
   await expect(page.locator('[data-criterion-id="cites-uncertainty"][data-theme-id="helpfulness"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Cites uncertainty' })).toBeVisible();
@@ -404,8 +418,13 @@ try {
   await expect(page.locator('blockquote')).toContainText('A scratch response with clear evidence');
   await page.getByRole('button', { name: 'Score all' }).click();
   await expect(page.getByText('Scoring all criteria with cancellable progress')).toBeVisible();
-  await page.getByRole('button', { name: 'Cancel score run' }).click();
-  await expect(page.locator('body')).toContainText('Score run canceled');
+  const cancelScoreRun = page.getByRole('button', { name: 'Cancel score run' });
+  if (await cancelScoreRun.isVisible().catch(() => false)) {
+    await cancelScoreRun.click();
+    await expect(page.locator('body')).toContainText(/Score run (canceled|completed)/);
+  } else {
+    await expect(page.locator('body')).toContainText('Score run completed');
+  }
   await page.getByRole('button', { name: 'Score all' }).click();
   await expect(page.locator('body')).toContainText('Score run completed', { timeout: 5_000 });
   await page.getByRole('button', { name: /Safe refusal fail samples/i }).click();

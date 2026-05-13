@@ -86,6 +86,15 @@ try {
     expect(body.model).toBe('gpt-5-mini');
     expect(body.input).toContain('Return only JSON');
     expect(body.input).toContain('Criterion:');
+    if (directProviderRequests === 1) {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: { message: 'Expired key' } }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -281,8 +290,10 @@ try {
   await expect(gptColumn.getByText('Direct BYO scoring')).toBeVisible();
   await gptColumn.locator('details.score-card').first().locator('summary').click();
   await gptColumn.getByRole('button', { name: 'Run direct provider score' }).first().click();
+  await expect(gptColumn.getByText('OpenAI rejected this BYO key (401). Rotate the key in Settings and retry direct provider scoring.')).toBeVisible();
+  await gptColumn.getByRole('button', { name: 'Run direct provider score' }).first().click();
   await expect(gptColumn.getByText('Provider e2e pass from direct browser scoring.')).toBeVisible();
-  expect(directProviderRequests).toBe(1);
+  expect(directProviderRequests).toBe(2);
 
   await browser.close();
   console.log('Rubric Studio Open browser e2e smoke passed.');

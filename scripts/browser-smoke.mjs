@@ -117,6 +117,17 @@ try {
 
   await expect(page.getByRole('button', { name: 'Export folder' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import folder' })).toBeVisible();
+  await page.evaluate(() => {
+    window.__rsoE2eDirectoryPicker = window.showDirectoryPicker;
+    window.showDirectoryPicker = undefined;
+  });
+  await page.getByRole('button', { name: 'Export folder' }).click();
+  await expect(page.getByRole('alert')).toContainText('Browser folder export requires a File System Access capable browser. Use Export bundle as a fallback.');
+  await page.getByRole('button', { name: 'Import folder' }).click();
+  await expect(page.getByRole('alert')).toContainText('Browser folder import requires a File System Access capable browser. Use Import bundle as a fallback.');
+  await page.evaluate(() => {
+    window.showDirectoryPicker = window.__rsoE2eDirectoryPicker;
+  });
   await page.getByLabel('Import bundle').setInputFiles({
     name: 'not-json.rubric-project.json',
     mimeType: 'application/json',

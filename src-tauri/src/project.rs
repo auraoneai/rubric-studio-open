@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -183,7 +183,7 @@ fn read_themes(
     root: &Path,
     paths: Option<&toml::Value>,
 ) -> Result<Vec<ThemeFile>, ProjectOpenFailure> {
-    let themes_root = root.join(path_from_manifest(paths, "themes", "themes"));
+    let themes_root = path_from_manifest(root, paths, "themes", "themes")?;
     let mut themes = Vec::new();
     for file in sorted_files(&themes_root, "md")? {
         let source = std::fs::read_to_string(&file).map_err(|error| {
@@ -217,7 +217,7 @@ fn read_criteria(
     root: &Path,
     paths: Option<&toml::Value>,
 ) -> Result<Vec<CriterionFile>, ProjectOpenFailure> {
-    let criteria_root = root.join(path_from_manifest(paths, "criteria", "criteria"));
+    let criteria_root = path_from_manifest(root, paths, "criteria", "criteria")?;
     let mut criteria = Vec::new();
     for file in sorted_files(&criteria_root, "toml")? {
         let source = std::fs::read_to_string(&file).map_err(|error| {
@@ -278,7 +278,7 @@ fn read_samples(
     root: &Path,
     paths: Option<&toml::Value>,
 ) -> Result<Vec<SampleFile>, ProjectOpenFailure> {
-    let samples_root = root.join(path_from_manifest(paths, "samples", "samples"));
+    let samples_root = path_from_manifest(root, paths, "samples", "samples")?;
     let mut samples = Vec::new();
     for file in sorted_files(&samples_root, "jsonl")? {
         let source = std::fs::read_to_string(&file).map_err(|error| {
@@ -308,7 +308,7 @@ fn read_judges(
     root: &Path,
     paths: Option<&toml::Value>,
 ) -> Result<Vec<JudgeFile>, ProjectOpenFailure> {
-    let judges_root = root.join(path_from_manifest(paths, "judges", "judges"));
+    let judges_root = path_from_manifest(root, paths, "judges", "judges")?;
     let mut judges = Vec::new();
     for file in sorted_files(&judges_root, "toml")? {
         let source = std::fs::read_to_string(&file).map_err(|error| {
@@ -393,12 +393,36 @@ fn string_array(value: &toml::Value, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn path_from_manifest(paths: Option<&toml::Value>, key: &str, default_path: &str) -> String {
-    paths
+fn path_from_manifest(
+    root: &Path,
+    paths: Option<&toml::Value>,
+    key: &str,
+    default_path: &str,
+) -> Result<PathBuf, ProjectOpenFailure> {
+    let configured = paths
         .and_then(|value| value.get(key))
         .and_then(toml::Value::as_str)
-        .unwrap_or(default_path)
-        .into()
+        .unwrap_or(default_path);
+    let relative_path = Path::new(configured);
+
+    if relative_path.as_os_str().is_empty() || relative_path.is_absolute() {
+        return Err(project_open_failure(
+            format!("paths.{key}"),
+            "Project path overrides must be relative paths inside the opened folder.",
+        ));
+    }
+
+    if relative_path
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(project_open_failure(
+            format!("paths.{key}"),
+            "Project path overrides cannot use parent-directory, root, or current-directory segments.",
+        ));
+    }
+
+    Ok(root.join(relative_path))
 }
 
 fn unique_template_path(parent: &Path, slug: &str) -> Result<PathBuf, ProjectOpenFailure> {
@@ -708,3 +732,92 @@ model = "deterministic-v0"
 enabled = true
 key_required = false
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn manifest_paths_stay_inside_project_root() {
+        let manifest = r#"
+[paths]
+themes = "themes"
+criteria = "criteria/safety"
+samples = "samples"
+judges = "judges"
+"#
+        .parse::<toml::Value>()
+        .unwrap();
+        let paths = manifest.get("paths");
+        let root = Path::new("/project/root");
+
+        assert_eq!(
+            path_from_manifest(root, paths, "criteria", "criteria")
+                .unwrap()
+                .to_string_lossy(),
+            "/project/root/criteria/safety"
+        );
+    }
+
+    #[test]
+    fn manifest_paths_reject_absolute_parent_and_current_segments() {
+        for configured in [
+            "/tmp/outside",
+            "../outside",
+            "criteria/../outside",
+            "./criteria",
+        ] {
+            let manifest = format!(
+                r#"
+[paths]
+criteria = "{configured}"
+"#
+            )
+            .parse::<toml::Value>()
+            .unwrap();
+            let error = path_from_manifest(
+                Path::new("/project/root"),
+                manifest.get("paths"),
+                "criteria",
+                "criteria",
+            )
+            .unwrap_err();
+
+            assert_eq!(error.field, "paths.criteria");
+            assert!(
+                error.message.contains("inside the opened folder")
+                    || error.message.contains("cannot use")
+            );
+        }
+    }
+
+    #[test]
+    fn opening_project_rejects_manifest_path_escape() {
+        let root = std::env::temp_dir().join(format!(
+            "rubric-studio-open-path-escape-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("rubric.toml"),
+            r#"
+name = "Path Escape"
+version = "0.1.0"
+
+[project]
+id = "path-escape"
+
+[paths]
+criteria = "../outside"
+"#,
+        )
+        .unwrap();
+
+        let error = open_rubric_project_folder(root.clone()).unwrap_err();
+
+        assert_eq!(error.field, "paths.criteria");
+        assert!(error.message.contains("cannot use"));
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

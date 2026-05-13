@@ -31,6 +31,7 @@ assert.equal(tauriConfig.productName, 'Rubric Studio Open');
 assert.equal(tauriConfig.identifier, 'ai.auraone.rubricstudio.open');
 assert.equal(tauriConfig.build.frontendDist, '../dist');
 assert.ok(tauriConfig.app.windows[0].minWidth >= 1024, 'desktop shell must preserve the 1024px functional layout');
+assertCanonicalCsp(tauriConfig.app.security.csp);
 assert.deepEqual(tauriConfig.bundle.targets, ['dmg', 'msi', 'appimage', 'deb', 'rpm']);
 assert.ok(
   tauriConfig.bundle.icon.every((iconPath) => existsSync(join(root, 'src-tauri', iconPath))),
@@ -84,4 +85,33 @@ function runCommand(command, args) {
     throw new Error(`${command} ${args.join(' ')} failed: ${output || result.error?.message || 'unknown error'}`);
   }
   return result.stdout.trim();
+}
+
+function assertCanonicalCsp(csp) {
+  const requiredTokens = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "media-src 'self' data: blob:",
+    "connect-src 'self'",
+    'http://localhost:11434',
+    'https://api.openai.com',
+    'https://api.anthropic.com',
+    'https://generativelanguage.googleapis.com',
+    'https://huggingface.co',
+    'https://updates.auraone.ai',
+    'https://updates2.auraone.ai',
+    'https://intake.auraone.ai',
+    'https://o.auraone.ai',
+    'https://sentry.io',
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ];
+
+  requiredTokens.forEach((token) => {
+    assert.ok(csp.includes(token), `Rubric Studio Open CSP missing token: ${token}`);
+  });
+  assert.ok(!csp.includes("'unsafe-eval'"), 'Rubric Studio Open CSP must not allow unsafe-eval');
 }

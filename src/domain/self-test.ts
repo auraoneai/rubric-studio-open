@@ -18,6 +18,7 @@ import {
   isVendorProgramExport,
   previewScaleWalls,
 } from './scaleWalls';
+import { parseJsonlSamples, parseScratchSamples } from './samples';
 import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
 import { searchProject, validateProject } from './validation';
@@ -75,6 +76,23 @@ assert.equal(
   'New theme',
 );
 assert.equal(findShortcutConflicts([['Cmd/Ctrl-K', 'Palette'], ['cmd-k', 'Search']]).length, 1);
+const parsedJsonlSamples = parseJsonlSamples(
+  [
+    JSON.stringify({
+      id: 'jsonl-domain-1',
+      prompt: 'Domain prompt',
+      response: 'Domain response',
+      metadata: { source: 'self-test' },
+    }),
+  ].join('\n'),
+  sampleProject,
+);
+assert.equal(parsedJsonlSamples[0].id, 'jsonl-domain-1');
+assert.throws(() => parseJsonlSamples('not json', sampleProject), /not valid JSON/);
+assert.throws(() => parseJsonlSamples(JSON.stringify({ id: 'missing-response', prompt: 'Prompt' }), sampleProject), /id, prompt, and response/);
+const parsedScratchSamples = parseScratchSamples('plain pasted response', sampleProject, 123);
+assert.equal(parsedScratchSamples[0].id, 'scratch-123-1');
+assert.equal(parsedScratchSamples[0].response, 'plain pasted response');
 const ollamaPrompt = buildOllamaScoringPrompt(sampleProject.criteria[0], sampleProject.samples[0]);
 assert.ok(ollamaPrompt.includes('Rubric Studio Open local judge'));
 assert.ok(ollamaPrompt.includes(sampleProject.criteria[0].label));

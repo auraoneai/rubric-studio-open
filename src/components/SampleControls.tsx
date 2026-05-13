@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
+import { defaultGoldScores, parseJsonlSamples, parseScratchSamples } from '../domain/samples';
 
 export function SampleControls({
   project,
@@ -23,7 +24,7 @@ export function SampleControls({
     }
     try {
       const text = await file.text();
-      const imported = parseSamples(text, project);
+      const imported = parseJsonlSamples(text, project);
       if (imported.length === 0) {
         setError('No samples were found in the JSONL file.');
         return;
@@ -41,7 +42,7 @@ export function SampleControls({
       setError('Paste a JSON sample or plain-text response before adding scratch data.');
       return;
     }
-    parseSamples(text, project).forEach(onAddSample);
+    parseScratchSamples(text, project).forEach(onAddSample);
     setError('');
     setScratch('');
   }
@@ -100,37 +101,4 @@ export function SampleControls({
       {error ? <div className="inline-error" role="alert">{error}</div> : null}
     </div>
   );
-}
-
-function parseSamples(text: string, project: RubricProject): RubricSample[] {
-  const lines = text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const candidates = lines.length > 1 ? lines : [text.trim()];
-
-  return candidates.map((candidate, index) => {
-    try {
-      const parsed = JSON.parse(candidate) as Partial<RubricSample>;
-      return {
-        id: parsed.id || `scratch-${Date.now()}-${index + 1}`,
-        prompt: parsed.prompt || 'Scratch sample',
-        response: parsed.response || candidate,
-        metadata: parsed.metadata || { source: 'paste' },
-        goldScores: parsed.goldScores || defaultGoldScores(project),
-      };
-    } catch {
-      return {
-        id: `scratch-${Date.now()}-${index + 1}`,
-        prompt: 'Scratch sample',
-        response: candidate,
-        metadata: { source: 'paste' },
-        goldScores: defaultGoldScores(project),
-      };
-    }
-  });
-}
-
-function defaultGoldScores(project: RubricProject): Record<string, number> {
-  return Object.fromEntries(project.criteria.map((criterion, index) => [criterion.id, index % 2 === 0 ? 1 : 0.5]));
 }

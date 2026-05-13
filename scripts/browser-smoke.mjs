@@ -322,6 +322,13 @@ try {
   await expect(sampleSelect.locator('option')).toHaveCount(initialSampleCount + 1);
   await expect(sampleSelect).toHaveValue(/synthetic-/);
   await expect(page.locator('blockquote')).toContainText('This response includes concrete steps');
+  await page.getByLabel('Load JSONL').setInputFiles({
+    name: 'bad-browser-e2e-samples.jsonl',
+    mimeType: 'application/jsonl',
+    buffer: Buffer.from('{"id":"bad-jsonl","prompt":"Missing response"}\nnot-json'),
+  });
+  await expect(page.getByRole('alert')).toContainText('Sample import failed. Use JSONL rows with id, prompt, and response fields, or paste plain text.');
+  await expect(sampleSelect.locator('option')).toHaveCount(initialSampleCount + 1);
   const jsonlSample = [
     {
       id: 'jsonl-e2e-1',

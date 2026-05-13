@@ -6,7 +6,7 @@ license = "MIT"
 
 [features]
 default = []
-tauri-runtime = ["tauri", "tauri-plugin-updater"]
+tauri-runtime = ["tauri", "tauri-plugin-deep-link", "tauri-plugin-updater"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -14,7 +14,9 @@ serde_json = "1"
 sha2 = "0.10"
 toml = "0.8"
 tauri = { version = "2", optional = true }
+tauri-plugin-deep-link = { version = "2.4.9", optional = true }
 tauri-plugin-updater = { version = "2.10.1", optional = true }
+url = "2.5.8"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6.3", default-features = false, features = ["apple-native"] }

@@ -1,3 +1,5 @@
+mod deep_link;
+
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
 fn validate_project(
@@ -77,7 +79,12 @@ fn platform_reliability_status(
 #[cfg(feature = "tauri-runtime")]
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            deep_link::register(app.handle())?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             validate_project,
             mock_score,

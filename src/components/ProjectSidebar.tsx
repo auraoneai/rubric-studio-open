@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { RubricProject } from '../domain/rubric';
 
 export function ProjectSidebar({
@@ -5,14 +6,23 @@ export function ProjectSidebar({
   issues,
   selectedCriterionId,
   onSelect,
+  onRenameCriterion,
+  onDuplicateCriterion,
+  onDeleteCriterion,
 }: {
   project: RubricProject;
   issues: number;
   selectedCriterionId: string;
   onSelect: (criterionId: string) => void;
+  onRenameCriterion: (criterionId: string, label: string) => void;
+  onDuplicateCriterion: (criterionId: string) => void;
+  onDeleteCriterion: (criterionId: string) => void;
 }) {
+  const [menuCriterionId, setMenuCriterionId] = useState<string | null>(null);
+  const menuCriterion = project.criteria.find((criterion) => criterion.id === menuCriterionId);
+
   return (
-    <aside className="sidebar" aria-label="Project sidebar">
+    <aside className="sidebar" aria-label="Project sidebar" onClick={() => setMenuCriterionId(null)}>
       <div className="sidebar-header">
         <p>Project</p>
         <strong>{project.name}</strong>
@@ -34,6 +44,10 @@ export function ProjectSidebar({
                   className={criterion.id === selectedCriterionId ? 'tree-file active' : 'tree-file'}
                   type="button"
                   onClick={() => onSelect(criterion.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setMenuCriterionId(criterion.id);
+                  }}
                 >
                   {criterion.status === 'Live' ? '●' : '○'} {criterion.id}.toml
                 </button>
@@ -45,12 +59,11 @@ export function ProjectSidebar({
         <button className="tree-root" type="button">
           samples/
         </button>
-        <button className="tree-file" type="button">
-          expert-gold-v1.jsonl
-        </button>
-        <button className="tree-file" type="button">
-          held-out.jsonl
-        </button>
+        {project.samples.map((sample) => (
+          <button key={sample.id} className="tree-file" type="button">
+            {sample.id}.jsonl
+          </button>
+        ))}
       </div>
       <div className="tree-group">
         <button className="tree-root" type="button">
@@ -67,6 +80,26 @@ export function ProjectSidebar({
         <strong>{project.branch}</strong>
         <small>{issues} changed validation signals</small>
       </div>
+      {menuCriterion ? (
+        <div className="context-menu" role="menu" aria-label={`Actions for ${menuCriterion.label}`} onClick={(event) => event.stopPropagation()}>
+          <strong>{menuCriterion.label}</strong>
+          <button type="button" role="menuitem" onClick={() => { onSelect(menuCriterion.id); setMenuCriterionId(null); }}>
+            Open
+          </button>
+          <button type="button" role="menuitem" onClick={() => { onRenameCriterion(menuCriterion.id, `${menuCriterion.label} renamed`); setMenuCriterionId(null); }}>
+            Rename
+          </button>
+          <button type="button" role="menuitem" onClick={() => { onDuplicateCriterion(menuCriterion.id); setMenuCriterionId(null); }}>
+            New sibling
+          </button>
+          <button type="button" role="menuitem" onClick={() => { onSelect(menuCriterion.id); setMenuCriterionId(null); }}>
+            Reveal in editor
+          </button>
+          <button type="button" role="menuitem" onClick={() => { onDeleteCriterion(menuCriterion.id); setMenuCriterionId(null); }}>
+            Delete
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }

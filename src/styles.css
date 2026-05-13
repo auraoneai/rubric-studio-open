@@ -344,6 +344,32 @@ small {
   gap: 6px;
 }
 
+.context-menu {
+  position: sticky;
+  bottom: 12px;
+  z-index: 4;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  padding: 8px;
+}
+
+.context-menu button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 7px 8px;
+}
+
+.context-menu button:hover {
+  background: rgba(52, 217, 255, 0.1);
+}
+
 .main-panel {
   min-width: 0;
   min-height: 0;

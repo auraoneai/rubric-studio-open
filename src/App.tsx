@@ -389,7 +389,15 @@ export function App() {
       </header>
 
       <div className="workspace">
-        <ProjectSidebar project={state.project} issues={issues.length} selectedCriterionId={state.selectedCriterionId} onSelect={(criterionId) => dispatch({ type: 'select', criterionId })} />
+        <ProjectSidebar
+          project={state.project}
+          issues={issues.length}
+          selectedCriterionId={state.selectedCriterionId}
+          onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
+          onRenameCriterion={(criterionId, label) => dispatch({ type: 'updateCriterion', criterionId, patch: { label, id: slugify(label) } })}
+          onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
+          onDeleteCriterion={(criterionId) => dispatch({ type: 'deleteCriterion', criterionId })}
+        />
         <section id="main-panel" className="main-panel" aria-label={`${activeTab} panel`}>
           {activeTab === 'authoring' && selectedCriterion ? (
             <AuthoringPanel

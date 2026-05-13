@@ -95,11 +95,12 @@ try {
   await expect(page.getByText('Confirm the safe-alternative boundary before launch.')).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+/' : 'Control+/');
   await expect(page.getByRole('region', { name: 'Criterion comments' })).toHaveCount(0);
+  await page.waitForTimeout(350);
   await page.getByRole('treeitem', { name: /safe-refusal\.toml/ }).click({ button: 'right' });
   await expect(page.getByRole('menu', { name: /Actions for Safe refusal/ })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Open containing folder' })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Reveal in Finder/Explorer' }).click();
-  await expect(page.locator('body')).toContainText('Browser edition does not expose system file-manager actions.');
+  await expect(page.getByRole('contentinfo')).toContainText('Browser edition does not expose system file-manager actions.');
   await page.locator('[data-criterion-id="cites-uncertainty"]').dragTo(page.locator('[data-criterion-id="actionable-alternative"]'));
   await expect(page.locator('[data-criterion-id="cites-uncertainty"][data-theme-id="helpfulness"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Cites uncertainty' })).toBeVisible();
@@ -132,6 +133,28 @@ try {
   await expect(sampleSelect.locator('option')).toHaveCount(initialSampleCount + 1);
   await expect(sampleSelect).toHaveValue(/synthetic-/);
   await expect(page.locator('blockquote')).toContainText('This response includes concrete steps');
+  const jsonlSample = [
+    {
+      id: 'jsonl-e2e-1',
+      prompt: 'Check the JSONL file import path.',
+      response: 'The first imported JSONL response includes direct evidence.',
+      metadata: { source: 'browser-jsonl' },
+    },
+    {
+      id: 'jsonl-e2e-2',
+      prompt: 'Check the second JSONL row.',
+      response: 'The second imported JSONL response adds another held-out sample.',
+      metadata: { source: 'browser-jsonl' },
+    },
+  ].map((sample) => JSON.stringify(sample)).join('\n');
+  await page.getByLabel('Load JSONL').setInputFiles({
+    name: 'browser-e2e-samples.jsonl',
+    mimeType: 'application/jsonl',
+    buffer: Buffer.from(jsonlSample),
+  });
+  await expect(sampleSelect.locator('option')).toHaveCount(initialSampleCount + 3);
+  await expect(sampleSelect).toHaveValue('jsonl-e2e-2');
+  await expect(page.locator('blockquote')).toContainText('The second imported JSONL response');
   await page.getByLabel('Paste sample').fill(JSON.stringify({
     id: 'scratch-e2e',
     prompt: 'Check the scratch sample path.',

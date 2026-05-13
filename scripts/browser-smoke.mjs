@@ -201,6 +201,9 @@ try {
   await page.getByRole('button', { name: 'Check for updates' }).click();
   await expect(page.locator('.success-chip', { hasText: 'unavailable' })).toBeVisible();
   await expect(page.getByText('Remappable controls')).toBeVisible();
+  await page.getByLabel('GPT-5 mini API key').fill('short');
+  await page.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
+  await expect(page.locator('.setting-row', { hasText: 'GPT-5 mini' })).toContainText('Paste a provider key before configuring this judge.');
   await page.getByLabel('GPT-5 mini API key').fill('sk-e2e-browser-provider');
   await page.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
   await expect(page.getByLabel('GPT-5 mini API key')).toHaveAttribute('placeholder', 'Configured in session');

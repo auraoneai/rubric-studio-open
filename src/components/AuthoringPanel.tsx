@@ -35,6 +35,7 @@ export function AuthoringPanel(props: {
   caseSensitive: boolean;
   setCaseSensitive: (value: boolean) => void;
   focusRequest: { target: 'in-file' | 'project'; nonce: number } | null;
+  commentsVisible: boolean;
   onSelect: (criterionId: string) => void;
   onUpdate: (patch: Partial<Criterion>) => void;
   onBulkUpdate: (criterionIds: string[], patch: Partial<Criterion>) => void;
@@ -43,12 +44,14 @@ export function AuthoringPanel(props: {
   onMove: (direction: -1 | 1) => void;
   onReorder: (draggedId: string, targetId: string) => void;
   onToggleTheme: (themeId: string) => void;
+  onToggleComments: () => void;
 }) {
   const { project, criterion, issues } = props;
   const tagOptions = Array.from(new Set(project.criteria.flatMap((item) => item.tags))).sort();
   const [bulkIds, setBulkIds] = useState<string[]>([]);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [inFileQuery, setInFileQuery] = useState('');
+  const [commentDraft, setCommentDraft] = useState('');
   const inFileInputRef = useRef<HTMLInputElement>(null);
   const projectSearchInputRef = useRef<HTMLInputElement>(null);
   const bulkSelected = new Set(bulkIds);
@@ -83,6 +86,15 @@ export function AuthoringPanel(props: {
       props.onBulkDelete(bulkIds);
       setBulkIds([]);
     }
+  }
+
+  function addComment() {
+    const body = commentDraft.trim();
+    if (!body) {
+      return;
+    }
+    props.onUpdate({ comments: [...criterion.comments, body] });
+    setCommentDraft('');
   }
 
   return (
@@ -228,6 +240,14 @@ export function AuthoringPanel(props: {
             <h2>{criterion.label}</h2>
           </div>
           <div className="inline-actions">
+            <button
+              className={props.commentsVisible ? 'glass-button primary' : 'ghost-button'}
+              type="button"
+              aria-pressed={props.commentsVisible}
+              onClick={props.onToggleComments}
+            >
+              Comments
+            </button>
             <button className="ghost-button" type="button" aria-label="Move criterion up" onClick={() => props.onMove(-1)}>
               <ArrowUp className="button-icon" aria-hidden="true" />
             </button>
@@ -236,6 +256,36 @@ export function AuthoringPanel(props: {
             </button>
           </div>
         </div>
+        {props.commentsVisible ? (
+          <section className="comments-panel" aria-label="Criterion comments">
+            <div className="panel-title compact">
+              <div>
+                <p>Comments</p>
+                <h3>{criterion.comments.length} notes</h3>
+              </div>
+            </div>
+            {criterion.comments.length === 0 ? (
+              <EmptyState title="No comments yet" body="Use comments for local reviewer notes without moving into Cloud approval workflows." />
+            ) : null}
+            {criterion.comments.map((comment, index) => (
+              <article className="comment-card" key={`${criterion.id}-comment-${index}`}>
+                <strong>Local note {index + 1}</strong>
+                <p>{comment}</p>
+              </article>
+            ))}
+            <label className="comment-composer">
+              <span>Add local comment</span>
+              <textarea
+                value={commentDraft}
+                onChange={(event) => setCommentDraft(event.target.value)}
+                placeholder="Reviewer note, rewrite concern, or follow-up to check before commit."
+              />
+            </label>
+            <button className="glass-button" type="button" disabled={!commentDraft.trim()} onClick={addComment}>
+              Add comment
+            </button>
+          </section>
+        ) : null}
         <div className="form-grid">
           <Field label="Label" issueCount={issues.filter((issue) => issue.field === 'label').length}>
             <input value={criterion.label} onChange={(event) => props.onUpdate({ label: event.target.value })} />

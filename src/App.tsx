@@ -676,6 +676,7 @@ export function App() {
               caseSensitive={caseSensitive}
               setCaseSensitive={setCaseSensitive}
               focusRequest={authoringFocusRequest}
+              commentsVisible={state.project.commentsVisible}
               onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
               onUpdate={(patch) => dispatch({ type: 'updateCriterion', criterionId: selectedCriterion.id, patch })}
               onBulkUpdate={(criterionIds, patch) => dispatch({ type: 'bulkUpdateCriteria', criterionIds, patch })}
@@ -684,6 +685,7 @@ export function App() {
               onMove={(direction) => dispatch({ type: 'moveCriterion', criterionId: selectedCriterion.id, direction })}
               onReorder={(draggedId, targetId) => dispatch({ type: 'reorderCriterion', draggedId, targetId })}
               onToggleTheme={(themeId) => dispatch({ type: 'toggleTheme', themeId })}
+              onToggleComments={() => dispatch({ type: 'toggleComments' })}
             />
           ) : null}
           {activeTab === 'preview' ? (

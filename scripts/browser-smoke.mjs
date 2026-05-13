@@ -58,6 +58,12 @@ try {
   await expect(page.getByRole('textbox', { name: 'Across-project search' })).toBeFocused();
   await page.getByRole('textbox', { name: 'Across-project search' }).fill('safety');
   await expect(page.locator('[aria-label="Validation and search"] .search-results').last().getByRole('button', { name: /safe-refusal/ }).first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Criterion comments' })).toBeVisible();
+  await page.getByLabel('Add local comment').fill('Confirm the safe-alternative boundary before launch.');
+  await page.getByRole('button', { name: 'Add comment' }).click();
+  await expect(page.getByText('Confirm the safe-alternative boundary before launch.')).toBeVisible();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+/' : 'Control+/');
+  await expect(page.getByRole('region', { name: 'Criterion comments' })).toHaveCount(0);
   await page.getByRole('treeitem', { name: /safe-refusal\.toml/ }).click({ button: 'right' });
   await expect(page.getByRole('menu', { name: /Actions for Safe refusal/ })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Open containing folder' })).toBeVisible();

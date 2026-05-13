@@ -19,3 +19,46 @@
   color: #ffd6d6;
   border-color: rgba(255, 105, 105, 0.42);
 }
+
+.comments-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(52, 217, 255, 0.26);
+  border-radius: 8px;
+  background: rgba(52, 217, 255, 0.06);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.comments-panel .panel-title.compact {
+  margin-bottom: 0;
+}
+
+.comments-panel h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.comment-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 10px;
+}
+
+.comment-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.comment-composer {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.comment-composer textarea {
+  min-height: 82px;
+}

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { catchViewRows, type CatchSort, type CatchVerdictFilter } from '../domain/catchView';
 import { distributionForCriterion, scoreSamples } from '../domain/engine';
+import { readBrowserProviderSecret } from '../domain/keychain';
 import { streamOllamaCriterionScore } from '../domain/ollama';
+import { isRemoteJudge, scoreProviderCriterion } from '../domain/providerJudge';
 import type { ScoreResult, RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
 import { previewScaleWalls } from '../domain/scaleWalls';
 import { SampleControls } from './SampleControls';
@@ -26,6 +28,9 @@ export function PreviewPanel(props: {
   const [ollamaTraces, setOllamaTraces] = useState<Record<string, string>>({});
   const [ollamaScores, setOllamaScores] = useState<Record<string, ScoreResult>>({});
   const [ollamaError, setOllamaError] = useState('');
+  const [providerRunningId, setProviderRunningId] = useState<string | null>(null);
+  const [providerScores, setProviderScores] = useState<Record<string, ScoreResult>>({});
+  const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
   const [catchCriterionId, setCatchCriterionId] = useState(props.project.criteria[0]?.id ?? '');
   const [catchSort, setCatchSort] = useState<CatchSort>('confidence');
   const [catchVerdict, setCatchVerdict] = useState<CatchVerdictFilter>('all');
@@ -49,9 +54,9 @@ export function PreviewPanel(props: {
     if (lowConfidenceOnly && result.confidence >= 0.72) return false;
     return true;
   });
-  const resultsWithLiveOllama = visibleResults.map((result) => {
+  const resultsWithLiveScores = visibleResults.map((result) => {
     const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
-    return ollamaScores[key] ?? result;
+    return providerScores[key] ?? ollamaScores[key] ?? result;
   });
   const catchRows = catchViewRows(props.project, props.results, catchCriterionId, catchSort, catchVerdict);
   const themeDistributions = props.project.themes.map((theme) => {
@@ -95,6 +100,38 @@ export function PreviewPanel(props: {
     }
   }
 
+  async function runProviderScore(result: ScoreResult) {
+    const criterion = props.project.criteria.find((item) => item.id === result.criterionId);
+    const judge = props.project.judges.find((item) => item.id === result.judgeId);
+    if (!criterion || !judge || !isRemoteJudge(judge)) {
+      return;
+    }
+    const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
+    const apiKey = readBrowserProviderSecret(judge);
+    if (!apiKey) {
+      setProviderErrors((current) => ({ ...current, [judge.id]: 'Configure this BYO provider key in Settings first.' }));
+      return;
+    }
+    setProviderRunningId(key);
+    setProviderErrors((current) => ({ ...current, [judge.id]: '' }));
+    try {
+      const score = await scoreProviderCriterion({
+        judge,
+        criterion,
+        sample: props.selectedSample,
+        apiKey,
+      });
+      setProviderScores((current) => ({ ...current, [key]: score }));
+    } catch (error) {
+      setProviderErrors((current) => ({
+        ...current,
+        [judge.id]: error instanceof Error ? error.message : 'Direct provider scoring failed.',
+      }));
+    } finally {
+      setProviderRunningId(null);
+    }
+  }
+
   return (
     <div className="panel-grid preview-grid">
       <section className="glass-panel">
@@ -134,8 +171,12 @@ export function PreviewPanel(props: {
               {judge.provider === 'ollama' && props.surface === 'browser' ? (
                 <div className="callout"><strong>Desktop only</strong><p>Browser edition cannot reach local model judges. Open the desktop app for Ollama streaming.</p></div>
               ) : null}
+              {props.surface === 'browser' && isRemoteJudge(judge) ? (
+                <div className="callout"><strong>Direct BYO scoring</strong><p>{judge.provider} calls run from this browser with your session key and are never proxied through AuraOne.</p></div>
+              ) : null}
               {judge.provider === 'ollama' && ollamaError ? <span className="inline-error" role="alert">{ollamaError}</span> : null}
-              {resultsWithLiveOllama
+              {providerErrors[judge.id] ? <span className="inline-error" role="alert">{providerErrors[judge.id]}</span> : null}
+              {resultsWithLiveScores
                 .filter((result) => result.judgeId === judge.id)
                 .map((result) => (
                   <details key={`${result.judgeId}-${result.criterionId}`} className={`score-card ${result.verdict}`}>
@@ -160,9 +201,19 @@ export function PreviewPanel(props: {
                         ) : null}
                       </div>
                     ) : null}
+                    {props.surface === 'browser' && isRemoteJudge(judge) ? (
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        disabled={!judge.keyConfigured || providerRunningId === `${result.sampleId}:${result.criterionId}:${result.judgeId}`}
+                        onClick={() => runProviderScore(result)}
+                      >
+                        {providerRunningId === `${result.sampleId}:${result.criterionId}:${result.judgeId}` ? 'Scoring...' : 'Run direct provider score'}
+                      </button>
+                    ) : null}
                   </details>
                 ))}
-              {resultsWithLiveOllama.filter((result) => result.judgeId === judge.id).length === 0 ? (
+              {resultsWithLiveScores.filter((result) => result.judgeId === judge.id).length === 0 ? (
                 <EmptyState title="No visible scores" body="Adjust filters or score a different sample." />
               ) : null}
             </div>

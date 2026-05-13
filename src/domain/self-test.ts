@@ -4,8 +4,9 @@ import { createCriterionVariantBranch } from './branching';
 import { browserFolderArtifacts, projectFromBrowserFolder } from './browserFolder';
 import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
-import { configureProviderKey, keychainKeyForJudge, validateProviderSecret } from './keychain';
+import { configureProviderKey, keychainKeyForJudge, readBrowserProviderSecret, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
+import { buildProviderScoringPrompt, isRemoteJudge, parseProviderScore, scoreProviderCriterion } from './providerJudge';
 import { classifyDeepLink } from './deepLink';
 import { clearRecentProjects, readRecentProjects, rememberProject } from './projectOpen';
 import { checkForPlatformUpdate, fallbackReliabilityStatus } from './reliability';
@@ -26,6 +27,7 @@ assert.ok(issues.some((issue) => issue.severity === 'warning'));
 assert.ok(sampleProject.judges.some((judge) => judge.provider === 'ollama' && judge.model.includes('llama')));
 const openAiJudge = sampleProject.judges.find((judge) => judge.provider === 'openai');
 assert.ok(openAiJudge);
+assert.ok(isRemoteJudge(openAiJudge));
 assert.equal(keychainKeyForJudge(openAiJudge).scope, 'byo-api-keys');
 assert.equal(validateProviderSecret('short')?.includes('provider key'), true);
 assert.equal(validateProviderSecret('sk-test-value'), null);
@@ -51,6 +53,7 @@ const browserKeyReceipt = await configureProviderKey(openAiJudge, 'sk-test-value
 assert.equal(browserKeyReceipt.backend, 'browser-session-memory');
 assert.equal(browserKeyReceipt.stores_user_content, false);
 assert.equal(sessionMemory.get(`rso:key:${openAiJudge.provider}:${openAiJudge.id}`), 'configured');
+assert.equal(readBrowserProviderSecret(openAiJudge), 'sk-test-value');
 assert.equal(normalizeShortcut('cmd-shift-n'), 'Cmd/Ctrl-Shift-N');
 const shortcutAudit = auditStudioActions(defaultShortcutRows());
 assert.deepEqual(shortcutAudit.missingShortcutLabels, []);
@@ -75,6 +78,34 @@ const ollamaStatus = await detectOllama(async () => new Response(
 ));
 assert.equal(ollamaStatus.detected, true);
 assert.equal(ollamaStatus.models[0].name, 'llama3.1:8b');
+const providerPrompt = buildProviderScoringPrompt(sampleProject.criteria[0], sampleProject.samples[0]);
+assert.ok(providerPrompt.includes('Return only JSON'));
+assert.ok(providerPrompt.includes(sampleProject.samples[0].response));
+const providerScore = parseProviderScore(
+  'gpt-5-mini',
+  sampleProject.criteria[0].id,
+  sampleProject.samples[0].id,
+  '{"verdict":"partial","confidence":0.83,"reasoning":"Needs one more concrete step."}',
+);
+assert.equal(providerScore.verdict, 'partial');
+assert.equal(providerScore.confidence, 0.83);
+const directOpenAiScore = await scoreProviderCriterion({
+  judge: openAiJudge,
+  criterion: sampleProject.criteria[0],
+  sample: sampleProject.samples[0],
+  apiKey: 'sk-test-value',
+  fetcher: async (input, init) => {
+    assert.equal(String(input), 'https://api.openai.com/v1/responses');
+    assert.equal((init?.headers as Record<string, string>).Authorization, 'Bearer sk-test-value');
+    assert.ok(String(init?.body).includes(sampleProject.criteria[0].label));
+    return new Response(
+      JSON.stringify({ output_text: '{"verdict":"pass","confidence":0.91,"reasoning":"Meets the criterion."}' }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+  },
+});
+assert.equal(directOpenAiScore.verdict, 'pass');
+assert.equal(directOpenAiScore.judgeId, openAiJudge.id);
 const reliabilityStatus = fallbackReliabilityStatus(false, 'beta');
 assert.equal(reliabilityStatus.crash.default_off, true);
 assert.equal(reliabilityStatus.crash.sends_user_authored_content, false);

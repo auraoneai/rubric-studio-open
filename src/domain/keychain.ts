@@ -24,6 +24,9 @@ export interface KeychainStatus {
 
 type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 
+const browserKeyPrefix = 'rso:key';
+const browserSecretPrefix = 'rso:secret';
+
 export function keychainKeyForJudge(judge: JudgeConfig): KeychainKey {
   return {
     service: 'rubric-studio-open',
@@ -50,7 +53,8 @@ export async function configureProviderKey(
   }
   const key = keychainKeyForJudge(judge);
   if (surface === 'browser') {
-    sessionStorage.setItem(`rso:key:${judge.provider}:${judge.id}`, 'configured');
+    sessionStorage.setItem(browserProviderMarker(judge), 'configured');
+    sessionStorage.setItem(browserProviderSecretKey(judge), secret.trim());
     return {
       service: key.service,
       scope: key.scope,
@@ -71,6 +75,10 @@ export async function configureProviderKey(
     value: secret,
     secret: true,
   });
+}
+
+export function readBrowserProviderSecret(judge: JudgeConfig): string | null {
+  return sessionStorage.getItem(browserProviderSecretKey(judge));
 }
 
 export async function getKeychainStatus(surface: SurfaceMode): Promise<KeychainStatus> {
@@ -111,6 +119,14 @@ declare global {
 
 function slugKeychainIdentifier(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function browserProviderMarker(judge: JudgeConfig): string {
+  return `${browserKeyPrefix}:${judge.provider}:${judge.id}`;
+}
+
+function browserProviderSecretKey(judge: JudgeConfig): string {
+  return `${browserSecretPrefix}:${judge.provider}:${judge.id}`;
 }
 
 function stableHash(value: string): string {

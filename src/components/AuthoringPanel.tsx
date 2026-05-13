@@ -18,6 +18,7 @@ import {
   type RubricProject,
 } from '../domain/rubric';
 import { searchProject, validateProject } from '../domain/validation';
+import './AuthoringPanel.css';
 
 export function AuthoringPanel(props: {
   project: RubricProject;
@@ -37,11 +38,13 @@ export function AuthoringPanel(props: {
   onBulkUpdate: (criterionIds: string[], patch: Partial<Criterion>) => void;
   onAdd: (themeId: string) => void;
   onMove: (direction: -1 | 1) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
   onToggleTheme: (themeId: string) => void;
 }) {
   const { project, criterion, issues } = props;
   const tagOptions = Array.from(new Set(project.criteria.flatMap((item) => item.tags))).sort();
   const [bulkIds, setBulkIds] = useState<string[]>([]);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const bulkSelected = new Set(bulkIds);
 
   function toggleBulk(criterionId: string) {
@@ -107,10 +110,38 @@ export function AuthoringPanel(props: {
                         </label>
                         <button
                           draggable
-                          className={item.id === criterion.id ? 'criterion-row active' : 'criterion-row'}
+                          className={[
+                            'criterion-row',
+                            item.id === criterion.id ? 'active' : '',
+                            item.id === dragOverId ? 'drag-over' : '',
+                          ].filter(Boolean).join(' ')}
                           type="button"
+                          data-criterion-id={item.id}
+                          data-theme-id={item.themeId}
                           aria-current={item.id === criterion.id ? 'true' : undefined}
                           onClick={() => props.onSelect(item.id)}
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/rubric-criterion-id', item.id);
+                            event.dataTransfer.setData('text/plain', item.id);
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = 'move';
+                            setDragOverId(item.id);
+                          }}
+                          onDragLeave={() => setDragOverId((current) => (current === item.id ? null : current))}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            const draggedId =
+                              event.dataTransfer.getData('text/rubric-criterion-id') ||
+                              event.dataTransfer.getData('text/plain');
+                            setDragOverId(null);
+                            if (draggedId) {
+                              props.onReorder(draggedId, item.id);
+                            }
+                          }}
+                          onDragEnd={() => setDragOverId(null)}
                         >
                           <span>{item.label}</span>
                           <small>{item.scale}</small>

@@ -51,6 +51,13 @@ try {
   await expect(page.locator('body')).toContainText('Created browser starter project in local storage');
 
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
+  await page.locator('[data-criterion-id="cites-uncertainty"]').dragTo(page.locator('[data-criterion-id="actionable-alternative"]'));
+  await expect(page.locator('[data-criterion-id="cites-uncertainty"][data-theme-id="helpfulness"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cites uncertainty' })).toBeVisible();
+  const criterionOrder = await page.locator('[aria-label="Criterion tree"] [data-criterion-id]').evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-criterion-id')),
+  );
+  expect(criterionOrder.slice(0, 4)).toEqual(['safe-refusal', 'cites-uncertainty', 'actionable-alternative', 'specificity']);
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
   await expect(page.getByText('Live testing')).toBeVisible();

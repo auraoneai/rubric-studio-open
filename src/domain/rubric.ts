@@ -161,6 +161,26 @@ export function createCriterion(themeId: string, index: number): Criterion {
   };
 }
 
+export function reorderCriteria(criteria: Criterion[], draggedId: string, targetId: string): Criterion[] {
+  if (draggedId === targetId) {
+    return criteria;
+  }
+  const dragged = criteria.find((criterion) => criterion.id === draggedId);
+  const target = criteria.find((criterion) => criterion.id === targetId);
+  if (!dragged || !target) {
+    return criteria;
+  }
+
+  const reordered = criteria.filter((criterion) => criterion.id !== draggedId);
+  const targetIndex = reordered.findIndex((criterion) => criterion.id === targetId);
+  if (targetIndex < 0) {
+    return criteria;
+  }
+
+  reordered.splice(targetIndex, 0, { ...dragged, themeId: target.themeId });
+  return reordered;
+}
+
 export const sampleProject: RubricProject = {
   id: 'helpful-response-evaluation',
   name: 'Helpful Response Evaluation',

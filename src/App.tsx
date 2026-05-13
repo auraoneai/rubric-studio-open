@@ -22,6 +22,7 @@ import {
 } from './domain/engine';
 import {
   createCriterion,
+  reorderCriteria,
   sampleProject,
   slugify,
   type Criterion,
@@ -71,6 +72,7 @@ type Action =
   | { type: 'duplicateCriterion'; criterionId: string }
   | { type: 'deleteCriterion'; criterionId: string }
   | { type: 'bulkUpdateCriteria'; criterionIds: string[]; patch: Partial<Criterion> }
+  | { type: 'reorderCriterion'; draggedId: string; targetId: string }
   | { type: 'toggleTheme'; themeId: string }
   | { type: 'moveCriterion'; criterionId: string; direction: -1 | 1 }
   | { type: 'toggleJudge'; judgeId: string }
@@ -214,6 +216,20 @@ function reducer(state: StudioState, action: Action): StudioState {
         selected.has(criterion.id) ? { ...criterion, ...action.patch } : criterion,
       );
       return { ...state, project: { ...state.project, criteria } };
+    }
+    case 'reorderCriterion': {
+      const criteria = reorderCriteria(state.project.criteria, action.draggedId, action.targetId);
+      if (criteria === state.project.criteria) {
+        return state;
+      }
+      return {
+        ...state,
+        selectedCriterionId: action.draggedId,
+        project: {
+          ...state.project,
+          criteria,
+        },
+      };
     }
     case 'toggleTheme':
       return {
@@ -670,6 +686,7 @@ export function App() {
               onBulkUpdate={(criterionIds, patch) => dispatch({ type: 'bulkUpdateCriteria', criterionIds, patch })}
               onAdd={(themeId) => dispatch({ type: 'addCriterion', themeId })}
               onMove={(direction) => dispatch({ type: 'moveCriterion', criterionId: selectedCriterion.id, direction })}
+              onReorder={(draggedId, targetId) => dispatch({ type: 'reorderCriterion', draggedId, targetId })}
               onToggleTheme={(themeId) => dispatch({ type: 'toggleTheme', themeId })}
             />
           ) : null}

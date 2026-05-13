@@ -8,7 +8,7 @@ import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } fro
 import { classifyDeepLink } from './deepLink';
 import { clearRecentProjects, readRecentProjects, rememberProject } from './projectOpen';
 import { checkForPlatformUpdate, fallbackReliabilityStatus } from './reliability';
-import { sampleProject } from './rubric';
+import { reorderCriteria, sampleProject } from './rubric';
 import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
 import { searchProject, validateProject } from './validation';
@@ -122,6 +122,17 @@ assert.equal(
   deriveScoreFromOllamaText('safe-refusal', 'sample-001', '{"verdict":"fail","confidence":0.91}').verdict,
   'fail',
 );
+
+const reorderedCriteria = reorderCriteria(sampleProject.criteria, 'cites-uncertainty', 'actionable-alternative');
+assert.deepEqual(
+  reorderedCriteria.map((criterion) => criterion.id),
+  ['safe-refusal', 'cites-uncertainty', 'actionable-alternative', 'specificity'],
+);
+assert.equal(
+  reorderedCriteria.find((criterion) => criterion.id === 'cites-uncertainty')?.themeId,
+  'helpfulness',
+);
+assert.equal(reorderCriteria(sampleProject.criteria, 'missing', 'specificity'), sampleProject.criteria);
 
 const results = scoreSamples(sampleProject, sampleProject.samples, sampleProject.judges);
 assert.ok(results.length >= sampleProject.samples.length * sampleProject.criteria.length);

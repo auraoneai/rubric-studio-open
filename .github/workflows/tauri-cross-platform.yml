@@ -109,6 +109,11 @@ jobs:
           & "$HOME/.cargo/bin/msedgedriver-tool.exe"
           $PWD.Path >> $env:GITHUB_PATH
 
+      - name: Install Microsoft Edge WebView2 runtime
+        run: |
+          Invoke-WebRequest -Uri https://go.microsoft.com/fwlink/p/?LinkId=2124703 -OutFile MicrosoftEdgeWebview2Setup.exe
+          Start-Process .\MicrosoftEdgeWebview2Setup.exe -ArgumentList "/silent /install" -Wait
+
       - name: Install Tauri WebDriver bridge
         run: cargo install tauri-driver --version 2.0.6 --locked
 

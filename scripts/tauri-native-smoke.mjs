@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,9 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.RSO_TAURI_DRIVER_PORT ?? 4455);
 const requestTimeoutMs = Number(process.env.RSO_TAURI_WEBDRIVER_TIMEOUT_MS ?? 30_000);
 const application = process.env.RSO_TAURI_APP_PATH ?? defaultApplicationPath();
+const webviewUserDataFolder = process.platform === 'win32'
+  ? mkdtempSync(join(tmpdir(), 'rso-webview2-'))
+  : undefined;
 
 const driverProbe = spawnSync('tauri-driver', ['--help'], {
   encoding: 'utf8',
@@ -39,7 +43,7 @@ try {
     capabilities: {
       alwaysMatch: {
         browserName: 'wry',
-        'tauri:options': { application },
+        'tauri:options': tauriOptions(),
       },
     },
   });
@@ -67,6 +71,20 @@ function defaultApplicationPath() {
     return join(root, 'src-tauri/target/debug/rubric-studio-open.exe');
   }
   return join(root, 'src-tauri/target/debug/rubric-studio-open');
+}
+
+function tauriOptions() {
+  if (process.platform !== 'win32') {
+    return { application };
+  }
+
+  return {
+    application,
+    webviewOptions: {
+      userDataFolder: webviewUserDataFolder,
+      additionalBrowserArguments: ['disable-gpu', 'no-first-run'],
+    },
+  };
 }
 
 async function waitForDriver() {

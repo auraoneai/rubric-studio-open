@@ -24,6 +24,7 @@ export const studioActions: StudioActionDefinition[] = [
   { label: 'Duplicate criterion', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-D' },
   { label: 'Delete criterion', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-Backspace' },
   { label: 'Save current project', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-S' },
+  { label: 'New project from template', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-Alt-N' },
   { label: 'Quick open', category: 'navigation', defaultShortcut: 'Cmd/Ctrl-P' },
   { label: 'Run preview', category: 'preview', defaultShortcut: 'Cmd/Ctrl-R' },
   { label: 'Score current sample', category: 'preview', defaultShortcut: 'Cmd/Ctrl-Enter' },

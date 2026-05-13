@@ -51,6 +51,7 @@ assert.ok(tauriMain.includes('tauri_plugin_deep_link::init()'), 'Tauri shell mus
 assert.ok(tauriMain.includes('tauri_plugin_dialog::init()'), 'Tauri shell must register the dialog plugin');
 assert.ok(tauriMain.includes('deep_link::register'), 'Tauri shell must attach the deep-link event handler');
 assert.ok(tauriMain.includes('open_rubric_project_folder'), 'Tauri shell must expose rubric project folder opening');
+assert.ok(tauriMain.includes('create_rubric_project_from_template'), 'Tauri shell must expose starter project folder creation');
 assert.ok(deepLinkSource.includes('auraone://deep-link'), 'deep-link handler must emit the renderer event');
 assert.ok(deepLinkSource.includes('rubric-studio-open'), 'deep-link parser must recognize Rubric Studio Open');
 assert.ok(rendererDeepLinkSource.includes("listen<DeepLinkPayload>('auraone://deep-link'"), 'renderer must listen for deep-link events');
@@ -58,8 +59,10 @@ assert.ok(rendererDeepLinkSource.includes('open_rubric_project_folder'), 'render
 assert.ok(projectOpenSource.includes("@tauri-apps/plugin-dialog"), 'desktop project opener must use the Tauri folder picker');
 assert.ok(projectOpenSource.includes('onDragDropEvent'), 'desktop project opener must handle project folder drops');
 assert.ok(projectOpenSource.includes('rso:recent-projects'), 'desktop project opener must persist recent projects');
+assert.ok(projectOpenSource.includes('create_rubric_project_from_template'), 'desktop project opener must create starter folders from the template');
 assert.ok(appSource.includes('Open Folder'), 'desktop shell must expose an Open Folder control');
 assert.ok(appSource.includes('Open recent project'), 'desktop shell must expose recent project reopening');
+assert.ok(appSource.includes('New from Template'), 'desktop and browser shells must expose new-project-from-template');
 assert.ok(tauriCapability.permissions.includes('dialog:default'), 'desktop shell must allow the dialog folder picker');
 assert.deepEqual(tauriConfig.plugins['deep-link'].desktop.schemes, ['auraone']);
 assert.ok(workflow.includes('macos-latest'), 'cross-platform Tauri workflow must include macOS');

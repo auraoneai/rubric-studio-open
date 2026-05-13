@@ -11,7 +11,7 @@ export interface OpenedRubricProject {
   project: RubricProject;
   path: string;
   openedAt: string;
-  source: 'desktop-folder';
+  source: 'desktop-folder' | 'desktop-template';
 }
 
 export type DeepLinkTarget =

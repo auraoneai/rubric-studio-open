@@ -3,7 +3,10 @@ use sha2::{Digest, Sha256};
 
 mod project;
 
-pub use project::{open_rubric_project_folder, OpenedRubricProject, ProjectOpenFailure};
+pub use project::{
+    create_rubric_project_from_template, open_rubric_project_folder, OpenedRubricProject,
+    ProjectOpenFailure,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CriterionInput {
@@ -695,5 +698,33 @@ mod tests {
             .iter()
             .any(|judge| judge.id == "local-mock"));
         assert!(!opened.project.judges[0].key_configured);
+    }
+
+    #[test]
+    fn creates_rubric_project_from_template_folder() {
+        let parent = std::env::temp_dir().join(format!(
+            "rubric-studio-open-template-test-{}-{}",
+            std::process::id(),
+            stable_hash("template")
+        ));
+        std::fs::create_dir_all(&parent).unwrap();
+
+        let opened =
+            create_rubric_project_from_template(parent.clone(), "Demo Template Rubric".into())
+                .unwrap();
+
+        assert_eq!(opened.project.id, "demo-template-rubric");
+        assert_eq!(opened.project.criteria.len(), 4);
+        assert!(PathBuf::from(&opened.path).join("rubric.toml").exists());
+        assert!(PathBuf::from(&opened.path)
+            .join("criteria/safety/safe-refusal.toml")
+            .exists());
+        assert!(opened
+            .project
+            .samples
+            .iter()
+            .any(|sample| sample.id == "sample-003"));
+
+        std::fs::remove_dir_all(parent).unwrap();
     }
 }

@@ -25,6 +25,8 @@ type Webview = {
   onDragDropEvent(handler: (event: DragDropEvent) => void): Promise<() => void>;
 };
 
+type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+
 export async function pickRubricProjectFolder(): Promise<string | null> {
   if (!isDesktopShell()) {
     return null;
@@ -39,6 +41,34 @@ export async function pickRubricProjectFolder(): Promise<string | null> {
     title: 'Open Rubric Studio project folder',
   });
   return typeof selected === 'string' ? selected : null;
+}
+
+export async function createRubricProjectFromTemplate(name: string): Promise<OpenedRubricProject | null> {
+  if (!isDesktopShell()) {
+    return null;
+  }
+  const open = await loadDialogOpen();
+  if (!open) {
+    throw new Error('Desktop template picker is unavailable.');
+  }
+  const parent = await open({
+    directory: true,
+    multiple: false,
+    title: 'Choose parent folder for the starter rubric project',
+  });
+  if (typeof parent !== 'string') {
+    return null;
+  }
+  const invoke = await loadTauriInvoke();
+  if (!invoke) {
+    throw new Error('Desktop template creator is unavailable.');
+  }
+  const opened = await invoke<OpenedRubricProject>('create_rubric_project_from_template', {
+    parent,
+    name,
+  });
+  rememberProject(opened.project.name, opened.path);
+  return opened;
 }
 
 export async function openRubricProjectPath(path: string): Promise<OpenedRubricProject> {
@@ -93,6 +123,10 @@ export function clearRecentProjects(): void {
   localStorage.removeItem(recentProjectsKey);
 }
 
+export function defaultTemplateProjectName(): string {
+  return 'Helpful Response Evaluation';
+}
+
 export function isDesktopShell(): boolean {
   return window.__TAURI_INTERNALS__ !== undefined;
 }
@@ -110,6 +144,15 @@ async function loadCurrentWebview(): Promise<Webview | null> {
   try {
     const api = await import('@tauri-apps/api/webview');
     return api.getCurrentWebview() as Webview;
+  } catch {
+    return null;
+  }
+}
+
+async function loadTauriInvoke(): Promise<TauriInvoke | null> {
+  try {
+    const api = await import('@tauri-apps/api/core');
+    return api.invoke as TauriInvoke;
   } catch {
     return null;
   }

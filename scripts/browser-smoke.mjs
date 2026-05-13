@@ -41,6 +41,13 @@ try {
     await page.getByRole('button', { name: 'Skip tour' }).click();
   }
 
+  page.once('dialog', async (dialog) => {
+    await dialog.accept('Browser Starter Rubric');
+  });
+  await page.getByRole('button', { name: 'New from Template' }).click();
+  await expect(page.getByText('Browser Starter Rubric')).toBeVisible();
+  await expect(page.locator('body')).toContainText('Created browser starter project in local storage');
+
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();

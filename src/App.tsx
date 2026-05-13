@@ -3,6 +3,7 @@ import {
   BookOpen,
   Command,
   Eye,
+  FilePlus2,
   FileText,
   FolderOpen,
   GitCompare,
@@ -39,6 +40,8 @@ import { actionForShortcut, shortcutForAction, type ShortcutRow } from './domain
 import { classifyDeepLink, connectDesktopDeepLinks } from './domain/deepLink';
 import {
   connectProjectDrop,
+  createRubricProjectFromTemplate,
+  defaultTemplateProjectName,
   openRubricProjectPath,
   pickRubricProjectFolder,
   readRecentProjects,
@@ -484,6 +487,7 @@ export function App() {
       localStorage.setItem('rso:project', JSON.stringify(state.project));
       setToast('Saved current project');
     }
+    if (action === 'New project from template') void createProjectFromTemplate();
     if (action === 'Quick open') void openProjectPicker();
     if (action === 'Switch to Authoring') setActiveTab('authoring');
     if (action === 'Switch to Preview') setActiveTab('preview');
@@ -511,6 +515,30 @@ export function App() {
       }
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'Project folder picker failed');
+    }
+  }
+
+  async function createProjectFromTemplate() {
+    const name = window.prompt('Project name', defaultTemplateProjectName())?.trim() || defaultTemplateProjectName();
+    if (surface === 'browser') {
+      dispatch({ type: 'replaceProject', project: { ...sampleProject, id: slugify(name), name } });
+      setOpenedProjectPath(null);
+      setActiveTab('authoring');
+      setToast('Created browser starter project in local storage');
+      return;
+    }
+    try {
+      const opened = await createRubricProjectFromTemplate(name);
+      if (!opened) {
+        return;
+      }
+      dispatch({ type: 'replaceProject', project: opened.project });
+      setOpenedProjectPath(opened.path);
+      setRecentProjects(readRecentProjects());
+      setActiveTab('authoring');
+      setToast(`Created ${opened.project.name} from starter template`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Starter project could not be created');
     }
   }
 
@@ -578,6 +606,10 @@ export function App() {
           })}
         </nav>
         <div className="top-actions">
+          <button className="glass-button" type="button" onClick={() => void createProjectFromTemplate()}>
+            <FilePlus2 className="button-icon" aria-hidden="true" />
+            New from Template
+          </button>
           {surface === 'desktop' ? (
             <>
               <button className="glass-button" type="button" onClick={() => void openProjectPicker()}>

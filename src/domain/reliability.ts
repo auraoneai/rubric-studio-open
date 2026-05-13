@@ -45,6 +45,12 @@ export type UpdateCheckResult =
     };
 
 type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+type DesktopUpdate = {
+  version: string;
+  body?: string | null;
+  date?: string | null;
+};
+type DesktopUpdateChecker = () => Promise<DesktopUpdate | null>;
 
 export async function getReliabilityStatus(
   surface: SurfaceMode,
@@ -92,7 +98,10 @@ export function fallbackReliabilityStatus(
   };
 }
 
-export async function checkForPlatformUpdate(surface: SurfaceMode): Promise<UpdateCheckResult> {
+export async function checkForPlatformUpdate(
+  surface: SurfaceMode,
+  checker?: DesktopUpdateChecker,
+): Promise<UpdateCheckResult> {
   const checked_at = new Date().toISOString();
   if (surface !== 'desktop') {
     return {
@@ -102,8 +111,7 @@ export async function checkForPlatformUpdate(surface: SurfaceMode): Promise<Upda
     };
   }
   try {
-    const updater = await import('@tauri-apps/plugin-updater');
-    const update = await updater.check();
+    const update = await (checker ?? defaultDesktopUpdateChecker)();
     if (!update) {
       return { status: 'current', checked_at };
     }
@@ -121,6 +129,11 @@ export async function checkForPlatformUpdate(surface: SurfaceMode): Promise<Upda
       checked_at,
     };
   }
+}
+
+async function defaultDesktopUpdateChecker(): Promise<DesktopUpdate | null> {
+  const updater = await import('@tauri-apps/plugin-updater');
+  return updater.check();
 }
 
 async function tauriInvoke(): Promise<Invoke | null> {

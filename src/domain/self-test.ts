@@ -116,6 +116,21 @@ const browserUpdateCheck = await checkForPlatformUpdate('browser');
 assert.equal(browserUpdateCheck.status, 'unavailable');
 assert.ok(Date.parse(browserUpdateCheck.checked_at) > 0);
 assert.equal(browserUpdateCheck.reason.includes('Browser edition'), true);
+const currentDesktopUpdateCheck = await checkForPlatformUpdate('desktop', async () => null);
+assert.equal(currentDesktopUpdateCheck.status, 'current');
+const availableDesktopUpdateCheck = await checkForPlatformUpdate('desktop', async () => ({
+  version: '0.1.1',
+  body: 'Signed update manifest fixture.',
+  date: '2026-05-13',
+}));
+assert.equal(availableDesktopUpdateCheck.status, 'available');
+assert.equal(availableDesktopUpdateCheck.version, '0.1.1');
+assert.equal(availableDesktopUpdateCheck.body, 'Signed update manifest fixture.');
+const failedDesktopUpdateCheck = await checkForPlatformUpdate('desktop', async () => {
+  throw new Error('signed manifest endpoint unavailable');
+});
+assert.equal(failedDesktopUpdateCheck.status, 'error');
+assert.equal(failedDesktopUpdateCheck.reason, 'signed manifest endpoint unavailable');
 assert.deepEqual(
   classifyDeepLink({
     flagship: 'rubric-studio-open',

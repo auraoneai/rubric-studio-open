@@ -445,9 +445,15 @@ try {
   await page.getByLabel('GPT-5 mini API key').fill('sk-e2e-browser-provider');
   await page.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
   await expect(page.getByLabel('GPT-5 mini API key')).toHaveAttribute('placeholder', 'Configured in session');
+  await page.locator('.setting-row', { hasText: 'Ollama local' }).getByLabel('Enabled').check();
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
+  const ollamaColumn = page.locator('.judge-column', { hasText: 'Ollama local' });
+  await expect(ollamaColumn.getByText('Desktop only')).toBeVisible();
+  await expect(ollamaColumn.getByText('Browser edition cannot reach local model judges. Open the desktop app for Ollama streaming.')).toBeVisible();
+  await ollamaColumn.locator('details.score-card').first().locator('summary').click();
+  await expect(ollamaColumn.getByRole('button', { name: 'Stream Ollama trace' }).first()).toBeDisabled();
   const gptColumn = page.locator('.judge-column', { hasText: 'GPT-5 mini' });
   await expect(gptColumn.getByText('Direct BYO scoring')).toBeVisible();
   await gptColumn.locator('details.score-card').first().locator('summary').click();

@@ -24,6 +24,14 @@
       {
         "command": "auraone.rubricStudio.validate",
         "title": "Rubric Studio Open: Validate Project"
+      },
+      {
+        "command": "auraone.rubricStudio.commands",
+        "title": "Rubric Studio Open: Command Palette"
+      },
+      {
+        "command": "auraone.rubricStudio.exportIntake",
+        "title": "Rubric Studio Open: Prepare Intake Export"
       }
     ],
     "keybindings": [
@@ -31,6 +39,11 @@
         "command": "auraone.rubricStudio.open",
         "key": "ctrl+k ctrl+r",
         "mac": "cmd+k cmd+r"
+      },
+      {
+        "command": "auraone.rubricStudio.commands",
+        "key": "ctrl+k ctrl+k",
+        "mac": "cmd+k cmd+k"
       }
     ]
   },

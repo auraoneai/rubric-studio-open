@@ -12,6 +12,7 @@ declare module 'vscode' {
   export interface Webview {
     html: string;
     options: Record<string, unknown>;
+    cspSource: string;
     asWebviewUri(uri: Uri): Uri;
     postMessage(message: unknown): Thenable<boolean>;
     onDidReceiveMessage(listener: (message: unknown) => unknown): { dispose(): unknown };
@@ -70,6 +71,7 @@ declare module 'vscode' {
     findFiles(include: string, exclude?: string): Thenable<Uri[]>;
     fs: {
       readFile(uri: Uri): Thenable<Uint8Array>;
+      writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
     };
   };
 
@@ -78,6 +80,7 @@ declare module 'vscode' {
   };
 
   export const Uri: {
+    file(path: string): Uri;
     joinPath(base: Uri, ...pathSegments: string[]): Uri;
   };
 }

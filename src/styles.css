@@ -102,6 +102,24 @@ pre {
   background: linear-gradient(145deg, #edf8fa, #f7feff 52%, #eef2ff);
 }
 
+.app-shell[data-theme="light"] .topbar,
+.app-shell[data-theme="light"] .statusbar,
+.app-shell[data-theme="light"] .tabbar,
+.app-shell[data-theme="light"] .sidebar {
+  background: rgba(247, 253, 255, 0.84);
+}
+
+.app-shell[data-theme="light"] input,
+.app-shell[data-theme="light"] textarea,
+.app-shell[data-theme="light"] select,
+.app-shell[data-theme="light"] .export-preview,
+.app-shell[data-theme="light"] .export-item pre,
+.app-shell[data-theme="light"] .variant-preview pre,
+.app-shell[data-theme="light"] .ollama-trace pre {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+}
+
 .app-shell[data-theme="high-contrast"] {
   --bg: #000;
   --bg-2: #050505;
@@ -1161,6 +1179,34 @@ small {
   margin: 12px 0;
 }
 
+@media (max-width: 1280px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    min-width: 220px;
+  }
+
+  .menu {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
+
+  .settings-grid,
+  .preview-grid,
+  .diff-grid,
+  .export-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .git-ops,
+  .intake-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1180px) {
   body {
     min-width: 1024px;
@@ -1174,6 +1220,46 @@ small {
   .inspector,
   .calibration-grid aside {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
+
+  .top-actions,
+  .inline-actions,
+  .toggle-row {
+    flex-wrap: wrap;
+  }
+
+  .authoring-grid,
+  .form-grid,
+  .sample-controls,
+  .catch-controls,
+  .intake-flow,
+  .git-ops,
+  .status-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .criterion-row {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+
+  .criterion-row b,
+  .criterion-row em {
+    justify-self: start;
+  }
+
+  .setting-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .statusbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

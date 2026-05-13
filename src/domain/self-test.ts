@@ -3,9 +3,10 @@ import { performance } from 'node:perf_hooks';
 import { createCriterionVariantBranch } from './branching';
 import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
-import { keychainKeyForJudge, validateProviderSecret } from './keychain';
-import { buildOllamaScoringPrompt, deriveScoreFromOllamaText } from './ollama';
+import { configureProviderKey, keychainKeyForJudge, validateProviderSecret } from './keychain';
+import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
 import { sampleProject } from './rubric';
+import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
 import { searchProject, validateProject } from './validation';
 
@@ -17,7 +18,26 @@ assert.ok(openAiJudge);
 assert.equal(keychainKeyForJudge(openAiJudge).scope, 'byo-api-keys');
 assert.equal(validateProviderSecret('short')?.includes('provider key'), true);
 assert.equal(validateProviderSecret('sk-test-value'), null);
+const sessionMemory = new Map<string, string>();
+Object.defineProperty(globalThis, 'sessionStorage', {
+  configurable: true,
+  value: {
+    setItem: (key: string, value: string) => sessionMemory.set(key, value),
+    getItem: (key: string) => sessionMemory.get(key) ?? null,
+    removeItem: (key: string) => sessionMemory.delete(key),
+  },
+});
+const browserKeyReceipt = await configureProviderKey(openAiJudge, 'sk-test-value', 'browser');
+assert.equal(browserKeyReceipt.backend, 'browser-session-memory');
+assert.equal(browserKeyReceipt.stores_user_content, false);
+assert.equal(sessionMemory.get(`rso:key:${openAiJudge.provider}:${openAiJudge.id}`), 'configured');
 assert.equal(normalizeShortcut('cmd-shift-n'), 'Cmd/Ctrl-Shift-N');
+const shortcutAudit = auditStudioActions(defaultShortcutRows());
+assert.deepEqual(shortcutAudit.missingShortcutLabels, []);
+assert.deepEqual(shortcutAudit.unknownShortcutLabels, []);
+assert.deepEqual(shortcutAudit.duplicateLabels, []);
+assert.equal(defaultShortcutRows().length, studioActionLabels().length);
+assert.equal(findShortcutConflicts(defaultShortcutRows()).length, 0);
 assert.equal(
   actionForShortcut(
     { key: 'n', metaKey: true, ctrlKey: false, shiftKey: true, altKey: false },
@@ -29,6 +49,12 @@ assert.equal(findShortcutConflicts([['Cmd/Ctrl-K', 'Palette'], ['cmd-k', 'Search
 const ollamaPrompt = buildOllamaScoringPrompt(sampleProject.criteria[0], sampleProject.samples[0]);
 assert.ok(ollamaPrompt.includes('Rubric Studio Open local judge'));
 assert.ok(ollamaPrompt.includes(sampleProject.criteria[0].label));
+const ollamaStatus = await detectOllama(async () => new Response(
+  JSON.stringify({ models: [{ name: 'llama3.1:8b' }] }),
+  { headers: { 'Content-Type': 'application/json' } },
+));
+assert.equal(ollamaStatus.detected, true);
+assert.equal(ollamaStatus.models[0].name, 'llama3.1:8b');
 assert.equal(
   deriveScoreFromOllamaText('safe-refusal', 'sample-001', '{"verdict":"fail","confidence":0.91}').verdict,
   'fail',

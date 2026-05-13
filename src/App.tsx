@@ -22,7 +22,8 @@ import {
   type TelemetryEvent,
 } from './domain/rubric';
 import { searchProject, validateProject } from './domain/validation';
-import { actionForShortcut, type ShortcutRow } from './domain/shortcuts';
+import { auditStudioActions, defaultShortcutRows, studioActionCategory, studioActionLabels } from './domain/actions';
+import { actionForShortcut, shortcutForAction, type ShortcutRow } from './domain/shortcuts';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { BrowserProjectControls } from './components/BrowserProjectControls';
 import { PreviewPanel } from './components/PreviewPanel';
@@ -56,82 +57,13 @@ interface StudioState {
   selectedSampleId: string;
 }
 
-const tabs: Array<{ id: Tab; label: string; shortcut: string }> = [
-  { id: 'authoring', label: 'Authoring', shortcut: '1' },
-  { id: 'preview', label: 'Preview', shortcut: '2' },
-  { id: 'calibration', label: 'Calibration', shortcut: '3' },
-  { id: 'diff', label: 'Diff', shortcut: '4' },
-  { id: 'export', label: 'Export', shortcut: '5' },
-  { id: 'settings', label: 'Settings', shortcut: ',' },
-];
-
-const commandList = [
-  'New criterion',
-  'New theme',
-  'Duplicate criterion',
-  'Delete criterion',
-  'Save current project',
-  'Quick open',
-  'Run preview',
-  'Score current sample',
-  'Score all samples',
-  'Open calibration',
-  'Run bias probes',
-  'Run contamination audit',
-  'Open semantic diff',
-  'Try criterion variant',
-  'Export: lm-eval-harness',
-  'Export: Inspect',
-  'Export: OpenAI Evals',
-  'Export: Promptfoo',
-  'Export: AuraOne intake package',
-  'Generate CI helper',
-  'Git init',
-  'Git commit',
-  'Toggle comments',
-  'Open keyboard shortcuts',
-  'Switch to Authoring',
-  'Switch to Preview',
-  'Switch to Calibration',
-  'Switch to Diff',
-  'Switch to Export',
-  'Switch to Settings',
-  'Toggle browser constraints',
-];
-
-const shortcutRows: ShortcutRow[] = [
-  ['Cmd/Ctrl-K', 'Command palette'],
-  ['Cmd/Ctrl-N', 'New criterion'],
-  ['Cmd/Ctrl-Shift-N', 'New theme'],
-  ['Cmd/Ctrl-D', 'Duplicate criterion'],
-  ['Cmd/Ctrl-Backspace', 'Delete criterion'],
-  ['Cmd/Ctrl-S', 'Save current project'],
-  ['Cmd/Ctrl-P', 'Quick open'],
-  ['Cmd/Ctrl-R', 'Run preview'],
-  ['Cmd/Ctrl-Enter', 'Score current sample'],
-  ['Cmd/Ctrl-Shift-Enter', 'Score all samples'],
-  ['Cmd/Ctrl-/', 'Toggle comments'],
-  ['Cmd/Ctrl-Alt-C', 'Open calibration'],
-  ['Cmd/Ctrl-Shift-B', 'Run bias probes'],
-  ['Cmd/Ctrl-Shift-A', 'Run contamination audit'],
-  ['Cmd/Ctrl-Alt-D', 'Open semantic diff'],
-  ['Cmd/Ctrl-Shift-V', 'Try criterion variant'],
-  ['Cmd/Ctrl-Alt-1', 'Export: lm-eval-harness'],
-  ['Cmd/Ctrl-Alt-2', 'Export: Inspect'],
-  ['Cmd/Ctrl-Alt-3', 'Export: OpenAI Evals'],
-  ['Cmd/Ctrl-Alt-4', 'Export: Promptfoo'],
-  ['Cmd/Ctrl-Alt-5', 'Export: AuraOne intake package'],
-  ['Cmd/Ctrl-Alt-6', 'Generate CI helper'],
-  ['Cmd/Ctrl-G', 'Git init'],
-  ['Cmd/Ctrl-Shift-G', 'Git commit'],
-  ['Cmd/Ctrl-,', 'Open keyboard shortcuts'],
-  ['Cmd/Ctrl-1', 'Switch to Authoring'],
-  ['Cmd/Ctrl-2', 'Switch to Preview'],
-  ['Cmd/Ctrl-3', 'Switch to Calibration'],
-  ['Cmd/Ctrl-4', 'Switch to Diff'],
-  ['Cmd/Ctrl-5', 'Switch to Export'],
-  ['Cmd/Ctrl-6', 'Switch to Settings'],
-  ['Cmd/Ctrl-Shift-M', 'Toggle browser constraints'],
+const tabs: Array<{ id: Tab; label: string; action: string }> = [
+  { id: 'authoring', label: 'Authoring', action: 'Switch to Authoring' },
+  { id: 'preview', label: 'Preview', action: 'Switch to Preview' },
+  { id: 'calibration', label: 'Calibration', action: 'Switch to Calibration' },
+  { id: 'diff', label: 'Diff', action: 'Switch to Diff' },
+  { id: 'export', label: 'Export', action: 'Switch to Export' },
+  { id: 'settings', label: 'Settings', action: 'Switch to Settings' },
 ];
 
 function reducer(state: StudioState, action: Action): StudioState {
@@ -293,7 +225,7 @@ export function App() {
   const [updateChannel, setUpdateChannel] = useState<'stable' | 'beta'>('stable');
   const [telemetryLog, setTelemetryLog] = useState<TelemetryEvent[]>([]);
   const [visualMode, setVisualMode] = useState<VisualMode>('dark');
-  const [shortcuts, setShortcuts] = useState<ShortcutRow[]>(shortcutRows);
+  const [shortcuts, setShortcuts] = useState<ShortcutRow[]>(readSavedShortcuts);
   const [recentCommands, setRecentCommands] = useState<string[]>([]);
   const [toast, setToast] = useState('Saved');
   const selectedCriterion = state.project.criteria.find((criterion) => criterion.id === state.selectedCriterionId);
@@ -318,6 +250,15 @@ export function App() {
     }, 250);
     return () => window.clearTimeout(saveTimer.current);
   }, [state.project]);
+
+  useEffect(() => {
+    const audit = auditStudioActions(shortcuts);
+    if (audit.missingShortcutLabels.length > 0 || audit.unknownShortcutLabels.length > 0) {
+      setShortcuts(mergeSavedShortcuts(shortcuts));
+      return;
+    }
+    localStorage.setItem('rso:shortcuts', JSON.stringify(shortcuts));
+  }, [shortcuts]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -558,7 +499,7 @@ export function App() {
             }}
           >
             {tab.label}
-            <span>{tab.shortcut}</span>
+            <span>{shortcutForAction(shortcuts, tab.action).replace('Cmd/Ctrl-', '')}</span>
           </button>
         ))}
       </nav>
@@ -567,7 +508,7 @@ export function App() {
         <CommandPalette
           query={paletteQuery}
           setQuery={setPaletteQuery}
-          commands={commandList}
+          commands={studioActionLabels()}
           recentCommands={recentCommands}
           onClose={() => setPaletteOpen(false)}
           onExecute={executeCommand}
@@ -854,7 +795,7 @@ function CommandPalette(props: {
           {filtered.map((command) => (
             <button key={command} type="button" onClick={() => props.onExecute(command)}>
               <span>{command}</span>
-              <small>{props.recentCommands.includes(command) ? 'Recent' : command.includes('Export') ? 'Export' : command.includes('Git') ? 'Git' : 'Rubric'}</small>
+              <small>{props.recentCommands.includes(command) ? 'Recent' : studioActionCategory(command)}</small>
             </button>
           ))}
         </div>
@@ -895,4 +836,24 @@ function readSavedProject(): RubricProject {
   } catch {
     return sampleProject;
   }
+}
+
+function readSavedShortcuts(): ShortcutRow[] {
+  try {
+    const saved = localStorage.getItem('rso:shortcuts');
+    if (!saved) {
+      return defaultShortcutRows();
+    }
+    return mergeSavedShortcuts(JSON.parse(saved) as ShortcutRow[]);
+  } catch {
+    return defaultShortcutRows();
+  }
+}
+
+function mergeSavedShortcuts(saved: ShortcutRow[]): ShortcutRow[] {
+  const savedByAction = new Map(saved.map(([shortcut, action]) => [action, shortcut]));
+  return defaultShortcutRows().map(([defaultShortcut, action]) => [
+    savedByAction.get(action) ?? defaultShortcut,
+    action,
+  ]);
 }

@@ -1,5 +1,24 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
+  BookOpen,
+  Command,
+  Eye,
+  FileText,
+  GitCompare,
+  HelpCircle,
+  Play,
+  Plus,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  Sparkles,
+  SquarePen,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
+import {
   buildIntakePackageManifest,
   calculateCalibration,
   createTelemetryEvent,
@@ -65,6 +84,25 @@ const tabs: Array<{ id: Tab; label: string; action: string }> = [
   { id: 'export', label: 'Export', action: 'Switch to Export' },
   { id: 'settings', label: 'Settings', action: 'Switch to Settings' },
 ];
+
+const menuIcons: Record<string, LucideIcon> = {
+  File: FileText,
+  Edit: SquarePen,
+  View: Eye,
+  Rubric: BookOpen,
+  Run: Play,
+  Tools: Wrench,
+  Help: HelpCircle,
+};
+
+const tabIcons: Record<Tab, LucideIcon> = {
+  authoring: SquarePen,
+  preview: Play,
+  calibration: SlidersHorizontal,
+  diff: GitCompare,
+  export: FileText,
+  settings: Settings,
+};
 
 function reducer(state: StudioState, action: Action): StudioState {
   switch (action.type) {
@@ -357,11 +395,15 @@ export function App() {
           </div>
         </div>
         <nav className="menu" aria-label="Application menu">
-          {['File', 'Edit', 'View', 'Rubric', 'Run', 'Tools', 'Help'].map((item) => (
-            <button key={item} className="ghost-button" type="button">
-              {item}
-            </button>
-          ))}
+          {['File', 'Edit', 'View', 'Rubric', 'Run', 'Tools', 'Help'].map((item) => {
+            const MenuIcon = menuIcons[item];
+            return (
+              <button key={item} className="ghost-button" type="button">
+                <MenuIcon className="button-icon" aria-hidden="true" />
+                {item}
+              </button>
+            );
+          })}
         </nav>
         <div className="top-actions">
           <BrowserProjectControls
@@ -373,6 +415,7 @@ export function App() {
             }}
           />
           <button className="glass-button" type="button" onClick={() => setPaletteOpen(true)}>
+            <Command className="button-icon" aria-hidden="true" />
             Cmd/Ctrl-K
           </button>
           <label className="switch">
@@ -488,23 +531,27 @@ export function App() {
       </footer>
 
       <nav className="tabbar" role="tablist" aria-label="Rubric Studio Open tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={tab.id === activeTab ? 'tab active' : 'tab'}
-            type="button"
-            role="tab"
-            aria-selected={tab.id === activeTab}
-            aria-controls="main-panel"
-            onClick={() => {
-              setActiveTab(tab.id);
-              emit('tab.opened', { tab: tab.id });
-            }}
-          >
-            {tab.label}
-            <span>{shortcutForAction(shortcuts, tab.action).replace('Cmd/Ctrl-', '')}</span>
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const TabIcon = tabIcons[tab.id];
+          return (
+            <button
+              key={tab.id}
+              className={tab.id === activeTab ? 'tab active' : 'tab'}
+              type="button"
+              role="tab"
+              aria-selected={tab.id === activeTab}
+              aria-controls="main-panel"
+              onClick={() => {
+                setActiveTab(tab.id);
+                emit('tab.opened', { tab: tab.id });
+              }}
+            >
+              <TabIcon className="button-icon" aria-hidden="true" />
+              {tab.label}
+              <span>{shortcutForAction(shortcuts, tab.action).replace('Cmd/Ctrl-', '')}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {paletteOpen ? (
@@ -579,15 +626,25 @@ function AuthoringPanel(props: {
             <h2>Criterion tree</h2>
           </div>
           <button className="glass-button" type="button" onClick={() => props.onAdd(project.themes[0].id)}>
+            <Plus className="button-icon" aria-hidden="true" />
             + Criterion
           </button>
         </div>
         {bulkIds.length > 0 ? (
           <div className="bulk-toolbar" aria-label="Bulk criterion operations">
             <strong>{bulkIds.length} selected</strong>
-            <button className="ghost-button" type="button" onClick={() => bulkPatch({ status: 'Live' })}>Mark live</button>
-            <button className="ghost-button" type="button" onClick={() => bulkPatch({ status: 'Draft' })}>Move to draft</button>
-            <button className="ghost-button" type="button" onClick={() => bulkPatch({ weight: Number((1 / bulkIds.length).toFixed(2)) })}>Equal weights</button>
+            <button className="ghost-button" type="button" onClick={() => bulkPatch({ status: 'Live' })}>
+              <Sparkles className="button-icon" aria-hidden="true" />
+              Mark live
+            </button>
+            <button className="ghost-button" type="button" onClick={() => bulkPatch({ status: 'Draft' })}>
+              <SquarePen className="button-icon" aria-hidden="true" />
+              Move to draft
+            </button>
+            <button className="ghost-button" type="button" onClick={() => bulkPatch({ weight: Number((1 / bulkIds.length).toFixed(2)) })}>
+              <SlidersHorizontal className="button-icon" aria-hidden="true" />
+              Equal weights
+            </button>
           </div>
         ) : null}
         {project.criteria.length === 0 ? (
@@ -638,10 +695,10 @@ function AuthoringPanel(props: {
           </div>
           <div className="inline-actions">
             <button className="ghost-button" type="button" aria-label="Move criterion up" onClick={() => props.onMove(-1)}>
-              ↑
+              <ArrowUp className="button-icon" aria-hidden="true" />
             </button>
             <button className="ghost-button" type="button" aria-label="Move criterion down" onClick={() => props.onMove(1)}>
-              ↓
+              <ArrowDown className="button-icon" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -653,6 +710,7 @@ function AuthoringPanel(props: {
             <div className="with-button">
               <input value={criterion.id} onChange={(event) => props.onUpdate({ id: slugify(event.target.value) })} />
               <button className="ghost-button" type="button" onClick={() => props.onUpdate({ id: slugify(criterion.label) })}>
+                <Wrench className="button-icon" aria-hidden="true" />
                 Fix
               </button>
             </div>
@@ -748,7 +806,12 @@ function AuthoringPanel(props: {
             <div key={issue.id} className={`issue ${issue.severity}`}>
               <strong>{issue.field}</strong>
               <span>{issue.message}</span>
-              {issue.quickFix ? <button className="ghost-button" type="button">{issue.quickFix}</button> : null}
+              {issue.quickFix ? (
+                <button className="ghost-button" type="button">
+                  <Wrench className="button-icon" aria-hidden="true" />
+                  {issue.quickFix}
+                </button>
+              ) : null}
             </div>
           ))}
         </div>
@@ -766,6 +829,7 @@ function AuthoringPanel(props: {
             {props.searchResults.length === 0 ? <EmptyState title="No matches" body="Try a broader term or disable regex." /> : null}
             {props.searchResults.slice(0, 8).map((result) => (
               <button key={`${result.criterionId}-${result.field}-${result.excerpt}`} type="button" onClick={() => props.onSelect(result.criterionId)}>
+                <Search className="button-icon" aria-hidden="true" />
                 <strong>{result.criterionId}</strong>
                 <span>{result.field}</span>
                 <small>{result.excerpt}</small>
@@ -809,6 +873,7 @@ function CommandPalette(props: {
         <div>
           {filtered.map((command) => (
             <button key={command} type="button" onClick={() => props.onExecute(command)}>
+              <Command className="button-icon" aria-hidden="true" />
               <span>{command}</span>
               <small>{props.recentCommands.includes(command) ? 'Recent' : studioActionCategory(command)}</small>
             </button>

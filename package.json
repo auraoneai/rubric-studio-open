@@ -12,6 +12,7 @@
     "test": "tsx src/domain/self-test.ts",
     "test:a11y": "node scripts/a11y-smoke.mjs",
     "test:e2e": "node scripts/browser-smoke.mjs",
+    "test:design": "node scripts/design-contract.mjs",
     "test:snapshot": "tsx src/domain/snapshot-test.ts",
     "test:perf": "tsx src/domain/performance-test.ts",
     "test:regression": "pnpm run test:snapshot && pnpm run test:perf",
@@ -20,13 +21,14 @@
     "vscode:typecheck": "tsc -p vscode-extension/tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@tauri-apps/api": "2.11.0",
     "@vitejs/plugin-react": "^4.0.0",
-    "vite": "^5.0.0",
-    "typescript": "^5.5.0",
-    "tsx": "^4.19.2",
+    "lucide-react": "0.554.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@tauri-apps/api": "2.11.0"
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.0",
+    "vite": "^5.0.0"
   },
   "devDependencies": {
     "@playwright/test": "1.56.0",

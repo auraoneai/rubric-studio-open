@@ -265,11 +265,22 @@ small {
 .intake-button,
 .tab,
 .file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: 1px solid var(--border);
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
   border-radius: 8px;
   padding: 8px 11px;
+}
+
+.button-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  stroke-width: 2;
 }
 
 .ghost-button,

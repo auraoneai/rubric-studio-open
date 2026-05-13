@@ -8,14 +8,19 @@ const server = spawn('pnpm', ['exec', 'vite', '--host', '127.0.0.1', '--port', S
   cwd: new URL('..', import.meta.url),
   env: { ...process.env, CI: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
+  shell: process.platform === 'win32',
 });
 
 let serverOutput = '';
+let serverStartError;
 server.stdout.on('data', (chunk) => {
   serverOutput += String(chunk);
 });
 server.stderr.on('data', (chunk) => {
   serverOutput += String(chunk);
+});
+server.on('error', (error) => {
+  serverStartError = error;
 });
 
 try {
@@ -74,6 +79,9 @@ try {
 async function waitForServer(url) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
+    if (serverStartError) {
+      throw new Error(`Failed to start Vite server: ${serverStartError.message}\n${serverOutput}`);
+    }
     if (server.exitCode !== null) {
       throw new Error(`Vite server exited early:\n${serverOutput}`);
     }

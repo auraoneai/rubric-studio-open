@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { performance } from 'node:perf_hooks';
 import { createCriterionVariantBranch } from './branching';
+import { browserFolderArtifacts, projectFromBrowserFolder } from './browserFolder';
 import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { configureProviderKey, keychainKeyForJudge, validateProviderSecret } from './keychain';
@@ -186,6 +187,14 @@ assert.equal(diffScaleWalls(6)[0].id, 'diff-sixth-commit');
 assert.equal(isVendorProgramExport('surge-sow.txt'), true);
 assert.equal(isVendorProgramExport('scale-task-spec.json'), true);
 assert.equal(isVendorProgramExport('rubric.json'), false);
+const browserFolder = browserFolderArtifacts(sampleProject, new Date('2026-05-13T00:00:00.000Z'));
+assert.ok(browserFolder.some((artifact) => artifact.path === 'project-bundle.json'));
+assert.ok(browserFolder.some((artifact) => artifact.path === 'rubric.json'));
+assert.equal(browserFolder.filter((artifact) => artifact.path.startsWith('criteria/')).length, sampleProject.criteria.length);
+const browserFolderFiles = Object.fromEntries(browserFolder.map((artifact) => [artifact.path, artifact.content]));
+assert.equal(projectFromBrowserFolder(browserFolderFiles)?.id, sampleProject.id);
+assert.equal(projectFromBrowserFolder({ 'rubric.json': browserFolderFiles['rubric.json'] })?.name, sampleProject.name);
+assert.equal(projectFromBrowserFolder({ 'project-bundle.json': '{' }), null);
 
 const largeProject = {
   ...sampleProject,

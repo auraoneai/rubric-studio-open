@@ -40,6 +40,8 @@ try {
     await page.getByRole('button', { name: 'Skip tour' }).click();
   }
 
+  await expect(page.getByRole('button', { name: 'Export folder' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Import folder' })).toBeVisible();
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await expect(page.getByRole('menu', { name: 'File menu' })).toBeVisible();
   await page.getByRole('menuitem', { name: /New project from template/ }).click();

@@ -369,6 +369,12 @@ try {
   await page.getByRole('button', { name: /Safe refusal fail samples/i }).click();
   await expect(page.locator('.catch-controls select').nth(2)).toHaveValue('fail');
 
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+3' : 'Control+3');
+  await expect(page.getByRole('tabpanel', { name: /calibration panel/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Calibration requires desktop' })).toBeVisible();
+  await expect(page.getByText('iaa-kit, judge-bench, and contamination-audit run as local Python sidecars')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open desktop app' })).toHaveAttribute('href', 'auraone://rubric-studio/open');
+
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+4' : 'Control+4');
   await expect(page.getByRole('tabpanel', { name: /diff panel/i })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Init' })).toBeDisabled();

@@ -35,6 +35,7 @@ type Action =
   | { type: 'select'; criterionId: string }
   | { type: 'updateCriterion'; criterionId: string; patch: Partial<Criterion> }
   | { type: 'addCriterion'; themeId: string }
+  | { type: 'addTheme' }
   | { type: 'duplicateCriterion'; criterionId: string }
   | { type: 'deleteCriterion'; criterionId: string }
   | { type: 'bulkUpdateCriteria'; criterionIds: string[]; patch: Partial<Criterion> }
@@ -64,8 +65,11 @@ const tabs: Array<{ id: Tab; label: string; shortcut: string }> = [
 
 const commandList = [
   'New criterion',
+  'New theme',
   'Duplicate criterion',
   'Delete criterion',
+  'Save current project',
+  'Quick open',
   'Run preview',
   'Score current sample',
   'Score all samples',
@@ -121,6 +125,24 @@ function reducer(state: StudioState, action: Action): StudioState {
         ...state,
         selectedCriterionId: criterion.id,
         project: { ...state.project, criteria: [...state.project.criteria, criterion] },
+      };
+    }
+    case 'addTheme': {
+      const id = `theme-${state.project.themes.length + 1}`;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          themes: [
+            ...state.project.themes,
+            {
+              id,
+              label: `Theme ${state.project.themes.length + 1}`,
+              description: 'New rubric theme.',
+              collapsed: false,
+            },
+          ],
+        },
       };
     }
     case 'duplicateCriterion': {
@@ -282,11 +304,31 @@ export function App() {
       }
       if (event.key.toLowerCase() === 'n') {
         event.preventDefault();
-        dispatch({ type: 'addCriterion', themeId: state.project.themes[0].id });
+        if (event.shiftKey) {
+          dispatch({ type: 'addTheme' });
+        } else {
+          dispatch({ type: 'addCriterion', themeId: state.project.themes[0].id });
+        }
+      }
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        localStorage.setItem('rso:project', JSON.stringify(state.project));
+        setToast('Saved current project');
+      }
+      if (event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        setPaletteQuery('');
+        setPaletteOpen(true);
       }
       if (event.key.toLowerCase() === 'd' && selectedCriterion) {
         event.preventDefault();
         dispatch({ type: 'duplicateCriterion', criterionId: selectedCriterion.id });
+      }
+      if (event.key === 'Backspace' && selectedCriterion) {
+        event.preventDefault();
+        if (window.confirm(`Delete ${selectedCriterion.label}?`)) {
+          dispatch({ type: 'deleteCriterion', criterionId: selectedCriterion.id });
+        }
       }
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -312,12 +354,17 @@ export function App() {
     setRecentCommands((current) => [command, ...current.filter((item) => item !== command)].slice(0, 6));
     emit('command.executed', { command });
     if (command === 'New criterion') dispatch({ type: 'addCriterion', themeId: state.project.themes[0].id });
+    if (command === 'New theme') dispatch({ type: 'addTheme' });
     if (command === 'Duplicate criterion' && selectedCriterion) {
       dispatch({ type: 'duplicateCriterion', criterionId: selectedCriterion.id });
     }
     if (command === 'Delete criterion' && selectedCriterion) {
-      dispatch({ type: 'deleteCriterion', criterionId: selectedCriterion.id });
+      if (window.confirm(`Delete ${selectedCriterion.label}?`)) {
+        dispatch({ type: 'deleteCriterion', criterionId: selectedCriterion.id });
+      }
     }
+    if (command === 'Save current project') localStorage.setItem('rso:project', JSON.stringify(state.project));
+    if (command === 'Quick open') setActiveTab('authoring');
     if (command.includes('preview') || command.includes('Score')) runPreview();
     if (command === 'Open calibration') setActiveTab('calibration');
     if (command === 'Open semantic diff') setActiveTab('diff');

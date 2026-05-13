@@ -265,6 +265,7 @@ function reducer(state: StudioState, action: Action): StudioState {
 
 export function App() {
   const initialSurface = new URLSearchParams(window.location.search).get('surface') === 'browser' ? 'browser' : 'desktop';
+  const browserSurfaceLocked = initialSurface === 'browser';
   const [initialProject] = useState(readSavedProject);
   const [initialPreferences] = useState(readSavedPreferences);
   const [state, dispatch] = useReducer(reducer, {
@@ -506,7 +507,14 @@ export function App() {
     if (action === 'Switch to Settings' || action === 'Open keyboard shortcuts') setActiveTab('settings');
     if (action === 'Run preview' || action === 'Score current sample' || action === 'Score all samples') runPreview();
     if (action === 'Toggle comments') dispatch({ type: 'toggleComments' });
-    if (action === 'Toggle browser constraints') setSurface(surface === 'browser' ? 'desktop' : 'browser');
+    if (action === 'Toggle browser constraints') {
+      if (browserSurfaceLocked) {
+        setSurface('browser');
+        setToast('Browser edition keeps desktop-only features disabled.');
+        return;
+      }
+      setSurface(surface === 'browser' ? 'desktop' : 'browser');
+    }
     if (action === 'Git init') setToast('Initialized local git metadata');
     if (action === 'Git commit') setToast('Committed current rubric snapshot');
     setToast(action);
@@ -680,7 +688,15 @@ export function App() {
             <input
               type="checkbox"
               checked={surface === 'browser'}
-              onChange={(event) => setSurface(event.target.checked ? 'browser' : 'desktop')}
+              disabled={browserSurfaceLocked}
+              onChange={(event) => {
+                if (browserSurfaceLocked) {
+                  setSurface('browser');
+                  setToast('Browser edition keeps desktop-only features disabled.');
+                  return;
+                }
+                setSurface(event.target.checked ? 'browser' : 'desktop');
+              }}
             />
           </label>
         </div>

@@ -532,6 +532,12 @@ try {
   await expect(page.locator('.app-shell')).toHaveAttribute('data-theme', 'high-contrast');
   await expect(reloadedReliabilityLog).toContainText('"crash_reporting_enabled": true');
   await expect(reloadedReliabilityLog).toContainText('"update_channel": "beta"');
+  await expect(page.getByRole('checkbox', { name: 'Browser constraints' })).toBeDisabled();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await page.getByLabel('Command search').fill('Toggle browser constraints');
+  await page.getByRole('button', { name: /Toggle browser constraints/ }).click();
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-surface', 'browser');
+  await expect(page.getByRole('contentinfo')).toContainText('Browser edition keeps desktop-only features disabled.');
   await page.getByRole('button', { name: 'Check for updates' }).click();
   await expect(page.locator('.success-chip', { hasText: 'unavailable' })).toBeVisible();
   await expect(page.getByText('Remappable controls')).toBeVisible();

@@ -188,6 +188,50 @@ try {
   expect(exportedFolder.paths.filter((path) => path.startsWith('criteria/')).length).toBeGreaterThan(0);
   expect(exportedFolder.bundle.project.name).toBe('Browser Starter Rubric');
   await page.evaluate(() => {
+    window.__rsoE2eFolderFiles = {};
+  });
+  await page.getByRole('button', { name: 'Import folder' }).click();
+  await expect(page.getByRole('alert')).toContainText('Browser folder is missing project-bundle.json or rubric.json with criteria.');
+  await page.evaluate(() => {
+    window.__rsoE2eFolderFiles = {
+      'project-bundle.json': JSON.stringify({
+        schema: 'https://spec.auraone.ai/rubric-studio-open/project-bundle/v1',
+        exportedAt: '2026-05-13T00:00:00.000Z',
+        project: {
+          id: 'folder-schema-errors',
+          name: 'Folder Schema Errors',
+          version: '0.1.0',
+          branch: 'main',
+          themes: [{ id: 'safety', label: 'Safety', description: 'Safety theme.', collapsed: false }],
+          criteria: [{
+            id: '',
+            label: '',
+            themeId: 'safety',
+            description: '',
+            weight: 2,
+            scale: 'binary',
+            positiveExamples: [],
+            negativeExamples: [],
+            antiPatterns: [],
+            boundaries: '',
+            edgeCases: [],
+            evidenceRequirement: 'none',
+            tags: [],
+            references: [],
+            siblingLinks: [],
+            status: 'Draft',
+            comments: [],
+          }],
+          samples: [],
+          judges: [],
+          commentsVisible: true,
+        },
+      }),
+    };
+  });
+  await page.getByRole('button', { name: 'Import folder' }).click();
+  await expect(page.getByRole('alert')).toContainText('Browser folder has 4 schema errors. Fix the folder and import again.');
+  await page.evaluate(() => {
     const current = JSON.parse(localStorage.getItem('rso:project'));
     window.__rsoE2eFolderFiles = {
       'project-bundle.json': JSON.stringify({

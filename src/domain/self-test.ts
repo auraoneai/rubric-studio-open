@@ -28,6 +28,12 @@ assert.ok(sampleProject.judges.some((judge) => judge.provider === 'ollama' && ju
 const openAiJudge = sampleProject.judges.find((judge) => judge.provider === 'openai');
 assert.ok(openAiJudge);
 assert.ok(isRemoteJudge(openAiJudge));
+const anthropicJudge = sampleProject.judges.find((judge) => judge.provider === 'anthropic');
+assert.ok(anthropicJudge);
+assert.ok(isRemoteJudge(anthropicJudge));
+const googleJudge = sampleProject.judges.find((judge) => judge.provider === 'google');
+assert.ok(googleJudge);
+assert.ok(isRemoteJudge(googleJudge));
 assert.equal(keychainKeyForJudge(openAiJudge).scope, 'byo-api-keys');
 assert.equal(validateProviderSecret('short')?.includes('provider key'), true);
 assert.equal(validateProviderSecret('sk-test-value'), null);
@@ -106,6 +112,53 @@ const directOpenAiScore = await scoreProviderCriterion({
 });
 assert.equal(directOpenAiScore.verdict, 'pass');
 assert.equal(directOpenAiScore.judgeId, openAiJudge.id);
+const directAnthropicScore = await scoreProviderCriterion({
+  judge: anthropicJudge,
+  criterion: sampleProject.criteria[0],
+  sample: sampleProject.samples[0],
+  apiKey: 'sk-ant-test-value',
+  fetcher: async (input, init) => {
+    assert.equal(String(input), 'https://api.anthropic.com/v1/messages');
+    assert.equal((init?.headers as Record<string, string>)['x-api-key'], 'sk-ant-test-value');
+    assert.equal((init?.headers as Record<string, string>)['anthropic-version'], '2023-06-01');
+    const body = JSON.parse(String(init?.body)) as { model: string; messages: Array<{ content: string }> };
+    assert.equal(body.model, anthropicJudge.model);
+    assert.ok(body.messages[0].content.includes(sampleProject.criteria[0].label));
+    return new Response(
+      JSON.stringify({ content: [{ text: '{"verdict":"fail","confidence":0.77,"reasoning":"Missing the refusal boundary."}' }] }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+  },
+});
+assert.equal(directAnthropicScore.verdict, 'fail');
+assert.equal(directAnthropicScore.confidence, 0.77);
+assert.equal(directAnthropicScore.judgeId, anthropicJudge.id);
+const directGoogleScore = await scoreProviderCriterion({
+  judge: googleJudge,
+  criterion: sampleProject.criteria[0],
+  sample: sampleProject.samples[0],
+  apiKey: 'gemini-test-value',
+  fetcher: async (input, init) => {
+    assert.equal(
+      String(input),
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(googleJudge.model)}:generateContent`,
+    );
+    assert.equal((init?.headers as Record<string, string>)['x-goog-api-key'], 'gemini-test-value');
+    const body = JSON.parse(String(init?.body)) as { contents: Array<{ parts: Array<{ text: string }> }> };
+    assert.ok(body.contents[0].parts[0].text.includes(sampleProject.samples[0].response));
+    return new Response(
+      JSON.stringify({
+        candidates: [
+          { content: { parts: [{ text: '{"verdict":"partial","confidence":0.68,"reasoning":"Covers safety but lacks specificity."}' }] } },
+        ],
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+  },
+});
+assert.equal(directGoogleScore.verdict, 'partial');
+assert.equal(directGoogleScore.confidence, 0.68);
+assert.equal(directGoogleScore.judgeId, googleJudge.id);
 const reliabilityStatus = fallbackReliabilityStatus(false, 'beta');
 assert.equal(reliabilityStatus.crash.default_off, true);
 assert.equal(reliabilityStatus.crash.sends_user_authored_content, false);

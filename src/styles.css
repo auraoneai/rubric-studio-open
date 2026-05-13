@@ -230,6 +230,18 @@ small {
   font-size: 12px;
 }
 
+.success-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid rgba(24, 214, 163, 0.45);
+  border-radius: 8px;
+  background: rgba(24, 214, 163, 0.12);
+  color: #c8fff0;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
 .ghost-button,
 .glass-button,
 .intake-button,
@@ -1019,6 +1031,10 @@ small {
   text-align: center;
 }
 
+.wizard.wide {
+  width: min(860px, calc(100vw - 40px));
+}
+
 .wizard h2 {
   margin: 0 0 16px;
 }
@@ -1045,6 +1061,26 @@ small {
 
 .wizard .inline-actions {
   justify-content: center;
+}
+
+.key-setup {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+  text-align: left;
+}
+
+.key-setup code {
+  overflow-wrap: anywhere;
+  color: var(--cyan);
+}
+
+.wizard-consent {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
 }
 
 @media (max-width: 1180px) {

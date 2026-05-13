@@ -30,6 +30,7 @@ import { SettingsPanel, type VisualMode } from './components/SettingsPanel';
 import { DiffPanel } from './components/DiffPanel';
 import { CalibrationPanel } from './components/CalibrationPanel';
 import { ExportPanel } from './components/ExportPanel';
+import { FirstRunWizard } from './components/FirstRunWizard';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 type Action =
@@ -573,7 +574,19 @@ export function App() {
         />
       ) : null}
 
-      {wizardOpen ? <FirstRunWizard onSkip={() => setWizardOpen(false)} onStart={acceptWizard} /> : null}
+      {wizardOpen ? (
+        <FirstRunWizard
+          judges={state.project.judges}
+          surface={surface}
+          telemetryEnabled={telemetryEnabled}
+          crashReportingEnabled={crashReportingEnabled}
+          onTelemetryChange={setTelemetryEnabled}
+          onCrashReportingChange={setCrashReportingEnabled}
+          onSetKey={(judgeId, configured) => dispatch({ type: 'setKeyConfigured', judgeId, configured })}
+          onSkip={() => setWizardOpen(false)}
+          onStart={acceptWizard}
+        />
+      ) : null}
     </main>
   );
 }
@@ -844,26 +857,6 @@ function CommandPalette(props: {
               <small>{props.recentCommands.includes(command) ? 'Recent' : command.includes('Export') ? 'Export' : command.includes('Git') ? 'Git' : 'Rubric'}</small>
             </button>
           ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function FirstRunWizard({ onSkip, onStart }: { onSkip: () => void; onStart: () => void }) {
-  return (
-    <div className="modal-backdrop">
-      <section className="wizard" role="dialog" aria-modal="true" aria-label="First-run wizard">
-        <div className="app-icon large">RS</div>
-        <h2>Sixty seconds to first value</h2>
-        <div className="wizard-steps">
-          <div><strong>1. Look at the rubric</strong><span>A 12-criterion helpful-response project is preloaded with themes, criteria, samples, and judges.</span></div>
-          <div><strong>2. Score this sample</strong><span>The local mock judge runs offline and shows criterion-level reasoning.</span></div>
-          <div><strong>3. Read the diff</strong><span>See which criteria changed and how held-out samples would flip.</span></div>
-        </div>
-        <div className="inline-actions">
-          <button className="ghost-button" type="button" onClick={onSkip}>Skip</button>
-          <button className="glass-button primary" type="button" onClick={onStart}>Start tour</button>
         </div>
       </section>
     </div>

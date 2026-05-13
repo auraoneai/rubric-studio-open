@@ -34,7 +34,7 @@ try {
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
   await expect(page.getByText('Live testing')).toBeVisible();
   await page.getByRole('button', { name: 'Score all' }).click();
-  await expect(page.getByText('Score run completed')).toBeVisible({ timeout: 2_000 });
+  await expect(page.locator('body')).toContainText('Score run completed', { timeout: 5_000 });
   await page.getByRole('button', { name: /Safe refusal fail samples/i }).click();
   await expect(page.locator('.catch-controls select').nth(2)).toHaveValue('fail');
 

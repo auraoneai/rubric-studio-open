@@ -15,6 +15,21 @@ customer data in a public issue.
   bridge.
 - AuraOne intake export is explicit user action only.
 
+## Permission review
+
+Rubric Studio Open's tracked Tauri capability manifest currently requests:
+
+| Permission | Purpose | Review decision |
+|---|---|---|
+| `core:default` | Required Tauri core window/runtime behavior. | Approved as base desktop shell permission. |
+| `dialog:default` | User-selected rubric/project file and folder prompts. | Approved only for explicit user selection. |
+| `deep-link:default` | Handles `auraone://rubric-studio/open` links. | Approved for desktop handoff and docs flows. |
+| `updater:default` | Checks signed platform update manifests. | Approved only with signed-manifest verification. |
+
+The capability manifest intentionally does not grant shell execution, arbitrary
+filesystem scope, clipboard manager, process control, or network permissions
+beyond the reviewed CSP destinations.
+
 ## Supported versions
 
 The initial supported line is `0.1.x`.

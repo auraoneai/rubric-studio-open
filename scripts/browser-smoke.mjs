@@ -1,14 +1,16 @@
 import { spawn } from 'node:child_process';
+import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.RSO_E2E_PORT ?? 5208);
 const baseUrl = `http://127.0.0.1:${port}`;
-const server = spawn('pnpm', ['exec', 'vite', '--host', '127.0.0.1', '--port', String(port)], {
-  cwd: new URL('..', import.meta.url),
+const server = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port)], {
+  cwd: root,
   env: { ...process.env, CI: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
-  shell: process.platform === 'win32',
 });
 
 let serverOutput = '';

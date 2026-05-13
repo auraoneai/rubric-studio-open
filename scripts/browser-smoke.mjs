@@ -29,6 +29,35 @@ try {
   await waitForServer(baseUrl);
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  let directProviderRequests = 0;
+  await page.route('https://api.openai.com/v1/responses', async (route) => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'authorization, content-type',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        },
+      });
+      return;
+    }
+    directProviderRequests += 1;
+    expect(request.headers().authorization).toBe('Bearer sk-e2e-browser-provider');
+    const body = request.postDataJSON();
+    expect(body.model).toBe('gpt-5-mini');
+    expect(body.input).toContain('Return only JSON');
+    expect(body.input).toContain('Criterion:');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        output_text: '{"verdict":"pass","confidence":0.94,"reasoning":"Provider e2e pass from direct browser scoring."}',
+      }),
+    });
+  });
   await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
 
   const startTour = page.getByRole('button', { name: 'Start tour' });
@@ -134,6 +163,18 @@ try {
   await page.getByRole('button', { name: 'Check for updates' }).click();
   await expect(page.locator('.success-chip', { hasText: 'unavailable' })).toBeVisible();
   await expect(page.getByText('Remappable controls')).toBeVisible();
+  await page.getByLabel('GPT-5 mini API key').fill('sk-e2e-browser-provider');
+  await page.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
+  await expect(page.getByLabel('GPT-5 mini API key')).toHaveAttribute('placeholder', 'Configured in session');
+
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');
+  await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
+  const gptColumn = page.locator('.judge-column', { hasText: 'GPT-5 mini' });
+  await expect(gptColumn.getByText('Direct BYO scoring')).toBeVisible();
+  await gptColumn.locator('details.score-card').first().locator('summary').click();
+  await gptColumn.getByRole('button', { name: 'Run direct provider score' }).first().click();
+  await expect(gptColumn.getByText('Provider e2e pass from direct browser scoring.')).toBeVisible();
+  expect(directProviderRequests).toBe(1);
 
   await browser.close();
   console.log('Rubric Studio Open browser e2e smoke passed.');

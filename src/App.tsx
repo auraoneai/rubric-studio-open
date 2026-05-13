@@ -302,6 +302,7 @@ export function App() {
     [state.project, searchQuery, regex, caseSensitive, wholeWord],
   );
   const saveTimer = useRef<number>();
+  const scoreTimer = useRef<number>();
 
   useEffect(() => {
     window.clearTimeout(saveTimer.current);
@@ -544,13 +545,20 @@ export function App() {
   }
 
   function runPreview() {
+    window.clearTimeout(scoreTimer.current);
     setActiveTab('preview');
     setScoreRunning(true);
     emit('preview.score.started', { surface, sample_count: state.project.samples.length });
-    window.setTimeout(() => {
+    scoreTimer.current = window.setTimeout(() => {
       setScoreRunning(false);
       setToast('Score run completed');
     }, 650);
+  }
+
+  function cancelPreviewRun() {
+    window.clearTimeout(scoreTimer.current);
+    setScoreRunning(false);
+    setToast('Score run canceled');
   }
 
   function acceptWizard() {
@@ -687,6 +695,7 @@ export function App() {
               running={scoreRunning}
               surface={surface}
               onRun={runPreview}
+              onCancelRun={cancelPreviewRun}
               onSelectSample={(sampleId) => dispatch({ type: 'setSelectedSample', sampleId })}
               onAddSample={(sample) => {
                 dispatch({ type: 'addSample', sample });

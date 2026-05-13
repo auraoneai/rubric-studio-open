@@ -13,6 +13,7 @@ export function PreviewPanel(props: {
   running: boolean;
   surface: SurfaceMode;
   onRun: () => void;
+  onCancelRun: () => void;
   onSelectSample: (sampleId: string) => void;
   onAddSample: (sample: RubricSample) => void;
 }) {
@@ -116,7 +117,7 @@ export function PreviewPanel(props: {
           <label><input type="checkbox" checked={disagreementsOnly} onChange={(event) => setDisagreementsOnly(event.target.checked)} />Disagreements</label>
           <label><input type="checkbox" checked={lowConfidenceOnly} onChange={(event) => setLowConfidenceOnly(event.target.checked)} />Low confidence</label>
         </div>
-        {props.running ? <LoadingState label="Scoring all criteria with cancellable progress" /> : null}
+        {props.running ? <LoadingState label="Scoring all criteria with cancellable progress" onCancel={props.onCancelRun} /> : null}
         <article className="sample-card">
           <p>{props.selectedSample.id} · {props.project.samples.length} samples loaded</p>
           <small>{props.selectedSample.prompt}</small>
@@ -255,6 +256,12 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   return <div className="empty-state" role="status"><strong>{title}</strong><p>{body}</p></div>;
 }
 
-function LoadingState({ label }: { label: string }) {
-  return <div className="loading-state" role="status" aria-live="polite"><span /><div><strong>{label}</strong><progress value={66} max={100}>66%</progress></div><button className="ghost-button" type="button">Cancel</button></div>;
+function LoadingState({ label, onCancel }: { label: string; onCancel: () => void }) {
+  return (
+    <div className="loading-state" role="status" aria-live="polite">
+      <span />
+      <div><strong>{label}</strong><progress value={66} max={100}>66%</progress></div>
+      <button className="ghost-button" type="button" onClick={onCancel}>Cancel score run</button>
+    </div>
+  );
 }

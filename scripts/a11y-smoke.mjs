@@ -8,7 +8,7 @@ import { chromium, expect } from '@playwright/test';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.RSO_A11Y_PORT ?? 5207);
 const baseUrl = `http://127.0.0.1:${port}`;
-const server = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port)], {
+const server = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
   cwd: root,
   env: { ...process.env, CI: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -52,6 +52,13 @@ try {
   await expect(page.getByRole('link', { name: 'Skip to editor' })).toBeAttached();
   await assertAxeClean(page, 'authoring browser surface');
   await assertKeyboardPath(page);
+
+  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await expect(page.getByRole('menu', { name: 'File menu' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: /New project from template/ })).toBeVisible();
+  await assertAxeClean(page, 'application file menu');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu', { name: 'File menu' })).toHaveCount(0);
 
   const unnamedButtons = await page.evaluate(() =>
     Array.from(document.querySelectorAll('button'))

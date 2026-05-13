@@ -7,7 +7,7 @@ import { chromium, expect } from '@playwright/test';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.RSO_E2E_PORT ?? 5208);
 const baseUrl = `http://127.0.0.1:${port}`;
-const server = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port)], {
+const server = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
   cwd: root,
   env: { ...process.env, CI: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -41,7 +41,9 @@ try {
     await page.getByRole('button', { name: 'Skip tour' }).click();
   }
 
-  await page.getByRole('button', { name: 'New from Template' }).click();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await expect(page.getByRole('menu', { name: 'File menu' })).toBeVisible();
+  await page.getByRole('menuitem', { name: /New project from template/ }).click();
   await expect(page.getByRole('dialog', { name: 'Create from template' })).toBeVisible();
   await page.getByLabel('Project name').fill('Browser Starter Rubric');
   await page.getByRole('button', { name: 'Create project' }).click();

@@ -6,15 +6,19 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const appSource = readFileSync(join(root, 'src/App.tsx'), 'utf8');
+const applicationMenuSource = readFileSync(join(root, 'src/components/ApplicationMenu.tsx'), 'utf8');
+const webviewChromeSource = `${appSource}\n${applicationMenuSource}`;
 const styles = readFileSync(join(root, 'src/styles.css'), 'utf8');
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 const tauriConfig = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'));
 
 assert.equal(packageJson.dependencies['lucide-react'], '0.554.0');
-assert.ok(appSource.includes("from 'lucide-react'"), 'webview must import lucide-react icons');
-assert.ok(appSource.includes('const menuIcons'), 'top application menu must use the shared icon registry');
+assert.ok(webviewChromeSource.includes("from 'lucide-react'"), 'webview must import lucide-react icons');
+assert.ok(applicationMenuSource.includes('const menuIcons'), 'top application menu must use the shared icon registry');
+assert.ok(applicationMenuSource.includes('role="menu"'), 'top application menu must expose menu semantics');
+assert.ok(applicationMenuSource.includes('role="menuitem"'), 'top application menu actions must expose menuitem semantics');
 assert.ok(appSource.includes('const tabIcons'), 'bottom navigation tabs must use the shared icon registry');
-assert.ok(appSource.includes('aria-hidden="true"'), 'decorative icons must stay out of the accessible name');
+assert.ok(webviewChromeSource.includes('aria-hidden="true"'), 'decorative icons must stay out of the accessible name');
 assert.ok(styles.includes('.button-icon'), 'shared icon sizing CSS is required for visual consistency');
 assert.ok(html.includes('rel="icon" href="/favicon.ico"'), 'browser edition must expose the ICO favicon');
 assert.ok(html.includes('rel="icon" href="/favicon.svg"'), 'browser edition must expose the SVG favicon');
@@ -101,7 +105,7 @@ const requiredIcons = [
 ];
 
 requiredIcons.forEach((icon) => {
-  assert.ok(appSource.includes(icon), `${icon} must be represented in Rubric Studio Open webview chrome`);
+  assert.ok(webviewChromeSource.includes(icon), `${icon} must be represented in Rubric Studio Open webview chrome`);
 });
 
 console.log('Rubric Studio Open design contract passed.');

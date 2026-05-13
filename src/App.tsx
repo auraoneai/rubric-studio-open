@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
-  BookOpen,
   Command,
-  Eye,
   FilePlus2,
   FileText,
   FolderOpen,
   GitCompare,
-  HelpCircle,
   Play,
   Settings,
   SlidersHorizontal,
   SquarePen,
-  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -57,6 +53,7 @@ import { ExportPanel } from './components/ExportPanel';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AuthoringPanel } from './components/AuthoringPanel';
 import { DeleteCriterionDialog, TemplateProjectDialog } from './components/StudioDialogs';
+import { ApplicationMenu } from './components/ApplicationMenu';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 interface TourStep {
@@ -97,16 +94,6 @@ const tabs: Array<{ id: Tab; label: string; action: string }> = [
   { id: 'export', label: 'Export', action: 'Switch to Export' },
   { id: 'settings', label: 'Settings', action: 'Switch to Settings' },
 ];
-
-const menuIcons: Record<string, LucideIcon> = {
-  File: FileText,
-  Edit: SquarePen,
-  View: Eye,
-  Rubric: BookOpen,
-  Run: Play,
-  Tools: Wrench,
-  Help: HelpCircle,
-};
 
 const tabIcons: Record<Tab, LucideIcon> = {
   authoring: SquarePen,
@@ -596,17 +583,7 @@ export function App() {
             <p>{surface === 'browser' ? 'Browser edition' : 'Desktop edition'} · local-first rubric IDE</p>
           </div>
         </div>
-        <nav className="menu" aria-label="Application menu">
-          {['File', 'Edit', 'View', 'Rubric', 'Run', 'Tools', 'Help'].map((item) => {
-            const MenuIcon = menuIcons[item];
-            return (
-              <button key={item} className="ghost-button" type="button">
-                <MenuIcon className="button-icon" aria-hidden="true" />
-                {item}
-              </button>
-            );
-          })}
-        </nav>
+        <ApplicationMenu shortcuts={shortcuts} onExecute={executeCommand} />
         <div className="top-actions">
           <button className="glass-button" type="button" onClick={() => setTemplateDialogOpen(true)}>
             <FilePlus2 className="button-icon" aria-hidden="true" />

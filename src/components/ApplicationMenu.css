@@ -1,0 +1,47 @@
+.app-menu {
+  position: relative;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.app-menu-item {
+  position: relative;
+}
+
+.app-menu-dropdown {
+  position: absolute;
+  z-index: 9;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(310px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+
+.app-menu-dropdown button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.app-menu-dropdown button:hover,
+.app-menu-dropdown button:focus-visible {
+  background: rgba(52, 217, 255, 0.12);
+}
+
+.app-menu-dropdown kbd {
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+}

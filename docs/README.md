@@ -16,3 +16,4 @@ then use these guides:
 - FAQ: `faq.md`
 - Security notes: `security.md`
 - Telemetry notes: `telemetry.md`
+- External readiness handoff: `release/external-readiness.md`

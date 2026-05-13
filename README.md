@@ -3,9 +3,22 @@
 Rubric Studio Open is a local-first IDE for authoring, validating, previewing,
 calibrating, diffing, and exporting criterion-level AI evaluation rubrics.
 
+![30-second demo of Rubric Studio Open authoring, preview, calibration, diff, export, and settings surfaces](docs/demo/rubric-studio-open-30s.gif)
+
 The app is intentionally single-user and file-based. A rubric is a folder on
 disk, so it can be reviewed in Git, shipped in CI, and exported into downstream
 evaluation runners without a hosted account.
+
+## Install
+
+```bash
+git clone https://github.com/auraoneai/rubric-studio-open.git
+cd rubric-studio-open
+pnpm install
+pnpm --filter=@auraone/rubric-studio-open dev
+```
+
+Docs: [Rubric Studio Open docs](docs/README.md)
 
 ## Current surfaces
 
@@ -18,7 +31,6 @@ evaluation runners without a hosted account.
 ## Run locally
 
 ```bash
-pnpm install
 pnpm --filter=@auraone/rubric-studio-open dev
 ```
 

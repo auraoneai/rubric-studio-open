@@ -9,6 +9,13 @@ import { classifyDeepLink } from './deepLink';
 import { clearRecentProjects, readRecentProjects, rememberProject } from './projectOpen';
 import { checkForPlatformUpdate, fallbackReliabilityStatus } from './reliability';
 import { reorderCriteria, sampleProject } from './rubric';
+import {
+  calibrationScaleWalls,
+  diffScaleWalls,
+  goldCalibrationRows,
+  isVendorProgramExport,
+  previewScaleWalls,
+} from './scaleWalls';
 import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
 import { searchProject, validateProject } from './validation';
@@ -172,6 +179,13 @@ const search = searchProject(sampleProject, {
   wholeWord: false,
 });
 assert.ok(search.length > 0);
+assert.equal(goldCalibrationRows(sampleProject), sampleProject.samples.length);
+assert.deepEqual(calibrationScaleWalls(sampleProject), []);
+assert.deepEqual(diffScaleWalls(5), []);
+assert.equal(diffScaleWalls(6)[0].id, 'diff-sixth-commit');
+assert.equal(isVendorProgramExport('surge-sow.txt'), true);
+assert.equal(isVendorProgramExport('scale-task-spec.json'), true);
+assert.equal(isVendorProgramExport('rubric.json'), false);
 
 const largeProject = {
   ...sampleProject,
@@ -180,6 +194,19 @@ const largeProject = {
     id: `perf-${index}`,
   })),
 };
+const scaleWallProject = {
+  ...largeProject,
+  samples: Array.from({ length: 1001 }, (_, index) => ({
+    ...sampleProject.samples[index % sampleProject.samples.length],
+    id: `scale-wall-${index}`,
+  })),
+  judges: sampleProject.judges.map((judge, index) => ({ ...judge, enabled: index < 3 })),
+};
+assert.deepEqual(
+  previewScaleWalls(scaleWallProject).map((prompt) => prompt.id),
+  ['preview-sample-batch', 'preview-third-judge'],
+);
+assert.equal(calibrationScaleWalls(scaleWallProject)[0].id, 'calibration-gold-set');
 const validateStart = performance.now();
 validateProject(largeProject);
 const validateMs = performance.now() - validateStart;

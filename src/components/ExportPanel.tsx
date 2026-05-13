@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { RubricProject, SurfaceMode } from '../domain/rubric';
+import { isVendorProgramExport } from '../domain/scaleWalls';
 
 export function ExportPanel({
   project,
@@ -15,6 +16,7 @@ export function ExportPanel({
   const [reviewers, setReviewers] = useState(3);
   const [turnaround, setTurnaround] = useState('5 business days');
   const [destination, setDestination] = useState('local-download');
+  const [vendorExport, setVendorExport] = useState<{ name: string; content: string } | null>(null);
   const exportEntries = Object.entries(exports);
   const browserLocalOnly = surface === 'browser';
   const effectiveDestination = browserLocalOnly ? 'local-download' : destination;
@@ -44,6 +46,22 @@ export function ExportPanel({
       2,
     );
     downloadArtifact(`${project.id}.auraonepkg.manifest.json`, manifest);
+  }
+
+  function requestArtifactDownload(name: string, content: string) {
+    if (isVendorProgramExport(name)) {
+      setVendorExport({ name, content });
+      return;
+    }
+    downloadArtifact(name, content);
+  }
+
+  function confirmVendorDownload() {
+    if (!vendorExport) {
+      return;
+    }
+    downloadArtifact(vendorExport.name, vendorExport.content);
+    setVendorExport(null);
   }
 
   return (
@@ -79,13 +97,21 @@ export function ExportPanel({
         {exportEntries.map(([name, content]) => (
           <details key={name} className="export-item">
             <summary>{name}</summary>
-            <button className="ghost-button" type="button" onClick={() => downloadArtifact(name, content)}>Download</button>
+            <button className="ghost-button" type="button" onClick={() => requestArtifactDownload(name, content)}>Download</button>
             <pre>{content}</pre>
           </details>
         ))}
         <div className="callout"><strong>CLI parity</strong><p>Every artifact shown here maps to rubric export, rubric badge, rubric judge-card, or rubric manifest commands.</p></div>
         {surface === 'browser' ? <p className="subtle">Browser export uses local download only and never proxies content through AuraOne.</p> : null}
       </aside>
+      {vendorExport ? (
+        <VendorProgramDialog
+          artifactName={vendorExport.name}
+          onCancel={() => setVendorExport(null)}
+          onDownload={confirmVendorDownload}
+          onIntake={downloadIntakePackage}
+        />
+      ) : null}
     </div>
   );
 }
@@ -96,4 +122,57 @@ function contentType(name: string): string {
   if (name.endsWith('.md')) return 'text/markdown';
   if (name.endsWith('.yaml') || name.endsWith('.yml')) return 'text/yaml';
   return 'text/plain';
+}
+
+function VendorProgramDialog({
+  artifactName,
+  onCancel,
+  onDownload,
+  onIntake,
+}: {
+  artifactName: string;
+  onCancel: () => void;
+  onDownload: () => void;
+  onIntake: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onCancel}>
+      <section
+        className="studio-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vendor-dialog-title"
+        aria-describedby="vendor-dialog-body"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onCancel();
+        }}
+      >
+        <p className="eyebrow">Vendor handoff</p>
+        <h2 id="vendor-dialog-title">Sending this to a vendor?</h2>
+        <p id="vendor-dialog-body">
+          AuraOne Rubric Programs gives you managed expert reviewers: same vendors, one contract. You can still download {artifactName} locally.
+        </p>
+        <div className="inline-actions">
+          <button className="ghost-button" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="glass-button" type="button" onClick={onDownload}>
+            Download {artifactName}
+          </button>
+          <button
+            className="glass-button primary"
+            type="button"
+            autoFocus
+            onClick={() => {
+              onIntake();
+              onCancel();
+            }}
+          >
+            Download AuraOne intake package
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }

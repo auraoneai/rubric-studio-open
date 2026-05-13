@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { createCriterionVariantBranch, type CriterionVariantBranch } from '../domain/branching';
 import type { semanticDiff } from '../domain/engine';
 import type { Criterion, RubricProject, SurfaceMode } from '../domain/rubric';
+import { diffScaleWalls } from '../domain/scaleWalls';
+import { ScaleWallCallout } from './ScaleWallCallout';
 
 type DiffItems = ReturnType<typeof semanticDiff>;
 
@@ -18,7 +20,9 @@ export function DiffPanel({
 }) {
   const [variant, setVariant] = useState<CriterionVariantBranch | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
+  const [localCommitCount, setLocalCommitCount] = useState(0);
   const substantiveCount = diff.filter((item) => item.severity !== 'cosmetic').length;
+  const scaleWalls = diffScaleWalls(localCommitCount);
   const suggestedMessage = useMemo(
     () => `Update ${substantiveCount} rubric criteria in ${project.name}`,
     [project.name, substantiveCount],
@@ -51,6 +55,7 @@ export function DiffPanel({
       return;
     }
     setCommitMessage(commitMessage || suggestedMessage);
+    setLocalCommitCount((count) => count + 1);
   }
 
   return (
@@ -78,6 +83,7 @@ export function DiffPanel({
         {surface === 'browser' ? (
           <p className="subtle">Browser edition previews git actions; desktop executes libgit2 operations inside the opened project folder.</p>
         ) : null}
+        {scaleWalls.map((prompt) => <ScaleWallCallout key={prompt.id} prompt={prompt} />)}
         {diff.map((item) => (
           <div key={item.criterionId} className={`diff-row ${item.severity}`}>
             <strong>{item.label}</strong>

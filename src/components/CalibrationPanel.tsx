@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { calculateCalibration, runBiasProbes, runContaminationAudit } from '../domain/engine';
 import type { RubricProject, SurfaceMode } from '../domain/rubric';
+import { calibrationScaleWalls } from '../domain/scaleWalls';
+import { ScaleWallCallout } from './ScaleWallCallout';
 
 type CalibrationItems = ReturnType<typeof calculateCalibration>;
 
@@ -18,9 +20,15 @@ export function CalibrationPanel({
   const probes = useMemo(() => runBiasProbes(project), [project]);
   const contamination = useMemo(() => runContaminationAudit(project), [project]);
   const sorted = calibration.slice().sort((a, b) => a.kappa - b.kappa);
+  const scaleWalls = calibrationScaleWalls(project);
 
   if (surface === 'browser') {
-    return <DisabledFeature title="Calibration requires desktop" body="iaa-kit, judge-bench, and contamination-audit run as local Python sidecars and are intentionally unavailable in the browser edition." />;
+    return (
+      <section className="glass-panel centered">
+        {scaleWalls.map((prompt) => <ScaleWallCallout key={prompt.id} prompt={prompt} />)}
+        <DisabledFeature title="Calibration requires desktop" body="iaa-kit, judge-bench, and contamination-audit run as local Python sidecars and are intentionally unavailable in the browser edition." />
+      </section>
+    );
   }
 
   function recordRun() {
@@ -37,6 +45,7 @@ export function CalibrationPanel({
     <div className="panel-grid calibration-grid">
       <section className="glass-panel">
         <div className="panel-title"><div><p>Calibration</p><h2>IAA metrics</h2></div><button className="glass-button primary" type="button" onClick={recordRun}>Load gold JSONL</button></div>
+        {scaleWalls.map((prompt) => <ScaleWallCallout key={prompt.id} prompt={prompt} />)}
         {calibration.map((item) => (
           <div key={item.criterionId} className="metric-row">
             <strong>{project.criteria.find((criterion) => criterion.id === item.criterionId)?.label}</strong>
@@ -97,5 +106,5 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 }
 
 function DisabledFeature({ title, body }: { title: string; body: string }) {
-  return <section className="glass-panel centered"><h2>{title}</h2><p>{body}</p><a className="glass-button primary" href="auraone://rubric-studio/open">Open desktop app</a></section>;
+  return <div><h2>{title}</h2><p>{body}</p><a className="glass-button primary" href="auraone://rubric-studio/open">Open desktop app</a></div>;
 }

@@ -3,7 +3,9 @@ import { catchViewRows, type CatchSort, type CatchVerdictFilter } from '../domai
 import { distributionForCriterion, scoreSamples } from '../domain/engine';
 import { streamOllamaCriterionScore } from '../domain/ollama';
 import type { ScoreResult, RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
+import { previewScaleWalls } from '../domain/scaleWalls';
 import { SampleControls } from './SampleControls';
+import { ScaleWallCallout } from './ScaleWallCallout';
 
 export function PreviewPanel(props: {
   project: RubricProject;
@@ -27,6 +29,7 @@ export function PreviewPanel(props: {
   const [catchCriterionId, setCatchCriterionId] = useState(props.project.criteria[0]?.id ?? '');
   const [catchSort, setCatchSort] = useState<CatchSort>('confidence');
   const [catchVerdict, setCatchVerdict] = useState<CatchVerdictFilter>('all');
+  const scaleWalls = previewScaleWalls(props.project);
   const activeResults = props.results.filter((result) => result.sampleId === props.selectedSampleId);
   const disagreementIds = new Set(
     props.project.criteria
@@ -112,6 +115,7 @@ export function PreviewPanel(props: {
           onSelect={props.onSelectSample}
           onAddSample={props.onAddSample}
         />
+        {scaleWalls.map((prompt) => <ScaleWallCallout key={prompt.id} prompt={prompt} />)}
         <div className="toggle-row filter-row" aria-label="Score result filters">
           <label><input type="checkbox" checked={failuresOnly} onChange={(event) => setFailuresOnly(event.target.checked)} />Failures</label>
           <label><input type="checkbox" checked={disagreementsOnly} onChange={(event) => setDisagreementsOnly(event.target.checked)} />Disagreements</label>

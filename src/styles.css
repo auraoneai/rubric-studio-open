@@ -274,6 +274,33 @@ small {
   font-size: 12px;
 }
 
+.scale-wall-callout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  margin: 10px 0 12px;
+  border: 1px solid rgba(24, 214, 163, 0.42);
+  border-radius: 8px;
+  background: rgba(24, 214, 163, 0.1);
+  padding: 12px;
+}
+
+.scale-wall-callout.tip {
+  border-color: rgba(52, 217, 255, 0.4);
+  background: rgba(52, 217, 255, 0.08);
+}
+
+.scale-wall-callout p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.scale-wall-callout small {
+  color: #c8fff0;
+  font-weight: 700;
+}
+
 .ghost-button,
 .glass-button,
 .intake-button,

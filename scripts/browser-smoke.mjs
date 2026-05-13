@@ -112,6 +112,12 @@ try {
   await expect(page.getByText('Browser edition is local download only')).toBeVisible();
   await expect(page.locator('.intake-flow select').nth(1)).toBeDisabled();
   await expect(page.getByText('CLI parity')).toBeVisible();
+  const scaleTaskExport = page.locator('details.export-item', { hasText: 'scale-task-spec.json' });
+  await scaleTaskExport.getByText('scale-task-spec.json').click();
+  await scaleTaskExport.getByRole('button', { name: 'Download' }).click();
+  await expect(page.getByRole('dialog', { name: 'Sending this to a vendor?' })).toBeVisible();
+  await expect(page.getByText('AuraOne Rubric Programs gives you managed expert reviewers')).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+6' : 'Control+6');
   await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();

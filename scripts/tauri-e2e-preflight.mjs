@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,15 +48,12 @@ assert.ok(workflow.includes('cargo install tauri-driver'), 'cross-platform workf
 assert.ok(workflow.includes('pnpm tauri:e2e'), 'cross-platform workflow must run native e2e on supported runners');
 assert.ok(existsSync(join(root, 'scripts/tauri-native-smoke.mjs')), 'native Tauri e2e smoke runner is required');
 
-const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const tauriDriverCommand = process.platform === 'win32' ? 'tauri-driver.exe' : 'tauri-driver';
+const tauriVersion = runCommand('pnpm', ['exec', 'tauri', '--version']);
 
-const tauriVersion = execFileSync(pnpmCommand, ['exec', 'tauri', '--version'], {
-  cwd: root,
+const driverProbe = spawnSync('tauri-driver', ['--help'], {
   encoding: 'utf8',
-}).trim();
-
-const driverProbe = spawnSync(tauriDriverCommand, ['--help'], { encoding: 'utf8' });
+  shell: process.platform === 'win32',
+});
 const driverOutput = `${driverProbe.stdout ?? ''}${driverProbe.stderr ?? ''}`.trim();
 const webdriverSupported = driverProbe.status === 0;
 const webdriverBlockedReason = webdriverSupported ? null : driverOutput || 'tauri-driver unavailable';
@@ -74,4 +71,17 @@ console.log(JSON.stringify(result, null, 2));
 
 if (process.argv.includes('--require-driver') && !webdriverSupported) {
   throw new Error(`Tauri native e2e requires a supported tauri-driver WebDriver backend: ${webdriverBlockedReason}`);
+}
+
+function runCommand(command, args) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  if (result.status !== 0) {
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
+    throw new Error(`${command} ${args.join(' ')} failed: ${output || result.error?.message || 'unknown error'}`);
+  }
+  return result.stdout.trim();
 }

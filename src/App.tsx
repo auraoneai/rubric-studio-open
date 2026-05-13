@@ -4,6 +4,7 @@ import {
   Command,
   Eye,
   FileText,
+  FolderOpen,
   GitCompare,
   HelpCircle,
   Play,
@@ -35,7 +36,14 @@ import {
 import { searchProject, validateProject } from './domain/validation';
 import { auditStudioActions, defaultShortcutRows, studioActionCategory, studioActionLabels } from './domain/actions';
 import { actionForShortcut, shortcutForAction, type ShortcutRow } from './domain/shortcuts';
-import { classifyDeepLink, connectDesktopDeepLinks, openRubricProjectFolder } from './domain/deepLink';
+import { classifyDeepLink, connectDesktopDeepLinks } from './domain/deepLink';
+import {
+  connectProjectDrop,
+  openRubricProjectPath,
+  pickRubricProjectFolder,
+  readRecentProjects,
+  type RecentProject,
+} from './domain/projectOpen';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { BrowserProjectControls } from './components/BrowserProjectControls';
 import { PreviewPanel } from './components/PreviewPanel';
@@ -309,6 +317,7 @@ export function App() {
   const [recentCommands, setRecentCommands] = useState<string[]>([]);
   const [toast, setToast] = useState('Saved');
   const [openedProjectPath, setOpenedProjectPath] = useState<string | null>(null);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>(readRecentProjects);
   const selectedCriterion = state.project.criteria.find((criterion) => criterion.id === state.selectedCriterionId);
   const selectedSample = state.project.samples.find((sample) => sample.id === state.selectedSampleId) ?? state.project.samples[0];
   const issues = useMemo(() => validateProject(state.project), [state.project]);
@@ -394,12 +403,13 @@ export function App() {
         }
 
         try {
-          const opened = await openRubricProjectFolder(target.path);
+          const opened = await openRubricProjectPath(target.path);
           if (!active) {
             return;
           }
           dispatch({ type: 'replaceProject', project: opened.project });
           setOpenedProjectPath(opened.path);
+          setRecentProjects(readRecentProjects());
           setActiveTab('authoring');
           setToast(`Opened ${opened.project.name} from deep link`);
         } catch (error) {
@@ -411,6 +421,32 @@ export function App() {
       (message) => setToast(message),
     ).then((cleanup) => {
       unlisten = cleanup;
+    });
+
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [surface]);
+
+  useEffect(() => {
+    if (surface !== 'desktop') {
+      return undefined;
+    }
+
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void connectProjectDrop(
+      async (path) => {
+        await openProjectPath(path, 'drop');
+      },
+      (message) => setToast(message),
+    ).then((cleanup) => {
+      if (active) {
+        unlisten = cleanup;
+      } else {
+        cleanup();
+      }
     });
 
     return () => {
@@ -448,7 +484,8 @@ export function App() {
       localStorage.setItem('rso:project', JSON.stringify(state.project));
       setToast('Saved current project');
     }
-    if (action === 'Quick open' || action === 'Switch to Authoring') setActiveTab('authoring');
+    if (action === 'Quick open') void openProjectPicker();
+    if (action === 'Switch to Authoring') setActiveTab('authoring');
     if (action === 'Switch to Preview') setActiveTab('preview');
     if (action === 'Switch to Calibration' || action === 'Open calibration' || action === 'Run bias probes' || action === 'Run contamination audit') setActiveTab('calibration');
     if (action === 'Switch to Diff' || action === 'Open semantic diff' || action === 'Try criterion variant') setActiveTab('diff');
@@ -460,6 +497,35 @@ export function App() {
     if (action === 'Git init') setToast('Initialized local git metadata');
     if (action === 'Git commit') setToast('Committed current rubric snapshot');
     setToast(action);
+  }
+
+  async function openProjectPicker() {
+    if (surface === 'browser') {
+      setToast('Browser edition imports project JSON only; desktop opens folders.');
+      return;
+    }
+    try {
+      const path = await pickRubricProjectFolder();
+      if (path) {
+        await openProjectPath(path, 'picker');
+      }
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Project folder picker failed');
+    }
+  }
+
+  async function openProjectPath(path: string, source: 'picker' | 'recent' | 'drop') {
+    try {
+      const opened = await openRubricProjectPath(path);
+      dispatch({ type: 'replaceProject', project: opened.project });
+      setOpenedProjectPath(opened.path);
+      setRecentProjects(readRecentProjects());
+      setActiveTab('authoring');
+      const sourceLabel = source === 'drop' ? 'drop' : source === 'recent' ? 'recent project' : 'folder picker';
+      setToast(`Opened ${opened.project.name} from ${sourceLabel}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : `Could not open ${path}`);
+    }
   }
 
   function runPreview() {
@@ -512,6 +578,33 @@ export function App() {
           })}
         </nav>
         <div className="top-actions">
+          {surface === 'desktop' ? (
+            <>
+              <button className="glass-button" type="button" onClick={() => void openProjectPicker()}>
+                <FolderOpen className="button-icon" aria-hidden="true" />
+                Open Folder
+              </button>
+              <label className="recent-picker">
+                <span>Recent</span>
+                <select
+                  aria-label="Open recent project"
+                  value=""
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      void openProjectPath(event.target.value, 'recent');
+                    }
+                  }}
+                >
+                  <option value="">Open recent project</option>
+                  {recentProjects.map((project) => (
+                    <option key={project.path} value={project.path}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : null}
           <BrowserProjectControls
             project={state.project}
             surface={surface}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Rubric Studio Open desktop capability allowlist. Dialog access is limited to user-selected project folders; shell execution remains disabled.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:default", "deep-link:default", "updater:default"]
+}

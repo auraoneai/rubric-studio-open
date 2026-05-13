@@ -6,6 +6,7 @@ import { calculateCalibration, generateExports, scoreSamples, semanticDiff } fro
 import { configureProviderKey, keychainKeyForJudge, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
 import { classifyDeepLink } from './deepLink';
+import { clearRecentProjects, readRecentProjects, rememberProject } from './projectOpen';
 import { checkForPlatformUpdate, fallbackReliabilityStatus } from './reliability';
 import { sampleProject } from './rubric';
 import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
@@ -27,6 +28,15 @@ Object.defineProperty(globalThis, 'sessionStorage', {
     setItem: (key: string, value: string) => sessionMemory.set(key, value),
     getItem: (key: string) => sessionMemory.get(key) ?? null,
     removeItem: (key: string) => sessionMemory.delete(key),
+  },
+});
+const localMemory = new Map<string, string>();
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: {
+    setItem: (key: string, value: string) => localMemory.set(key, value),
+    getItem: (key: string) => localMemory.get(key) ?? null,
+    removeItem: (key: string) => localMemory.delete(key),
   },
 });
 const browserKeyReceipt = await configureProviderKey(openAiJudge, 'sk-test-value', 'browser');
@@ -96,6 +106,18 @@ assert.equal(
   }).kind,
   'install',
 );
+clearRecentProjects();
+rememberProject('First rubric', '/tmp/rubrics/first', new Date('2026-05-13T12:00:00.000Z'));
+rememberProject('Second rubric', '/tmp/rubrics/second', new Date('2026-05-13T12:05:00.000Z'));
+rememberProject('First rubric renamed', '/tmp/rubrics/first', new Date('2026-05-13T12:10:00.000Z'));
+assert.deepEqual(
+  readRecentProjects().map((project) => [project.name, project.path]),
+  [
+    ['First rubric renamed', '/tmp/rubrics/first'],
+    ['Second rubric', '/tmp/rubrics/second'],
+  ],
+);
+clearRecentProjects();
 assert.equal(
   deriveScoreFromOllamaText('safe-refusal', 'sample-001', '{"verdict":"fail","confidence":0.91}').verdict,
   'fail',

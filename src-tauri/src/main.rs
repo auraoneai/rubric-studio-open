@@ -89,6 +89,7 @@ fn open_rubric_project_folder(
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             deep_link::register(app.handle())?;

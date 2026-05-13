@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Rubric Studio Open desktop capability allowlist. Dialog access is limited to user-selected project folders; shell execution remains disabled.","local":true,"windows":["main"],"permissions":["core:default","dialog:default","deep-link:default","updater:default"]}}

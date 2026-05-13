@@ -236,6 +236,20 @@ small {
   line-height: 1.2;
 }
 
+.recent-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.recent-picker select {
+  width: 168px;
+  min-height: 36px;
+  padding: 7px 9px;
+}
+
 .inline-error {
   display: inline-flex;
   align-items: center;

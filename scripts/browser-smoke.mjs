@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +29,7 @@ server.on('error', (error) => {
 try {
   await waitForServer(baseUrl);
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  const page = await browser.newPage({ acceptDownloads: true, viewport: { width: 1280, height: 860 } });
   let directProviderRequests = 0;
   await page.addInitScript(() => {
     window.__rsoE2eFolderFiles = {};
@@ -388,6 +389,21 @@ try {
   await expect(page.getByRole('button', { name: 'Download AuraOne intake package' })).toBeVisible();
   await expect(page.getByText('Browser edition is local download only')).toBeVisible();
   await expect(page.locator('.intake-flow select').nth(1)).toBeDisabled();
+  const [intakeDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download AuraOne intake package' }).click(),
+  ]);
+  expect(intakeDownload.suggestedFilename()).toBe('folder-imported-rubric.auraonepkg.manifest.json');
+  const intakePath = await intakeDownload.path();
+  if (!intakePath) {
+    throw new Error('Expected browser intake manifest download to produce a local path.');
+  }
+  const intakeManifest = JSON.parse(await readFile(intakePath, 'utf8'));
+  expect(intakeManifest.product).toBe('rubric-studio-open');
+  expect(intakeManifest.explicit_user_action_required).toBe(true);
+  expect(intakeManifest.intake_scope.destination).toBe('local-download');
+  expect(intakeManifest.intake_scope.sample_count).toBeGreaterThan(0);
+  expect(intakeManifest.intake_scope.criterion_count).toBeGreaterThan(0);
   await expect(page.getByText('CLI parity')).toBeVisible();
   const scaleTaskExport = page.locator('details.export-item', { hasText: 'scale-task-spec.json' });
   await scaleTaskExport.getByText('scale-task-spec.json').click();

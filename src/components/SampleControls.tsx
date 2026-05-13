@@ -15,22 +15,34 @@ export function SampleControls({
   onAddSample: (sample: RubricSample) => void;
 }) {
   const [scratch, setScratch] = useState('');
+  const [error, setError] = useState('');
 
   async function importJsonl(file: File | undefined) {
     if (!file) {
       return;
     }
-    const text = await file.text();
-    const imported = parseSamples(text, project);
-    imported.forEach(onAddSample);
+    try {
+      const text = await file.text();
+      const imported = parseSamples(text, project);
+      if (imported.length === 0) {
+        setError('No samples were found in the JSONL file.');
+        return;
+      }
+      setError('');
+      imported.forEach(onAddSample);
+    } catch {
+      setError('Sample import failed. Use JSONL rows with id, prompt, and response fields, or paste plain text.');
+    }
   }
 
   function pasteScratch() {
     const text = scratch.trim();
     if (!text) {
+      setError('Paste a JSON sample or plain-text response before adding scratch data.');
       return;
     }
     parseSamples(text, project).forEach(onAddSample);
+    setError('');
     setScratch('');
   }
 
@@ -85,6 +97,7 @@ export function SampleControls({
       <button className="glass-button" type="button" onClick={pasteScratch}>
         Add scratch
       </button>
+      {error ? <div className="inline-error" role="alert">{error}</div> : null}
     </div>
   );
 }

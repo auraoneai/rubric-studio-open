@@ -218,6 +218,18 @@ small {
   line-height: 1.2;
 }
 
+.inline-error {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid rgba(255, 107, 122, 0.5);
+  border-radius: 8px;
+  background: rgba(255, 107, 122, 0.12);
+  color: #ffd9de;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
 .ghost-button,
 .glass-button,
 .intake-button,
@@ -603,6 +615,10 @@ small {
 }
 
 .sample-controls .scratch-pane {
+  grid-column: 1 / -1;
+}
+
+.sample-controls .inline-error {
   grid-column: 1 / -1;
 }
 

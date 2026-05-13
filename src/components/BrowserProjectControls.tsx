@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type { RubricProject, SurfaceMode } from '../domain/rubric';
+import { validateProject } from '../domain/validation';
 
 export function BrowserProjectControls({
   project,
@@ -9,6 +11,8 @@ export function BrowserProjectControls({
   surface: SurfaceMode;
   onImport: (project: RubricProject) => void;
 }) {
+  const [error, setError] = useState('');
+
   function exportProject() {
     const payload = JSON.stringify(
       {
@@ -31,10 +35,22 @@ export function BrowserProjectControls({
     if (!file) {
       return;
     }
-    const text = await file.text();
-    const parsed = JSON.parse(text) as { project?: RubricProject };
-    if (parsed.project?.id && Array.isArray(parsed.project.criteria)) {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { project?: RubricProject };
+      if (!parsed.project?.id || !Array.isArray(parsed.project.criteria)) {
+        setError('Invalid project bundle. Choose a Rubric Studio Open JSON export with a project and criteria.');
+        return;
+      }
+      const issues = validateProject(parsed.project);
+      if (issues.some((issue) => issue.severity === 'error')) {
+        setError(`Project bundle has ${issues.filter((issue) => issue.severity === 'error').length} schema errors. Fix the bundle and import again.`);
+        return;
+      }
+      setError('');
       onImport(parsed.project);
+    } catch {
+      setError('Project import failed. Check that the file is valid JSON and try again.');
     }
   }
 
@@ -54,6 +70,7 @@ export function BrowserProjectControls({
           }}
         />
       </label>
+      {error ? <span className="inline-error" role="alert">{error}</span> : null}
       {surface === 'browser' ? <small>Local browser storage only</small> : null}
     </div>
   );

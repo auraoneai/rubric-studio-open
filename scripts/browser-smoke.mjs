@@ -118,6 +118,12 @@ try {
 
   const startTour = page.getByRole('button', { name: 'Start tour' });
   if (await startTour.isVisible().catch(() => false)) {
+    const wizard = page.getByRole('dialog', { name: 'First-run wizard' });
+    await expect(wizard.getByLabel('Telemetry')).not.toBeChecked();
+    await expect(wizard.getByLabel('Crash reports')).not.toBeChecked();
+    await wizard.getByLabel('GPT-5 mini first-run API key').fill('short');
+    await wizard.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
+    await expect(wizard.locator('.setting-row', { hasText: 'GPT-5 mini' })).toContainText('Paste a provider key before configuring this judge.');
     await startTour.click();
     await expect(page.getByRole('dialog', { name: 'Author criteria like code' })).toBeVisible();
     await page.getByRole('button', { name: 'Next' }).click();

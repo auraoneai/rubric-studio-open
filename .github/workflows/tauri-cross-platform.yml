@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       run_native_e2e:
-        description: Run native Tauri WebDriver e2e on the supported Windows runner
+        description: Run native Tauri WebDriver e2e on the supported Linux runner
         required: false
         type: boolean
         default: false
@@ -41,7 +41,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             webkit2gtk-driver \
-            patchelf
+            patchelf \
+            xvfb
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -89,5 +90,5 @@ jobs:
         run: pnpm tauri:build:ci
 
       - name: Native Tauri e2e
-        if: matrix.os == 'windows-latest' && env.RUN_TAURI_NATIVE_E2E == '1'
-        run: pnpm tauri:e2e
+        if: matrix.os == 'ubuntu-22.04' && env.RUN_TAURI_NATIVE_E2E == '1'
+        run: xvfb-run -a pnpm tauri:e2e

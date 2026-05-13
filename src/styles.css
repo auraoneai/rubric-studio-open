@@ -91,6 +91,31 @@ pre {
   grid-template-rows: auto 1fr auto auto;
 }
 
+.app-shell[data-theme="light"] {
+  --bg: #edf8fa;
+  --bg-2: #dceff2;
+  --panel: rgba(255, 255, 255, 0.82);
+  --panel-strong: rgba(247, 253, 255, 0.94);
+  --border: rgba(15, 93, 105, 0.18);
+  --text: #08242a;
+  --muted: #486a72;
+  background: linear-gradient(145deg, #edf8fa, #f7feff 52%, #eef2ff);
+}
+
+.app-shell[data-theme="high-contrast"] {
+  --bg: #000;
+  --bg-2: #050505;
+  --panel: #050505;
+  --panel-strong: #0a0a0a;
+  --border: #fff;
+  --text: #fff;
+  --muted: #f3f4f6;
+  --cyan: #00e5ff;
+  --emerald: #00ff99;
+  --violet: #d8b4fe;
+  background: #000;
+}
+
 .skip-link {
   position: fixed;
   left: 12px;
@@ -341,6 +366,15 @@ small {
   background: linear-gradient(180deg, var(--panel), rgba(8, 25, 30, 0.68));
   box-shadow: var(--shadow);
   padding: 14px;
+}
+
+.app-shell[data-theme="light"] .glass-panel {
+  background: linear-gradient(180deg, var(--panel), rgba(235, 249, 252, 0.76));
+}
+
+.app-shell[data-theme="high-contrast"] .glass-panel {
+  background: var(--panel);
+  box-shadow: none;
 }
 
 .glass-panel.centered {
@@ -727,6 +761,32 @@ small {
   gap: 10px;
   align-items: center;
   margin-bottom: 8px;
+}
+
+.shortcut-row {
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.8fr);
+}
+
+.segmented {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.segmented button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 10px;
+}
+
+.segmented button.active {
+  background: linear-gradient(135deg, var(--cyan), var(--emerald));
+  color: #031314;
 }
 
 .switch {

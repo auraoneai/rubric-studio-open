@@ -27,6 +27,7 @@ import { searchProject, validateProject } from './domain/validation';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { BrowserProjectControls } from './components/BrowserProjectControls';
 import { PreviewPanel } from './components/PreviewPanel';
+import { SettingsPanel, type ShortcutRow, type VisualMode } from './components/SettingsPanel';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 type Action =
@@ -84,7 +85,7 @@ const commandList = [
   'Open keyboard shortcuts',
 ];
 
-const shortcutRows = [
+const shortcutRows: ShortcutRow[] = [
   ['Cmd/Ctrl-N', 'New criterion'],
   ['Cmd/Ctrl-Shift-N', 'New theme'],
   ['Cmd/Ctrl-S', 'Save current project'],
@@ -237,6 +238,8 @@ export function App() {
   const [scoreRunning, setScoreRunning] = useState(false);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const [telemetryLog, setTelemetryLog] = useState<TelemetryEvent[]>([]);
+  const [visualMode, setVisualMode] = useState<VisualMode>('dark');
+  const [shortcuts, setShortcuts] = useState<ShortcutRow[]>(shortcutRows);
   const [toast, setToast] = useState('Saved');
   const selectedCriterion = state.project.criteria.find((criterion) => criterion.id === state.selectedCriterionId);
   const selectedSample = state.project.samples.find((sample) => sample.id === state.selectedSampleId) ?? state.project.samples[0];
@@ -338,7 +341,7 @@ export function App() {
   }
 
   return (
-    <main className="app-shell" data-surface={surface}>
+    <main className="app-shell" data-surface={surface} data-theme={visualMode}>
       <a className="skip-link" href="#main-panel">
         Skip to editor
       </a>
@@ -442,6 +445,14 @@ export function App() {
               telemetryEnabled={telemetryEnabled}
               setTelemetryEnabled={setTelemetryEnabled}
               telemetryLog={telemetryLog}
+              shortcuts={shortcuts}
+              visualMode={visualMode}
+              setVisualMode={setVisualMode}
+              onSetShortcut={(action, shortcut) =>
+                setShortcuts((current) =>
+                  current.map((row) => (row[1] === action ? [shortcut, action] : row)),
+                )
+              }
               onToggleJudge={(judgeId) => dispatch({ type: 'toggleJudge', judgeId })}
               onSetKey={(judgeId, configured) => dispatch({ type: 'setKeyConfigured', judgeId, configured })}
             />
@@ -839,45 +850,6 @@ function ExportPanel({
         <div className="callout"><strong>CLI parity</strong><p>Every artifact shown here maps to rubric export, rubric badge, rubric judge-card, or rubric manifest commands.</p></div>
         {surface === 'browser' ? <p className="subtle">Browser export uses local download only and never proxies content through AuraOne.</p> : null}
       </aside>
-    </div>
-  );
-}
-
-function SettingsPanel(props: {
-  project: RubricProject;
-  surface: SurfaceMode;
-  telemetryEnabled: boolean;
-  setTelemetryEnabled: (value: boolean) => void;
-  telemetryLog: TelemetryEvent[];
-  onToggleJudge: (judgeId: string) => void;
-  onSetKey: (judgeId: string, configured: boolean) => void;
-}) {
-  return (
-    <div className="panel-grid settings-grid">
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Keys</p><h2>BYO provider settings</h2></div></div>
-        {props.project.judges.map((judge) => (
-          <div key={judge.id} className="setting-row">
-            <div><strong>{judge.label}</strong><small>{judge.provider}/{judge.model}</small></div>
-            <label><input type="checkbox" checked={judge.enabled} onChange={() => props.onToggleJudge(judge.id)} />Enabled</label>
-            <button className="glass-button" type="button" onClick={() => props.onSetKey(judge.id, !judge.keyConfigured)}>
-              {judge.keyConfigured ? 'Rotate key' : 'Configure key'}
-            </button>
-          </div>
-        ))}
-        <div className="callout"><strong>Key storage</strong><p>{props.surface === 'browser' ? 'Browser edition stores BYO keys in session memory for direct provider calls only.' : 'Desktop routes keys through the OS keychain bridge; never plaintext project files.'}</p></div>
-      </section>
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Telemetry</p><h2>Transparent event log</h2></div><label className="switch"><span>Opt in</span><input type="checkbox" checked={props.telemetryEnabled} onChange={(event) => props.setTelemetryEnabled(event.target.checked)} /></label></div>
-        <p className="subtle">Collected only when opted in: anonymous install hash, feature usage counts, and error rates. Never rubric content, samples, judge prompts, or API keys.</p>
-        <pre className="export-preview">{JSON.stringify(props.telemetryLog, null, 2)}</pre>
-      </section>
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Shortcuts</p><h2>Remappable controls</h2></div></div>
-        {shortcutRows.map(([shortcut, action]) => (
-          <div className="setting-row" key={shortcut}><kbd>{shortcut}</kbd><span>{action}</span><button className="ghost-button" type="button">Remap</button></div>
-        ))}
-      </section>
     </div>
   );
 }

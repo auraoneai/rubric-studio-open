@@ -17,7 +17,7 @@
     "test:readme": "node scripts/readme-contract.mjs",
     "test:snapshot": "tsx src/domain/snapshot-test.ts",
     "test:perf": "tsx src/domain/performance-test.ts",
-    "test:product": "pnpm run test && pnpm run test:regression && pnpm run test:design && pnpm run test:privacy && pnpm run test:readme && pnpm run vscode:validator && pnpm run vscode:contract && pnpm run vscode:typecheck && pnpm run test:a11y && pnpm run test:e2e",
+    "test:product": "pnpm run test && pnpm run test:regression && pnpm run test:design && pnpm run test:privacy && pnpm run test:readme && pnpm run vscode:validator && pnpm run vscode:webview && pnpm run vscode:contract && pnpm run vscode:typecheck && pnpm run test:a11y && pnpm run test:e2e",
     "test:regression": "pnpm run test:snapshot && pnpm run test:perf",
     "tauri:e2e": "node scripts/tauri-native-smoke.mjs",
     "tauri:e2e:preflight": "node scripts/tauri-e2e-preflight.mjs",
@@ -26,6 +26,7 @@
     "tauri:core:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri:check": "cargo check --manifest-path src-tauri/Cargo.toml --features tauri-runtime",
     "vscode:validator": "tsx vscode-extension/src/validator-test.ts",
+    "vscode:webview": "tsx vscode-extension/src/webview-test.ts",
     "vscode:contract": "node scripts/vscode-extension-contract.mjs",
     "vscode:typecheck": "tsc -p vscode-extension/tsconfig.json --noEmit"
   },

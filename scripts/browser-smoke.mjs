@@ -427,6 +427,21 @@ try {
   await expect(page.getByRole('dialog', { name: 'Sending this to a vendor?' })).toBeVisible();
   await expect(page.getByText('AuraOne Rubric Programs gives you managed expert reviewers')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
+  await scaleTaskExport.getByRole('button', { name: 'Download' }).click();
+  await expect(page.getByRole('dialog', { name: 'Sending this to a vendor?' })).toBeVisible();
+  const [scaleTaskDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download scale-task-spec.json' }).click(),
+  ]);
+  expect(scaleTaskDownload.suggestedFilename()).toBe('scale-task-spec.json');
+  const scaleTaskPath = await scaleTaskDownload.path();
+  if (!scaleTaskPath) {
+    throw new Error('Expected vendor task-spec download to produce a local path.');
+  }
+  const scaleTaskSpec = JSON.parse(await readFile(scaleTaskPath, 'utf8'));
+  expect(scaleTaskSpec.task_type).toBe('criterion_review');
+  expect(scaleTaskSpec.rubric_id).toBe('folder-imported-rubric');
+  expect(scaleTaskSpec.criteria).toContain('safe-refusal');
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+6' : 'Control+6');
   await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();

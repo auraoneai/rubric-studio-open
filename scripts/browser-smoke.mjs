@@ -29,6 +29,7 @@ server.on('error', (error) => {
 try {
   await waitForServer(baseUrl);
   const browser = await chromium.launch();
+  await verifyNoNetworkBrowserMode(browser);
   const page = await browser.newPage({ acceptDownloads: true, viewport: { width: 1280, height: 860 } });
   let directProviderRequests = 0;
   await page.addInitScript(() => {
@@ -551,6 +552,34 @@ try {
   console.log('Rubric Studio Open browser e2e smoke passed.');
 } finally {
   server.kill('SIGTERM');
+}
+
+async function verifyNoNetworkBrowserMode(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const page = await context.newPage();
+  const blockedExternalRequests = [];
+  await page.addInitScript(() => {
+    localStorage.setItem('rso:onboarded', 'yes');
+  });
+  await page.route('**/*', async (route) => {
+    const requestUrl = new URL(route.request().url());
+    if (requestUrl.origin === baseUrl || requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+      await route.continue();
+      return;
+    }
+    blockedExternalRequests.push(route.request().url());
+    await route.abort('blockedbyclient');
+  });
+  await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Rubric Studio Open' })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
+  await page.getByLabel('Label').fill('No-network safe refusal');
+  await expect(page.getByRole('heading', { name: 'No-network safe refusal' })).toBeVisible();
+  await page.waitForTimeout(350);
+  const savedLabel = await page.evaluate(() => JSON.parse(localStorage.getItem('rso:project')).criteria[0].label);
+  expect(savedLabel).toBe('No-network safe refusal');
+  expect(blockedExternalRequests).toEqual([]);
+  await context.close();
 }
 
 async function waitForServer(url) {

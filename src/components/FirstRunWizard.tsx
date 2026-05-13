@@ -30,6 +30,14 @@ export function FirstRunWizard({
 
   async function configureJudge(judge: JudgeConfig) {
     if (judge.provider === 'ollama') {
+      if (surface === 'browser') {
+        onSetKey(judge.id, false);
+        setStatus((current) => ({
+          ...current,
+          [judge.id]: 'Browser edition cannot detect local Ollama. Open the desktop app for local model judges.',
+        }));
+        return;
+      }
       try {
         const result = await detectOllama();
         onSetKey(judge.id, true);

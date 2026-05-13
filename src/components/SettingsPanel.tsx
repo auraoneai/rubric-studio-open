@@ -81,6 +81,15 @@ export function SettingsPanel(props: {
       return;
     }
     if (judge.provider === 'ollama') {
+      if (props.surface === 'browser') {
+        setOllamaStatus(null);
+        props.onSetKey(judge.id, false);
+        setKeyErrors((current) => ({
+          ...current,
+          [judge.id]: 'Browser edition cannot detect local Ollama. Open the desktop app for local model judges.',
+        }));
+        return;
+      }
       try {
         const status = await detectOllama();
         setOllamaStatus(status);

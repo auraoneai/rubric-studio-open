@@ -123,6 +123,8 @@ try {
     const wizard = page.getByRole('dialog', { name: 'First-run wizard' });
     await expect(wizard.getByLabel('Telemetry')).not.toBeChecked();
     await expect(wizard.getByLabel('Crash reports')).not.toBeChecked();
+    await wizard.locator('.setting-row', { hasText: 'Ollama local' }).getByRole('button', { name: 'Detect local judge' }).click();
+    await expect(wizard.locator('.setting-row', { hasText: 'Ollama local' })).toContainText('Browser edition cannot detect local Ollama. Open the desktop app for local model judges.');
     await wizard.getByLabel('GPT-5 mini first-run API key').fill('short');
     await wizard.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
     await expect(wizard.locator('.setting-row', { hasText: 'GPT-5 mini' })).toContainText('Paste a provider key before configuring this judge.');
@@ -551,6 +553,8 @@ try {
   await page.getByLabel('GPT-5 mini API key').fill('sk-e2e-browser-provider');
   await page.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
   await expect(page.getByLabel('GPT-5 mini API key')).toHaveAttribute('placeholder', 'Configured in session');
+  await page.locator('.setting-row', { hasText: 'Ollama local' }).getByRole('button', { name: 'Detect Ollama' }).click();
+  await expect(page.locator('.setting-row', { hasText: 'Ollama local' })).toContainText('Browser edition cannot detect local Ollama. Open the desktop app for local model judges.');
   await page.locator('.setting-row', { hasText: 'Ollama local' }).getByLabel('Enabled').check();
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');

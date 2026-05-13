@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.RSO_TAURI_DRIVER_PORT ?? 4455);
+const requestTimeoutMs = Number(process.env.RSO_TAURI_WEBDRIVER_TIMEOUT_MS ?? 30_000);
 const application = process.env.RSO_TAURI_APP_PATH ?? defaultApplicationPath();
 
 const driverProbe = spawnSync('tauri-driver', ['--help'], {
@@ -121,11 +122,18 @@ async function execute(sessionId, script, args = []) {
 }
 
 async function webdriver(method, path, body) {
-  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response;
+  try {
+    response = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${method} ${path} failed before response: ${message}${driverOutputBuffer ? `\n\nTauri driver output:\n${tail(driverOutputBuffer)}` : ''}`);
+  }
   const text = await response.text();
   const parsed = text ? JSON.parse(text) : {};
   if (!response.ok) {

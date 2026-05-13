@@ -754,7 +754,8 @@ judges = "judges"
         assert_eq!(
             path_from_manifest(root, paths, "criteria", "criteria")
                 .unwrap()
-                .to_string_lossy(),
+                .to_string_lossy()
+                .replace('\\', "/"),
             "/project/root/criteria/safety"
         );
     }

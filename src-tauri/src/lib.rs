@@ -53,6 +53,38 @@ pub struct IntakeManifest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KeychainKey {
+    pub service: String,
+    pub scope: String,
+    pub identifier: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KeychainReceipt {
+    pub service: String,
+    pub scope: String,
+    pub identifier_hash: String,
+    pub backend: String,
+    pub native_bridge_required: bool,
+    pub stores_user_content: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KeychainStatus {
+    pub service: String,
+    pub backend: String,
+    pub allowed_scopes: Vec<String>,
+    pub stores_user_content: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KeychainFailure {
+    pub field: String,
+    pub message: String,
+    pub secret_redacted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SidecarKind {
     IaaKit,
     JudgeBench,
@@ -146,7 +178,11 @@ pub fn validate_project(criteria: Vec<CriterionInput>) -> Vec<ValidationIssue> {
     issues
 }
 
-pub fn mock_score(criteria: Vec<CriterionInput>, sample: SampleInput, judge_id: String) -> Vec<ScoreOutput> {
+pub fn mock_score(
+    criteria: Vec<CriterionInput>,
+    sample: SampleInput,
+    judge_id: String,
+) -> Vec<ScoreOutput> {
     criteria
         .into_iter()
         .map(|criterion| {
@@ -190,7 +226,10 @@ pub fn mock_score(criteria: Vec<CriterionInput>, sample: SampleInput, judge_id: 
         .collect()
 }
 
-pub fn semantic_diff(current: Vec<CriterionInput>, baseline: Vec<CriterionInput>) -> Vec<DiffOutput> {
+pub fn semantic_diff(
+    current: Vec<CriterionInput>,
+    baseline: Vec<CriterionInput>,
+) -> Vec<DiffOutput> {
     let baseline_by_id: std::collections::HashMap<String, CriterionInput> = baseline
         .into_iter()
         .map(|criterion| (criterion.id.clone(), criterion))
@@ -212,7 +251,8 @@ pub fn semantic_diff(current: Vec<CriterionInput>, baseline: Vec<CriterionInput>
             Some(previous) if previous.description != criterion.description => DiffOutput {
                 criterion_id: criterion.id,
                 severity: "substantive".into(),
-                summary: "Criterion description changed; review semantic intent before merge.".into(),
+                summary: "Criterion description changed; review semantic intent before merge."
+                    .into(),
             },
             Some(_) => DiffOutput {
                 criterion_id: criterion.id,
@@ -233,7 +273,71 @@ pub fn build_intake_manifest(project_id: String, payload_json: String) -> Intake
     }
 }
 
-pub fn prepare_sidecar_invocation(request: SidecarRequest) -> Result<SidecarInvocation, SidecarFailure> {
+pub fn keychain_status() -> KeychainStatus {
+    KeychainStatus {
+        service: "rubric-studio-open".into(),
+        backend: keychain_backend_label().into(),
+        allowed_scopes: vec!["byo-api-keys".into()],
+        stores_user_content: false,
+    }
+}
+
+pub fn prepare_keychain_set(
+    key: KeychainKey,
+    secret: String,
+) -> Result<KeychainReceipt, KeychainFailure> {
+    validate_keychain_key(&key)?;
+    if secret.trim().len() < 8 {
+        return Err(KeychainFailure {
+            field: "secret".into(),
+            message: "Provider key must be at least eight characters.".into(),
+            secret_redacted: true,
+        });
+    }
+
+    Ok(KeychainReceipt {
+        service: key.service,
+        scope: key.scope,
+        identifier_hash: sha256_hex(&key.identifier)[0..16].into(),
+        backend: keychain_backend_label().into(),
+        native_bridge_required: true,
+        stores_user_content: false,
+    })
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+pub fn store_keychain_secret(
+    key: KeychainKey,
+    secret: String,
+) -> Result<KeychainReceipt, KeychainFailure> {
+    let receipt = prepare_keychain_set(key.clone(), secret.clone())?;
+    let entry = keyring::Entry::new_with_target(&key.scope, &key.service, &key.identifier)
+        .map_err(|error| KeychainFailure {
+            field: "backend".into(),
+            message: format!("OS keychain entry could not be opened: {error}"),
+            secret_redacted: true,
+        })?;
+    entry
+        .set_password(&secret)
+        .map_err(|error| KeychainFailure {
+            field: "backend".into(),
+            message: format!("OS keychain write failed: {error}"),
+            secret_redacted: true,
+        })?;
+    Ok(receipt)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+pub fn store_keychain_secret(
+    key: KeychainKey,
+    secret: String,
+) -> Result<KeychainReceipt, KeychainFailure> {
+    prepare_keychain_set(key, secret)
+}
+
+pub fn prepare_sidecar_invocation(
+    request: SidecarRequest,
+) -> Result<SidecarInvocation, SidecarFailure> {
     if request.input_json.len() > 4 * 1024 * 1024 {
         return Err(sidecar_failure(
             request.kind,
@@ -241,7 +345,10 @@ pub fn prepare_sidecar_invocation(request: SidecarRequest) -> Result<SidecarInvo
         ));
     }
     if serde_json::from_str::<serde_json::Value>(&request.input_json).is_err() {
-        return Err(sidecar_failure(request.kind, "sidecar input must be valid JSON"));
+        return Err(sidecar_failure(
+            request.kind,
+            "sidecar input must be valid JSON",
+        ));
     }
     let timeout_ms = request.timeout_ms.clamp(1_000, 120_000);
     let max_output_bytes = request.max_output_bytes.clamp(1_024, 8 * 1024 * 1024);
@@ -277,6 +384,53 @@ fn sidecar_failure(kind: SidecarKind, message: &str) -> SidecarFailure {
     }
 }
 
+fn validate_keychain_key(key: &KeychainKey) -> Result<(), KeychainFailure> {
+    for (field, value) in [
+        ("service", &key.service),
+        ("scope", &key.scope),
+        ("identifier", &key.identifier),
+    ] {
+        if value.is_empty()
+            || !value
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || "-_.".contains(character))
+        {
+            return Err(KeychainFailure {
+                field: field.into(),
+                message: format!("{field} contains unsupported characters"),
+                secret_redacted: true,
+            });
+        }
+    }
+    if key.service != "rubric-studio-open" {
+        return Err(KeychainFailure {
+            field: "service".into(),
+            message: "Keychain service must be rubric-studio-open.".into(),
+            secret_redacted: true,
+        });
+    }
+    if key.scope != "byo-api-keys" {
+        return Err(KeychainFailure {
+            field: "scope".into(),
+            message: "Rubric Studio Open only stores BYO provider keys in the OS keychain.".into(),
+            secret_redacted: true,
+        });
+    }
+    Ok(())
+}
+
+fn keychain_backend_label() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macos-keychain-services"
+    } else if cfg!(target_os = "windows") {
+        "windows-credential-manager"
+    } else if cfg!(target_os = "linux") {
+        "linux-secret-service"
+    } else {
+        "platform-keychain"
+    }
+}
+
 fn shared_token(haystack: &str, example: &str) -> bool {
     example
         .to_lowercase()
@@ -287,7 +441,11 @@ fn shared_token(haystack: &str, example: &str) -> bool {
 
 fn stable_hash(value: &str) -> u64 {
     let digest = Sha256::digest(value.as_bytes());
-    u64::from_be_bytes(digest[0..8].try_into().expect("sha256 prefix has eight bytes"))
+    u64::from_be_bytes(
+        digest[0..8]
+            .try_into()
+            .expect("sha256 prefix has eight bytes"),
+    )
 }
 
 fn sha256_hex(value: &str) -> String {
@@ -333,7 +491,11 @@ mod tests {
             prompt: "Improve this rubric".into(),
             response: "Use a specific checklist with clear details.".into(),
         };
-        let first = mock_score(vec![criterion("specificity")], sample.clone(), "local-mock".into());
+        let first = mock_score(
+            vec![criterion("specificity")],
+            sample.clone(),
+            "local-mock".into(),
+        );
         let second = mock_score(vec![criterion("specificity")], sample, "local-mock".into());
 
         assert_eq!(first, second);
@@ -357,6 +519,42 @@ mod tests {
         assert!(!manifest.sends_api_keys);
         assert!(manifest.explicit_user_action_required);
         assert_eq!(manifest.content_hash.len(), 64);
+    }
+
+    #[test]
+    fn keychain_bridge_accepts_only_byo_api_keys_and_redacts_secret() {
+        let receipt = prepare_keychain_set(
+            KeychainKey {
+                service: "rubric-studio-open".into(),
+                scope: "byo-api-keys".into(),
+                identifier: "openai-gpt-5-mini".into(),
+            },
+            "sk-test-value".into(),
+        )
+        .unwrap();
+
+        assert_eq!(receipt.service, "rubric-studio-open");
+        assert_eq!(receipt.scope, "byo-api-keys");
+        assert_eq!(receipt.identifier_hash.len(), 16);
+        assert!(receipt.native_bridge_required);
+        assert!(!receipt.stores_user_content);
+        assert!(!format!("{receipt:?}").contains("sk-test-value"));
+    }
+
+    #[test]
+    fn keychain_bridge_rejects_user_content_scope() {
+        let error = prepare_keychain_set(
+            KeychainKey {
+                service: "rubric-studio-open".into(),
+                scope: "project-content".into(),
+                identifier: "rubric-body".into(),
+            },
+            "user-authored rubric text".into(),
+        )
+        .unwrap_err();
+
+        assert_eq!(error.field, "scope");
+        assert!(error.secret_redacted);
     }
 
     #[test]

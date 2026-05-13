@@ -344,6 +344,32 @@ small {
   gap: 6px;
 }
 
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.status-grid div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.status-grid dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.status-grid dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .context-menu {
   position: sticky;
   bottom: 12px;

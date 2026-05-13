@@ -1,12 +1,18 @@
 import { strict as assert } from 'node:assert';
 import { performance } from 'node:perf_hooks';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
+import { keychainKeyForJudge, validateProviderSecret } from './keychain';
 import { sampleProject } from './rubric';
 import { searchProject, validateProject } from './validation';
 
 const issues = validateProject(sampleProject);
 assert.ok(issues.some((issue) => issue.severity === 'warning'));
 assert.ok(sampleProject.judges.some((judge) => judge.provider === 'ollama' && judge.model.includes('llama')));
+const openAiJudge = sampleProject.judges.find((judge) => judge.provider === 'openai');
+assert.ok(openAiJudge);
+assert.equal(keychainKeyForJudge(openAiJudge).scope, 'byo-api-keys');
+assert.equal(validateProviderSecret('short')?.includes('provider key'), true);
+assert.equal(validateProviderSecret('sk-test-value'), null);
 
 const results = scoreSamples(sampleProject, sampleProject.samples, sampleProject.judges);
 assert.ok(results.length >= sampleProject.samples.length * sampleProject.criteria.length);

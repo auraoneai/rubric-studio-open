@@ -15,6 +15,15 @@ sha2 = "0.10"
 toml = "0.8"
 tauri = { version = "2", optional = true }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

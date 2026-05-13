@@ -36,6 +36,29 @@ fn build_intake_manifest(
 
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
+fn platform_keychain_status() -> rubric_studio_open_core::KeychainStatus {
+    rubric_studio_open_core::keychain_status()
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+fn platform_keychain_set(
+    key: rubric_studio_open_core::KeychainKey,
+    value: String,
+    secret: bool,
+) -> Result<rubric_studio_open_core::KeychainReceipt, rubric_studio_open_core::KeychainFailure> {
+    if !secret {
+        return Err(rubric_studio_open_core::KeychainFailure {
+            field: "secret".into(),
+            message: "Keychain writes must be marked as secret IPC payloads.".into(),
+            secret_redacted: true,
+        });
+    }
+    rubric_studio_open_core::store_keychain_secret(key, value)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
 fn prepare_sidecar_invocation(
     request: rubric_studio_open_core::SidecarRequest,
 ) -> Result<rubric_studio_open_core::SidecarInvocation, rubric_studio_open_core::SidecarFailure> {
@@ -50,6 +73,8 @@ fn main() {
             mock_score,
             semantic_diff,
             build_intake_manifest,
+            platform_keychain_status,
+            platform_keychain_set,
             prepare_sidecar_invocation
         ])
         .run(tauri::generate_context!())
@@ -58,8 +83,5 @@ fn main() {
 
 #[cfg(not(feature = "tauri-runtime"))]
 fn main() {
-    println!(
-        "{}",
-        rubric_studio_open_core::git_status_summary("main", 0)
-    );
+    println!("{}", rubric_studio_open_core::git_status_summary("main", 0));
 }

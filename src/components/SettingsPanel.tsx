@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { configureProviderKey, getKeychainStatus, type KeychainStatus } from '../domain/keychain';
 import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
 
 export type VisualMode = 'dark' | 'light' | 'high-contrast';
@@ -24,6 +25,30 @@ export function SettingsPanel(props: {
 }) {
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
+  const [keychainStatus, setKeychainStatus] = useState<KeychainStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getKeychainStatus(props.surface)
+      .then((status) => {
+        if (!cancelled) {
+          setKeychainStatus(status);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setKeychainStatus({
+            service: 'rubric-studio-open',
+            backend: 'unavailable',
+            allowed_scopes: ['byo-api-keys'],
+            stores_user_content: false,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.surface]);
 
   async function configureJudge(judge: JudgeConfig) {
     if (judge.provider === 'mock') {
@@ -47,15 +72,19 @@ export function SettingsPanel(props: {
       return;
     }
 
-    const draft = keyDrafts[judge.id]?.trim() ?? '';
-    if (draft.length < 8) {
-      setKeyErrors((current) => ({ ...current, [judge.id]: 'Paste a provider key before configuring this judge.' }));
-      return;
+    try {
+      const draft = keyDrafts[judge.id]?.trim() ?? '';
+      await configureProviderKey(judge, draft, props.surface);
+      setKeyDrafts((current) => ({ ...current, [judge.id]: '' }));
+      setKeyErrors((current) => ({ ...current, [judge.id]: '' }));
+      props.onSetKey(judge.id, true);
+      setKeychainStatus(await getKeychainStatus(props.surface));
+    } catch (error) {
+      setKeyErrors((current) => ({
+        ...current,
+        [judge.id]: error instanceof Error ? error.message : 'Keychain bridge rejected this provider key.',
+      }));
     }
-    sessionStorage.setItem(`rso:key:${judge.provider}:${judge.id}`, 'configured');
-    setKeyDrafts((current) => ({ ...current, [judge.id]: '' }));
-    setKeyErrors((current) => ({ ...current, [judge.id]: '' }));
-    props.onSetKey(judge.id, true);
   }
 
   return (
@@ -81,7 +110,15 @@ export function SettingsPanel(props: {
             {keyErrors[judge.id] ? <span className="inline-error" role="alert">{keyErrors[judge.id]}</span> : null}
           </div>
         ))}
-        <div className="callout"><strong>Key storage</strong><p>{props.surface === 'browser' ? 'Browser edition stores BYO keys in session memory for direct provider calls only.' : 'Desktop routes keys through the OS keychain bridge; never plaintext project files.'}</p></div>
+        <div className="callout">
+          <strong>Key storage</strong>
+          <p>{props.surface === 'browser' ? 'Browser edition stores BYO keys in session memory for direct provider calls only.' : 'Desktop routes keys through the OS keychain bridge; never plaintext project files.'}</p>
+          <dl className="status-grid">
+            <div><dt>Backend</dt><dd>{keychainStatus?.backend ?? 'detecting'}</dd></div>
+            <div><dt>Allowed scope</dt><dd>{keychainStatus?.allowed_scopes.join(', ') ?? 'byo-api-keys'}</dd></div>
+            <div><dt>User content</dt><dd>{keychainStatus?.stores_user_content ? 'allowed' : 'blocked'}</dd></div>
+          </dl>
+        </div>
       </section>
       <section className="glass-panel">
         <div className="panel-title">

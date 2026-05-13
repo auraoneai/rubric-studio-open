@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { configureProviderKey, getKeychainStatus, type KeychainStatus } from '../domain/keychain';
 import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
+import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
 
 export type VisualMode = 'dark' | 'light' | 'high-contrast';
-export type ShortcutRow = [string, string];
 export type UpdateChannel = 'stable' | 'beta';
 
 export function SettingsPanel(props: {
@@ -26,6 +26,7 @@ export function SettingsPanel(props: {
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
   const [keychainStatus, setKeychainStatus] = useState<KeychainStatus | null>(null);
+  const shortcutConflicts = findShortcutConflicts(props.shortcuts);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,10 +167,21 @@ export function SettingsPanel(props: {
       </section>
       <section className="glass-panel">
         <div className="panel-title"><div><p>Shortcuts</p><h2>Remappable controls</h2></div></div>
+        {shortcutConflicts.length > 0 ? (
+          <div className="inline-error shortcut-conflict" role="alert">
+            {shortcutConflicts.map((conflict) => `${conflict.shortcut}: ${conflict.actions.join(', ')}`).join(' · ')}
+          </div>
+        ) : (
+          <p className="subtle">Every registered command has an editable shortcut. Conflicts are blocked before keyboard dispatch.</p>
+        )}
         {props.shortcuts.map(([shortcut, action]) => (
           <label className="setting-row shortcut-row" key={action}>
             <span>{action}</span>
-            <input value={shortcut} onChange={(event) => props.onSetShortcut(action, event.target.value)} />
+            <input
+              aria-label={`${action} shortcut`}
+              value={shortcut}
+              onChange={(event) => props.onSetShortcut(action, normalizeShortcut(event.target.value))}
+            />
           </label>
         ))}
       </section>

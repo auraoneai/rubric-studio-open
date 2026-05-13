@@ -22,10 +22,11 @@ import {
   type TelemetryEvent,
 } from './domain/rubric';
 import { searchProject, validateProject } from './domain/validation';
+import { actionForShortcut, type ShortcutRow } from './domain/shortcuts';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { BrowserProjectControls } from './components/BrowserProjectControls';
 import { PreviewPanel } from './components/PreviewPanel';
-import { SettingsPanel, type ShortcutRow, type VisualMode } from './components/SettingsPanel';
+import { SettingsPanel, type VisualMode } from './components/SettingsPanel';
 import { DiffPanel } from './components/DiffPanel';
 import { CalibrationPanel } from './components/CalibrationPanel';
 import { ExportPanel } from './components/ExportPanel';
@@ -88,21 +89,48 @@ const commandList = [
   'Git commit',
   'Toggle comments',
   'Open keyboard shortcuts',
+  'Switch to Authoring',
+  'Switch to Preview',
+  'Switch to Calibration',
+  'Switch to Diff',
+  'Switch to Export',
+  'Switch to Settings',
+  'Toggle browser constraints',
 ];
 
 const shortcutRows: ShortcutRow[] = [
+  ['Cmd/Ctrl-K', 'Command palette'],
   ['Cmd/Ctrl-N', 'New criterion'],
   ['Cmd/Ctrl-Shift-N', 'New theme'],
-  ['Cmd/Ctrl-S', 'Save current project'],
-  ['Cmd/Ctrl-P', 'Quick open'],
-  ['Cmd/Ctrl-K', 'Command palette'],
-  ['Cmd/Ctrl-1..5', 'Switch primary tabs'],
-  ['Cmd/Ctrl-Enter', 'Score current sample'],
-  ['Cmd/Ctrl-Shift-Enter', 'Score all samples'],
-  ['Cmd/Ctrl-/', 'Toggle criterion comments'],
   ['Cmd/Ctrl-D', 'Duplicate criterion'],
   ['Cmd/Ctrl-Backspace', 'Delete criterion'],
-  ['Cmd/Ctrl-Z / Cmd/Ctrl-Shift-Z', 'Undo / redo'],
+  ['Cmd/Ctrl-S', 'Save current project'],
+  ['Cmd/Ctrl-P', 'Quick open'],
+  ['Cmd/Ctrl-R', 'Run preview'],
+  ['Cmd/Ctrl-Enter', 'Score current sample'],
+  ['Cmd/Ctrl-Shift-Enter', 'Score all samples'],
+  ['Cmd/Ctrl-/', 'Toggle comments'],
+  ['Cmd/Ctrl-Alt-C', 'Open calibration'],
+  ['Cmd/Ctrl-Shift-B', 'Run bias probes'],
+  ['Cmd/Ctrl-Shift-A', 'Run contamination audit'],
+  ['Cmd/Ctrl-Alt-D', 'Open semantic diff'],
+  ['Cmd/Ctrl-Shift-V', 'Try criterion variant'],
+  ['Cmd/Ctrl-Alt-1', 'Export: lm-eval-harness'],
+  ['Cmd/Ctrl-Alt-2', 'Export: Inspect'],
+  ['Cmd/Ctrl-Alt-3', 'Export: OpenAI Evals'],
+  ['Cmd/Ctrl-Alt-4', 'Export: Promptfoo'],
+  ['Cmd/Ctrl-Alt-5', 'Export: AuraOne intake package'],
+  ['Cmd/Ctrl-Alt-6', 'Generate CI helper'],
+  ['Cmd/Ctrl-G', 'Git init'],
+  ['Cmd/Ctrl-Shift-G', 'Git commit'],
+  ['Cmd/Ctrl-,', 'Open keyboard shortcuts'],
+  ['Cmd/Ctrl-1', 'Switch to Authoring'],
+  ['Cmd/Ctrl-2', 'Switch to Preview'],
+  ['Cmd/Ctrl-3', 'Switch to Calibration'],
+  ['Cmd/Ctrl-4', 'Switch to Diff'],
+  ['Cmd/Ctrl-5', 'Switch to Export'],
+  ['Cmd/Ctrl-6', 'Switch to Settings'],
+  ['Cmd/Ctrl-Shift-M', 'Toggle browser constraints'],
 ];
 
 function reducer(state: StudioState, action: Action): StudioState {
@@ -292,58 +320,24 @@ export function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const meta = event.metaKey || event.ctrlKey;
-      if (!meta) {
+      const target = event.target as HTMLElement | null;
+      const editingText =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable;
+      if (editingText && !event.metaKey && !event.ctrlKey) {
         return;
       }
-      if (event.key.toLowerCase() === 'k') {
+      const action = actionForShortcut(event, shortcuts);
+      if (action) {
         event.preventDefault();
-        setPaletteOpen(true);
-      }
-      if (event.key >= '1' && event.key <= '5') {
-        event.preventDefault();
-        setActiveTab(tabs[Number(event.key) - 1].id);
-      }
-      if (event.key.toLowerCase() === 'n') {
-        event.preventDefault();
-        if (event.shiftKey) {
-          dispatch({ type: 'addTheme' });
-        } else {
-          dispatch({ type: 'addCriterion', themeId: state.project.themes[0].id });
-        }
-      }
-      if (event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        localStorage.setItem('rso:project', JSON.stringify(state.project));
-        setToast('Saved current project');
-      }
-      if (event.key.toLowerCase() === 'p') {
-        event.preventDefault();
-        setPaletteQuery('');
-        setPaletteOpen(true);
-      }
-      if (event.key.toLowerCase() === 'd' && selectedCriterion) {
-        event.preventDefault();
-        dispatch({ type: 'duplicateCriterion', criterionId: selectedCriterion.id });
-      }
-      if (event.key === 'Backspace' && selectedCriterion) {
-        event.preventDefault();
-        if (window.confirm(`Delete ${selectedCriterion.label}?`)) {
-          dispatch({ type: 'deleteCriterion', criterionId: selectedCriterion.id });
-        }
-      }
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        runPreview();
-      }
-      if (event.key === '/') {
-        event.preventDefault();
-        dispatch({ type: 'toggleComments' });
+        runStudioAction(action);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedCriterion, state.project.themes]);
+  }, [shortcuts, selectedCriterion, state.project, surface]);
 
   function emit(event: string, payload: TelemetryEvent['payload'] = {}) {
     const telemetryEvent = createTelemetryEvent(event, payload);
@@ -355,24 +349,37 @@ export function App() {
     setPaletteQuery('');
     setRecentCommands((current) => [command, ...current.filter((item) => item !== command)].slice(0, 6));
     emit('command.executed', { command });
-    if (command === 'New criterion') dispatch({ type: 'addCriterion', themeId: state.project.themes[0].id });
-    if (command === 'New theme') dispatch({ type: 'addTheme' });
-    if (command === 'Duplicate criterion' && selectedCriterion) {
+    runStudioAction(command);
+  }
+
+  function runStudioAction(action: string) {
+    if (action === 'Command palette') setPaletteOpen(true);
+    if (action === 'New criterion') dispatch({ type: 'addCriterion', themeId: state.project.themes[0].id });
+    if (action === 'New theme') dispatch({ type: 'addTheme' });
+    if (action === 'Duplicate criterion' && selectedCriterion) {
       dispatch({ type: 'duplicateCriterion', criterionId: selectedCriterion.id });
     }
-    if (command === 'Delete criterion' && selectedCriterion) {
+    if (action === 'Delete criterion' && selectedCriterion) {
       if (window.confirm(`Delete ${selectedCriterion.label}?`)) {
         dispatch({ type: 'deleteCriterion', criterionId: selectedCriterion.id });
       }
     }
-    if (command === 'Save current project') localStorage.setItem('rso:project', JSON.stringify(state.project));
-    if (command === 'Quick open') setActiveTab('authoring');
-    if (command.includes('preview') || command.includes('Score')) runPreview();
-    if (command === 'Open calibration') setActiveTab('calibration');
-    if (command === 'Open semantic diff') setActiveTab('diff');
-    if (command.startsWith('Export')) setActiveTab('export');
-    if (command === 'Toggle comments') dispatch({ type: 'toggleComments' });
-    setToast(command);
+    if (action === 'Save current project') {
+      localStorage.setItem('rso:project', JSON.stringify(state.project));
+      setToast('Saved current project');
+    }
+    if (action === 'Quick open' || action === 'Switch to Authoring') setActiveTab('authoring');
+    if (action === 'Switch to Preview') setActiveTab('preview');
+    if (action === 'Switch to Calibration' || action === 'Open calibration' || action === 'Run bias probes' || action === 'Run contamination audit') setActiveTab('calibration');
+    if (action === 'Switch to Diff' || action === 'Open semantic diff' || action === 'Try criterion variant') setActiveTab('diff');
+    if (action === 'Switch to Export' || action.startsWith('Export') || action === 'Generate CI helper') setActiveTab('export');
+    if (action === 'Switch to Settings' || action === 'Open keyboard shortcuts') setActiveTab('settings');
+    if (action === 'Run preview' || action === 'Score current sample' || action === 'Score all samples') runPreview();
+    if (action === 'Toggle comments') dispatch({ type: 'toggleComments' });
+    if (action === 'Toggle browser constraints') setSurface(surface === 'browser' ? 'desktop' : 'browser');
+    if (action === 'Git init') setToast('Initialized local git metadata');
+    if (action === 'Git commit') setToast('Committed current rubric snapshot');
+    setToast(action);
   }
 
   function runPreview() {

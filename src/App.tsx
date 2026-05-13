@@ -524,6 +524,7 @@ function AuthoringPanel(props: {
   onToggleTheme: (themeId: string) => void;
 }) {
   const { project, criterion, issues } = props;
+  const tagOptions = Array.from(new Set(project.criteria.flatMap((item) => item.tags))).sort();
   const [bulkIds, setBulkIds] = useState<string[]>([]);
   const bulkSelected = new Set(bulkIds);
   function toggleBulk(criterionId: string) {
@@ -685,13 +686,19 @@ function AuthoringPanel(props: {
             <textarea value={criterion.edgeCases.join('\n')} onChange={(event) => props.onUpdate({ edgeCases: event.target.value.split('\n').filter(Boolean) })} />
           </Field>
           <Field label="Tags">
-            <input value={criterion.tags.join(', ')} onChange={(event) => props.onUpdate({ tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
+            <input list="tag-options" value={criterion.tags.join(', ')} onChange={(event) => props.onUpdate({ tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
+            <datalist id="tag-options">
+              {tagOptions.map((tag) => <option key={tag} value={tag} />)}
+            </datalist>
           </Field>
           <Field label="References">
             <textarea value={criterion.references.join('\n')} onChange={(event) => props.onUpdate({ references: event.target.value.split('\n').filter(Boolean) })} />
           </Field>
           <Field label="Sibling links">
-            <input value={criterion.siblingLinks.join(', ')} onChange={(event) => props.onUpdate({ siblingLinks: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
+            <input list="criterion-ref-options" value={criterion.siblingLinks.join(', ')} onChange={(event) => props.onUpdate({ siblingLinks: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
+            <datalist id="criterion-ref-options">
+              {project.criteria.filter((item) => item.id !== criterion.id).map((item) => <option key={item.id} value={item.id} />)}
+            </datalist>
           </Field>
         </details>
       </section>

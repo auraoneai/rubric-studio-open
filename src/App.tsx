@@ -5,8 +5,6 @@ import {
   createTelemetryEvent,
   generateExports,
   projectHealth,
-  runBiasProbes,
-  runContaminationAudit,
   scoreSamples,
   semanticDiff,
 } from './domain/engine';
@@ -29,6 +27,7 @@ import { BrowserProjectControls } from './components/BrowserProjectControls';
 import { PreviewPanel } from './components/PreviewPanel';
 import { SettingsPanel, type ShortcutRow, type VisualMode } from './components/SettingsPanel';
 import { DiffPanel } from './components/DiffPanel';
+import { CalibrationPanel } from './components/CalibrationPanel';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 type Action =
@@ -730,58 +729,6 @@ function AuthoringPanel(props: {
             ))}
           </div>
         </div>
-      </aside>
-    </div>
-  );
-}
-
-function CalibrationPanel({
-  project,
-  calibration,
-  surface,
-}: {
-  project: RubricProject;
-  calibration: ReturnType<typeof calculateCalibration>;
-  surface: SurfaceMode;
-}) {
-  if (surface === 'browser') {
-    return <DisabledFeature title="Calibration requires desktop" body="iaa-kit, judge-bench, and contamination-audit run as local Python sidecars and are intentionally unavailable in the browser edition." />;
-  }
-  const probes = runBiasProbes(project);
-  const contamination = runContaminationAudit(project);
-  return (
-    <div className="panel-grid calibration-grid">
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Calibration</p><h2>IAA metrics</h2></div><button className="glass-button primary" type="button">Load gold JSONL</button></div>
-        {calibration.map((item) => (
-          <div key={item.criterionId} className="metric-row">
-            <strong>{project.criteria.find((criterion) => criterion.id === item.criterionId)?.label}</strong>
-            <span>Cohen κ {item.kappa}</span>
-            <span>Weighted κ {item.weightedKappa}</span>
-            <span>Krippendorff α {item.krippendorffAlpha}</span>
-            <span>CI {item.ci95[0]}..{item.ci95[1]}</span>
-          </div>
-        ))}
-      </section>
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Needs work</p><h2>Lowest agreement</h2></div><button className="glass-button" type="button">Suggest rewrite</button></div>
-        {calibration.slice().sort((a, b) => a.kappa - b.kappa).map((item) => (
-          <div key={item.criterionId} className="rewrite-card">
-            <strong>{project.criteria.find((criterion) => criterion.id === item.criterionId)?.label}</strong>
-            <p>Candidate rewrite: Make the evidence threshold observable and add an explicit boundary.</p>
-            <small>Most disagreed samples: {item.mostDisagreedSampleIds.join(', ') || 'none'}</small>
-          </div>
-        ))}
-      </section>
-      <aside className="glass-panel">
-        <div className="panel-title"><div><p>Sidecars</p><h2>Bias and leakage</h2></div></div>
-        {probes.map((probe) => (
-          <div key={probe.id} className={`probe ${probe.status}`}><strong>{probe.label}</strong><span>{probe.status}</span><p>{probe.reasoning}</p></div>
-        ))}
-        <h3>Contamination audit</h3>
-        {contamination.map((row) => (
-          <div key={row.sampleId} className="metric-row compact"><strong>{row.sampleId}</strong><span>{row.ngramOverlap} overlap</span><span>{row.exactMatch ? 'exact match' : 'no exact match'}</span></div>
-        ))}
       </aside>
     </div>
   );

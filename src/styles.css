@@ -533,6 +533,7 @@ small {
 .metric-row,
 .diff-row,
 .rewrite-card,
+.rewrite-panel,
 .probe,
 .setting-row,
 .export-item {
@@ -703,6 +704,17 @@ small {
 
 .probe {
   margin-bottom: 8px;
+}
+
+.rewrite-panel {
+  display: grid;
+  gap: 8px;
+  border-color: rgba(24, 214, 163, 0.4);
+}
+
+.rewrite-panel ol {
+  margin: 0;
+  padding-left: 20px;
 }
 
 .probe.pass span {

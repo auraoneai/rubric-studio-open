@@ -35,13 +35,22 @@ fn build_intake_manifest(
 }
 
 #[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+fn prepare_sidecar_invocation(
+    request: rubric_studio_open_core::SidecarRequest,
+) -> Result<rubric_studio_open_core::SidecarInvocation, rubric_studio_open_core::SidecarFailure> {
+    rubric_studio_open_core::prepare_sidecar_invocation(request)
+}
+
+#[cfg(feature = "tauri-runtime")]
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             validate_project,
             mock_score,
             semantic_diff,
-            build_intake_manifest
+            build_intake_manifest,
+            prepare_sidecar_invocation
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rubric Studio Open");

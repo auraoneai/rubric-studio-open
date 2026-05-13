@@ -52,6 +52,42 @@ pub struct IntakeManifest {
     pub explicit_user_action_required: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SidecarKind {
+    IaaKit,
+    JudgeBench,
+    ContaminationAudit,
+    PromptRubricDrift,
+    EvalAdapter,
+    DatasheetCi,
+    Evalkit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SidecarRequest {
+    pub kind: SidecarKind,
+    pub input_json: String,
+    pub timeout_ms: u64,
+    pub max_output_bytes: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SidecarInvocation {
+    pub executable: String,
+    pub args: Vec<String>,
+    pub timeout_ms: u64,
+    pub max_output_bytes: usize,
+    pub sends_api_keys: bool,
+    pub network_allowed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SidecarFailure {
+    pub kind: SidecarKind,
+    pub message: String,
+    pub child_crash_safe: bool,
+}
+
 pub fn validate_project(criteria: Vec<CriterionInput>) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut ids = std::collections::HashSet::new();
@@ -197,8 +233,48 @@ pub fn build_intake_manifest(project_id: String, payload_json: String) -> Intake
     }
 }
 
+pub fn prepare_sidecar_invocation(request: SidecarRequest) -> Result<SidecarInvocation, SidecarFailure> {
+    if request.input_json.len() > 4 * 1024 * 1024 {
+        return Err(sidecar_failure(
+            request.kind,
+            "sidecar input exceeds the 4 MB local IPC limit",
+        ));
+    }
+    if serde_json::from_str::<serde_json::Value>(&request.input_json).is_err() {
+        return Err(sidecar_failure(request.kind, "sidecar input must be valid JSON"));
+    }
+    let timeout_ms = request.timeout_ms.clamp(1_000, 120_000);
+    let max_output_bytes = request.max_output_bytes.clamp(1_024, 8 * 1024 * 1024);
+    let (executable, command) = match request.kind {
+        SidecarKind::IaaKit => ("python3", "iaa-kit"),
+        SidecarKind::JudgeBench => ("python3", "judge-bench"),
+        SidecarKind::ContaminationAudit => ("python3", "contamination-audit"),
+        SidecarKind::PromptRubricDrift => ("python3", "prompt-rubric-drift"),
+        SidecarKind::EvalAdapter => ("python3", "eval-adapter"),
+        SidecarKind::DatasheetCi => ("node", "datasheet-ci"),
+        SidecarKind::Evalkit => ("python3", "auraone-evalkit"),
+    };
+
+    Ok(SidecarInvocation {
+        executable: executable.into(),
+        args: vec!["-m".into(), command.into(), "--json-stdin".into()],
+        timeout_ms,
+        max_output_bytes,
+        sends_api_keys: false,
+        network_allowed: false,
+    })
+}
+
 pub fn git_status_summary(branch: &str, changed_files: usize) -> String {
     format!("{branch}: {changed_files} changed files, local-only")
+}
+
+fn sidecar_failure(kind: SidecarKind, message: &str) -> SidecarFailure {
+    SidecarFailure {
+        kind,
+        message: message.into(),
+        child_crash_safe: true,
+    }
 }
 
 fn shared_token(haystack: &str, example: &str) -> bool {
@@ -281,5 +357,35 @@ mod tests {
         assert!(!manifest.sends_api_keys);
         assert!(manifest.explicit_user_action_required);
         assert_eq!(manifest.content_hash.len(), 64);
+    }
+
+    #[test]
+    fn sidecar_invocation_is_sandboxed_and_keyless() {
+        let invocation = prepare_sidecar_invocation(SidecarRequest {
+            kind: SidecarKind::IaaKit,
+            input_json: "{\"pairs\":[]}".into(),
+            timeout_ms: 999_999,
+            max_output_bytes: 999_999_999,
+        })
+        .unwrap();
+
+        assert_eq!(invocation.timeout_ms, 120_000);
+        assert_eq!(invocation.max_output_bytes, 8 * 1024 * 1024);
+        assert!(!invocation.sends_api_keys);
+        assert!(!invocation.network_allowed);
+    }
+
+    #[test]
+    fn sidecar_rejects_invalid_json_without_crashing_app() {
+        let error = prepare_sidecar_invocation(SidecarRequest {
+            kind: SidecarKind::EvalAdapter,
+            input_json: "not-json".into(),
+            timeout_ms: 1_000,
+            max_output_bytes: 1_024,
+        })
+        .unwrap_err();
+
+        assert!(error.child_crash_safe);
+        assert!(error.message.contains("valid JSON"));
     }
 }

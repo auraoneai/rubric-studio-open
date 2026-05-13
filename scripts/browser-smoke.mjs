@@ -271,6 +271,16 @@ try {
   await expect(page.getByText('Imported Folder Imported Rubric from browser folder.')).toBeVisible();
 
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+  await page.getByLabel('Command search').fill('Open semantic diff');
+  await page.getByRole('button', { name: /Open semantic diff/ }).click();
+  await expect(page.getByRole('tabpanel', { name: /diff panel/i })).toBeVisible();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await expect(page.getByRole('button', { name: /Open semantic diff.*Recent/ })).toBeVisible();
+  await page.getByLabel('Command search').fill('Switch to Authoring');
+  await page.getByRole('button', { name: /Switch to Authoring/ }).click();
+  await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+F' : 'Control+F');
   await expect(page.getByRole('textbox', { name: 'In-file find' })).toBeFocused();
   await page.getByRole('textbox', { name: 'In-file find' }).fill('refuses');

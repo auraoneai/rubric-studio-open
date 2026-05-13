@@ -435,6 +435,10 @@ try {
   await page.getByRole('button', { name: 'Check for updates' }).click();
   await expect(page.locator('.success-chip', { hasText: 'unavailable' })).toBeVisible();
   await expect(page.getByText('Remappable controls')).toBeVisible();
+  await page.getByLabel('New criterion shortcut').fill('Cmd/Ctrl-K');
+  await expect(page.locator('.shortcut-conflict')).toContainText('Cmd/Ctrl-K: Command palette, New criterion');
+  await page.getByLabel('New criterion shortcut').fill('Cmd/Ctrl-Alt-9');
+  await expect(page.locator('.shortcut-conflict')).toHaveCount(0);
   await page.getByLabel('GPT-5 mini API key').fill('short');
   await page.locator('.setting-row', { hasText: 'GPT-5 mini' }).getByRole('button', { name: 'Configure key' }).click();
   await expect(page.locator('.setting-row', { hasText: 'GPT-5 mini' })).toContainText('Paste a provider key before configuring this judge.');

@@ -15,6 +15,9 @@ sha2 = "0.10"
 toml = "0.8"
 tauri = { version = "2", optional = true }
 
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
 [lib]
 name = "rubric_studio_open_core"
 path = "src/lib.rs"

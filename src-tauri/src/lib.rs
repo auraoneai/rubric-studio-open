@@ -52,7 +52,6 @@ pub struct IntakeManifest {
     pub explicit_user_action_required: bool,
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub fn validate_project(criteria: Vec<CriterionInput>) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut ids = std::collections::HashSet::new();
@@ -111,7 +110,6 @@ pub fn validate_project(criteria: Vec<CriterionInput>) -> Vec<ValidationIssue> {
     issues
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub fn mock_score(criteria: Vec<CriterionInput>, sample: SampleInput, judge_id: String) -> Vec<ScoreOutput> {
     criteria
         .into_iter()
@@ -156,7 +154,6 @@ pub fn mock_score(criteria: Vec<CriterionInput>, sample: SampleInput, judge_id: 
         .collect()
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub fn semantic_diff(current: Vec<CriterionInput>, baseline: Vec<CriterionInput>) -> Vec<DiffOutput> {
     let baseline_by_id: std::collections::HashMap<String, CriterionInput> = baseline
         .into_iter()
@@ -190,7 +187,6 @@ pub fn semantic_diff(current: Vec<CriterionInput>, baseline: Vec<CriterionInput>
         .collect()
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub fn build_intake_manifest(project_id: String, payload_json: String) -> IntakeManifest {
     IntakeManifest {
         packet_version: "auraonepkg.v1".into(),

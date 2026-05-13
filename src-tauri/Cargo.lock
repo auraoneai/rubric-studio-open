@@ -2444,6 +2444,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tauri",
+ "tauri-build",
  "toml 0.8.23",
 ]
 

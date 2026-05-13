@@ -1,0 +1,61 @@
+import { strict as assert } from 'node:assert';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const tauriConfig = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'));
+const cargoToml = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8');
+
+const requiredScripts = [
+  'build',
+  'test:e2e',
+  'test:a11y',
+  'tauri:e2e',
+  'tauri:check',
+  'tauri:core:test',
+  'tauri:build:mac:debug',
+];
+
+requiredScripts.forEach((scriptName) => {
+  assert.ok(packageJson.scripts[scriptName], `missing package script ${scriptName}`);
+});
+
+assert.equal(packageJson.devDependencies['@tauri-apps/cli'], '2.11.1');
+assert.equal(tauriConfig.productName, 'Rubric Studio Open');
+assert.equal(tauriConfig.identifier, 'ai.auraone.rubricstudio.open');
+assert.equal(tauriConfig.build.frontendDist, '../dist');
+assert.ok(tauriConfig.app.windows[0].minWidth >= 1024, 'desktop shell must preserve the 1024px functional layout');
+assert.deepEqual(tauriConfig.bundle.targets, ['dmg', 'msi', 'appimage', 'deb', 'rpm']);
+assert.ok(
+  tauriConfig.bundle.icon.every((iconPath) => existsSync(join(root, 'src-tauri', iconPath))),
+  'every Tauri bundle icon must exist',
+);
+assert.ok(cargoToml.includes('tauri-runtime = ["tauri", "tauri-plugin-updater"]'));
+
+const tauriVersion = execFileSync('pnpm', ['exec', 'tauri', '--version'], {
+  cwd: root,
+  encoding: 'utf8',
+}).trim();
+
+const driverProbe = spawnSync('tauri-driver', ['--help'], { encoding: 'utf8' });
+const driverOutput = `${driverProbe.stdout ?? ''}${driverProbe.stderr ?? ''}`.trim();
+const webdriverSupported = driverProbe.status === 0;
+const webdriverBlockedReason = webdriverSupported ? null : driverOutput || 'tauri-driver unavailable';
+
+const result = {
+  tauri_cli: tauriVersion,
+  tauri_driver_installed: driverProbe.error?.code !== 'ENOENT',
+  webdriver_supported: webdriverSupported,
+  webdriver_blocked_reason: webdriverBlockedReason,
+  native_e2e_command: 'pnpm --filter=@auraone/rubric-studio-open tauri:e2e',
+  local_preflight: 'passed',
+};
+
+console.log(JSON.stringify(result, null, 2));
+
+if (process.argv.includes('--require-driver') && !webdriverSupported) {
+  throw new Error(`Tauri native e2e requires a supported tauri-driver WebDriver backend: ${webdriverBlockedReason}`);
+}

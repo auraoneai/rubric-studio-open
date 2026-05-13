@@ -16,6 +16,9 @@
     "test:snapshot": "tsx src/domain/snapshot-test.ts",
     "test:perf": "tsx src/domain/performance-test.ts",
     "test:regression": "pnpm run test:snapshot && pnpm run test:perf",
+    "tauri:e2e": "node scripts/tauri-e2e-preflight.mjs --require-driver",
+    "tauri:e2e:preflight": "node scripts/tauri-e2e-preflight.mjs",
+    "tauri:build:mac:debug": "tauri build --debug --bundles app",
     "tauri:core:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri:check": "cargo check --manifest-path src-tauri/Cargo.toml --features tauri-runtime",
     "vscode:typecheck": "tsc -p vscode-extension/tsconfig.json --noEmit"
@@ -33,6 +36,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.11.2",
     "@playwright/test": "1.56.0",
+    "@tauri-apps/cli": "2.11.1",
     "@types/node": "^20.17.9",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0"

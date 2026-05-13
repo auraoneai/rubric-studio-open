@@ -30,6 +30,22 @@ The capability manifest intentionally does not grant shell execution, arbitrary
 filesystem scope, clipboard manager, process control, or network permissions
 beyond the reviewed CSP destinations.
 
+## Network destinations
+
+The desktop CSP currently allows:
+
+| Destination | Purpose | Default |
+|---|---|---|
+| `http://localhost:11434` | Local Ollama/BYO model scoring. | User-configured. |
+| `https://api.openai.com` | BYO OpenAI scoring. | Off until key configured. |
+| `https://api.anthropic.com` | BYO Anthropic scoring. | Off until key configured. |
+| `https://generativelanguage.googleapis.com` | BYO Google scoring. | Off until key configured. |
+| `https://huggingface.co` | Hugging Face export/model integration. | User-initiated. |
+| `https://updates.auraone.ai`, `https://updates2.auraone.ai` | Signed update checks. | Release-channel dependent. |
+| `https://intake.auraone.ai` | Explicit AuraOne intake export. | Off until user sends. |
+| `https://o.auraone.ai` | Opt-in telemetry. | Off by default. |
+| `https://sentry.io` | Opt-in crash reporting. | Off by default. |
+
 ## Supported versions
 
 The initial supported line is `0.1.x`.

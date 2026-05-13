@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.RSO_TAURI_DRIVER_PORT ?? 4455);
 const application = process.env.RSO_TAURI_APP_PATH ?? defaultApplicationPath();
+const tauriDriverCommand = process.platform === 'win32' ? 'tauri-driver.exe' : 'tauri-driver';
 
-const driverProbe = spawnSync('tauri-driver', ['--help'], { encoding: 'utf8' });
+const driverProbe = spawnSync(tauriDriverCommand, ['--help'], { encoding: 'utf8' });
 const driverOutput = `${driverProbe.stdout ?? ''}${driverProbe.stderr ?? ''}`.trim();
 if (driverProbe.status !== 0) {
   throw new Error(`Tauri native e2e requires a supported tauri-driver WebDriver backend: ${driverOutput || 'tauri-driver unavailable'}`);
@@ -17,7 +18,7 @@ if (driverProbe.status !== 0) {
 
 assert.ok(existsSync(application), `Build the Tauri app before native e2e; missing ${application}`);
 
-const driver = spawn('tauri-driver', ['--port', String(port)], {
+const driver = spawn(tauriDriverCommand, ['--port', String(port)], {
   cwd: root,
   stdio: ['ignore', 'pipe', 'pipe'],
 });

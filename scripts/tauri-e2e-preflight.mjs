@@ -45,12 +45,15 @@ assert.ok(workflow.includes('cargo install tauri-driver'), 'cross-platform workf
 assert.ok(workflow.includes('pnpm tauri:e2e'), 'cross-platform workflow must run native e2e on supported runners');
 assert.ok(existsSync(join(root, 'scripts/tauri-native-smoke.mjs')), 'native Tauri e2e smoke runner is required');
 
-const tauriVersion = execFileSync('pnpm', ['exec', 'tauri', '--version'], {
+const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+const tauriDriverCommand = process.platform === 'win32' ? 'tauri-driver.exe' : 'tauri-driver';
+
+const tauriVersion = execFileSync(pnpmCommand, ['exec', 'tauri', '--version'], {
   cwd: root,
   encoding: 'utf8',
 }).trim();
 
-const driverProbe = spawnSync('tauri-driver', ['--help'], { encoding: 'utf8' });
+const driverProbe = spawnSync(tauriDriverCommand, ['--help'], { encoding: 'utf8' });
 const driverOutput = `${driverProbe.stdout ?? ''}${driverProbe.stderr ?? ''}`.trim();
 const webdriverSupported = driverProbe.status === 0;
 const webdriverBlockedReason = webdriverSupported ? null : driverOutput || 'tauri-driver unavailable';

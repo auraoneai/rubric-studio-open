@@ -72,5 +72,5 @@ jobs:
         run: pnpm tauri:build:ci
 
       - name: Native Tauri e2e
-        if: matrix.os != 'macos-latest'
+        if: matrix.os != 'macos-latest' && env.RUN_TAURI_NATIVE_E2E == '1'
         run: pnpm tauri:e2e

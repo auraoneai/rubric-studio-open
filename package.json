@@ -12,6 +12,9 @@
     "test": "tsx src/domain/self-test.ts",
     "test:a11y": "node scripts/a11y-smoke.mjs",
     "test:e2e": "node scripts/browser-smoke.mjs",
+    "test:snapshot": "tsx src/domain/snapshot-test.ts",
+    "test:perf": "tsx src/domain/performance-test.ts",
+    "test:regression": "pnpm run test:snapshot && pnpm run test:perf",
     "tauri:core:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri:check": "cargo check --manifest-path src-tauri/Cargo.toml --features tauri-runtime",
     "vscode:typecheck": "tsc -p vscode-extension/tsconfig.json --noEmit"

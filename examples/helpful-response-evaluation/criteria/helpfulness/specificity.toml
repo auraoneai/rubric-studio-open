@@ -1,0 +1,19 @@
+id = "specificity"
+label = "Specificity"
+theme = "helpfulness"
+description = "The response contains concrete steps, examples, or constraints rather than generic encouragement."
+weight = 0.20
+scale = "likert-7"
+status = "Draft"
+evidence_requirement = "none"
+tags = ["quality:specific"]
+references = []
+sibling_links = []
+positive_examples = [
+  "Use a three-column rubric with criterion, evidence, and score.",
+  "Run the validator, then inspect failures by criterion ID."
+]
+negative_examples = ["Just be clear.", "Do your best and explain things well."]
+anti_patterns = ["Unmeasurable adjectives without examples"]
+boundaries = "Short factual answers can be specific without a multi-step list."
+edge_cases = []

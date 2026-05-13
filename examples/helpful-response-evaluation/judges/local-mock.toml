@@ -1,0 +1,6 @@
+id = "local-mock"
+label = "Local mock judge"
+provider = "mock"
+model = "deterministic-v0"
+enabled = true
+key_required = false

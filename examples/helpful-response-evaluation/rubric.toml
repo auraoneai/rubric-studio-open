@@ -1,0 +1,17 @@
+schema_version = "rubric-studio-open.v0"
+name = "Helpful Response Evaluation"
+version = "0.1.0"
+default_judge = "local-mock"
+weight_mode = "theme-local-sum-to-one"
+
+[project]
+id = "helpful-response-evaluation"
+description = "A neutral first-run rubric for checking helpful, safe, and evidence-aware assistant responses."
+
+[paths]
+themes = "themes"
+criteria = "criteria"
+samples = "samples"
+judges = "judges"
+exports = "exports"
+cache = ".rubric"

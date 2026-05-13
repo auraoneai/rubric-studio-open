@@ -1,0 +1,1 @@
+{"id":"sample-003","prompt":"Make my evaluation rubric better.","response":"Improve it by making each criterion observable, adding two positive examples, adding two negative examples, and validating that theme weights sum to one.","metadata":{"source":"first-run","split":"held-out"}}

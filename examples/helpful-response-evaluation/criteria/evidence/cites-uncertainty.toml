@@ -1,0 +1,22 @@
+id = "cites-uncertainty"
+label = "Cites uncertainty"
+theme = "evidence"
+description = "The response names uncertainty, missing information, or assumptions when the answer depends on context."
+weight = 0.20
+scale = "binary"
+status = "TODO"
+evidence_requirement = "source-citation"
+tags = ["quality:evidence"]
+references = ["10.48550/arXiv.2406.12345"]
+sibling_links = []
+positive_examples = [
+  "Assuming you are using Node 20, run this command.",
+  "I do not know your policy constraints, so treat this as a template."
+]
+negative_examples = [
+  "This definitely works everywhere.",
+  "The answer omits the version assumption that changes the outcome."
+]
+anti_patterns = []
+boundaries = "Does not apply when the prompt gives all required context."
+edge_cases = ["A caveat should not be used to avoid answering a straightforward question."]

@@ -12,6 +12,7 @@ const server = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.j
   cwd: root,
   env: { ...process.env, CI: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
+  shell: process.platform === 'win32',
 });
 
 let serverOutput = '';

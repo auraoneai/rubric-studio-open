@@ -275,6 +275,19 @@ try {
   await page.getByRole('button', { name: 'Import folder' }).click();
   await expect(page.getByText('Folder Imported Rubric', { exact: true })).toBeVisible();
   await expect(page.getByText('Imported Folder Imported Rubric from browser folder.')).toBeVisible();
+  const [bundleDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Export bundle' }).click(),
+  ]);
+  expect(bundleDownload.suggestedFilename()).toBe('folder-imported-rubric.rubric-project.json');
+  const bundlePath = await bundleDownload.path();
+  if (!bundlePath) {
+    throw new Error('Expected browser bundle export to produce a local path.');
+  }
+  const exportedBundle = JSON.parse(await readFile(bundlePath, 'utf8'));
+  expect(exportedBundle.schema).toBe('https://spec.auraone.ai/rubric-studio-open/project-bundle/v1');
+  expect(exportedBundle.project.id).toBe('folder-imported-rubric');
+  expect(exportedBundle.project.criteria.length).toBeGreaterThan(0);
 
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');

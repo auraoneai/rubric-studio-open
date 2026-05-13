@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { performance } from 'node:perf_hooks';
+import { createCriterionVariantBranch } from './branching';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { keychainKeyForJudge, validateProviderSecret } from './keychain';
 import { sampleProject } from './rubric';
@@ -34,6 +35,10 @@ assert.ok(calibration.every((item) => Number.isFinite(item.kappa)));
 
 const diff = semanticDiff(sampleProject);
 assert.equal(diff.length, sampleProject.criteria.length);
+const variant = createCriterionVariantBranch(sampleProject, diff);
+assert.ok(variant);
+assert.ok(variant.branchName.startsWith('try/'));
+assert.ok(variant.proposedDescription.includes('Variant boundary'));
 
 const exports = generateExports(sampleProject, issues, calibration);
 assert.ok(exports['rubric.json'].includes('"schema"'));

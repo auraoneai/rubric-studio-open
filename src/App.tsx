@@ -496,7 +496,14 @@ export function App() {
           {activeTab === 'calibration' ? (
             <CalibrationPanel project={state.project} calibration={calibration} surface={surface} />
           ) : null}
-          {activeTab === 'diff' ? <DiffPanel project={state.project} diff={diff} surface={surface} /> : null}
+          {activeTab === 'diff' ? (
+            <DiffPanel
+              project={state.project}
+              diff={diff}
+              surface={surface}
+              onApplyVariant={(criterionId, patch) => dispatch({ type: 'updateCriterion', criterionId, patch })}
+            />
+          ) : null}
           {activeTab === 'export' ? (
             <ExportPanel
               project={state.project}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { createCriterionVariantBranch, type CriterionVariantBranch } from '../domain/branching';
 import type { semanticDiff } from '../domain/engine';
-import type { RubricProject, SurfaceMode } from '../domain/rubric';
+import type { Criterion, RubricProject, SurfaceMode } from '../domain/rubric';
 
 type DiffItems = ReturnType<typeof semanticDiff>;
 
@@ -8,25 +9,40 @@ export function DiffPanel({
   project,
   diff,
   surface,
+  onApplyVariant,
 }: {
   project: RubricProject;
   diff: DiffItems;
   surface: SurfaceMode;
+  onApplyVariant: (criterionId: string, patch: Partial<Criterion>) => void;
 }) {
-  const [branch, setBranch] = useState<string | null>(null);
+  const [variant, setVariant] = useState<CriterionVariantBranch | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
-  const [variantApplied, setVariantApplied] = useState(false);
   const substantiveCount = diff.filter((item) => item.severity !== 'cosmetic').length;
   const suggestedMessage = useMemo(
     () => `Update ${substantiveCount} rubric criteria in ${project.name}`,
     [project.name, substantiveCount],
   );
 
-  function startVariant() {
-    const target = diff.find((item) => item.severity !== 'cosmetic') ?? diff[0];
-    setBranch(`try/${target?.criterionId ?? 'criterion'}-variant`);
-    setVariantApplied(true);
-    setCommitMessage(`Try variant for ${target?.label ?? project.name}`);
+  function startVariant(preferredCriterionId?: string) {
+    const nextVariant = createCriterionVariantBranch(project, diff, preferredCriterionId);
+    if (!nextVariant) {
+      return;
+    }
+    setVariant(nextVariant);
+    setCommitMessage(nextVariant.commitMessage);
+  }
+
+  function mergeVariant() {
+    if (!variant) {
+      return;
+    }
+    onApplyVariant(variant.criterionId, {
+      description: variant.proposedDescription,
+      status: 'Draft',
+    });
+    setCommitMessage(`Merge ${variant.branchName} into ${project.branch}`);
+    setVariant(null);
   }
 
   function commit() {
@@ -69,27 +85,36 @@ export function DiffPanel({
       <section className="glass-panel">
         <div className="panel-title">
           <div><p>Impact</p><h2>Score overlay</h2></div>
-          <button className="glass-button" type="button" onClick={startVariant}>Try variant branch</button>
+          <button className="glass-button" type="button" onClick={() => startVariant()}>Try variant branch</button>
         </div>
-        {branch ? (
+        {variant ? (
           <div className="branch-card">
-            <strong>{branch}</strong>
-            <p>Variant staged with a safer boundary sentence and re-scored held-out overlay.</p>
+            <strong>{variant.branchName}</strong>
+            <p>Variant staged for {variant.label}; the held-out overlay below includes the proposed rewrite until merged or discarded.</p>
+            <div className="variant-preview">
+              <span>Proposed criterion text</span>
+              <pre>{variant.proposedDescription}</pre>
+            </div>
             <div className="inline-actions">
-              <button className="glass-button primary" type="button" onClick={() => setVariantApplied(false)}>Merge back</button>
-              <button className="ghost-button" type="button" onClick={() => { setBranch(null); setVariantApplied(false); }}>Discard</button>
+              <button className="glass-button primary" type="button" onClick={mergeVariant}>Merge back</button>
+              <button className="ghost-button" type="button" onClick={() => setVariant(null)}>Discard</button>
             </div>
           </div>
         ) : null}
-        {variantApplied ? <p className="subtle">Variant impact is included in the table until merged or discarded.</p> : null}
+        {variant ? <p className="subtle">Variant impact is included in the table until merged or discarded.</p> : null}
         <table>
-          <thead><tr><th>Criterion</th><th>Pass to fail</th><th>Fail to pass</th></tr></thead>
+          <thead><tr><th>Criterion</th><th>Pass to fail</th><th>Fail to pass</th><th>Variant</th></tr></thead>
           <tbody>
             {diff.map((item) => (
               <tr key={item.criterionId}>
                 <td>{item.label}</td>
-                <td>{variantApplied ? item.passToFail + 1 : item.passToFail}</td>
-                <td>{variantApplied ? item.failToPass + 1 : item.failToPass}</td>
+                <td>{variant?.criterionId === item.criterionId ? item.passToFail + variant.passToFailDelta : item.passToFail}</td>
+                <td>{variant?.criterionId === item.criterionId ? item.failToPass + variant.failToPassDelta : item.failToPass}</td>
+                <td>
+                  <button className="ghost-button" type="button" onClick={() => startVariant(item.criterionId)}>
+                    Try
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

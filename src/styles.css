@@ -344,6 +344,26 @@ small {
   gap: 6px;
 }
 
+.variant-preview {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.variant-preview span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.variant-preview pre {
+  max-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(4, 17, 20, 0.52);
+  padding: 10px;
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

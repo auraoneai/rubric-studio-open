@@ -19,6 +19,8 @@ assert.ok(styles.includes('.button-icon'), 'shared icon sizing CSS is required f
 assert.ok(html.includes('rel="icon" href="/favicon.ico"'), 'browser edition must expose the ICO favicon');
 assert.ok(html.includes('rel="icon" href="/favicon.svg"'), 'browser edition must expose the SVG favicon');
 assert.ok(html.includes('boot-splash'), 'app shell must include a first-paint splash screen');
+assert.ok(html.includes('role="status"'), 'first-paint splash must expose status semantics');
+assert.ok(html.includes('aria-live="polite"'), 'first-paint splash status must be polite for assistive tech');
 assert.ok(existsSync(join(root, 'assets/brand/logo.svg')), 'brand logo SVG is required');
 assert.ok(existsSync(join(root, 'assets/brand/splash.svg')), 'brand splash SVG is required');
 assert.ok(existsSync(join(root, 'assets/brand/splash-1920x1080.png')), 'rendered splash PNG is required');
@@ -26,6 +28,9 @@ assert.ok(existsSync(join(root, 'public/favicon.ico')), 'browser ICO favicon is 
 assert.ok(existsSync(join(root, 'public/favicon.svg')), 'browser SVG favicon is required');
 assert.ok(existsSync(join(root, 'src-tauri/icons/icon.icns')), 'macOS app icon bundle is required');
 assert.ok(existsSync(join(root, 'src-tauri/icons/icon.ico')), 'Windows app icon bundle is required');
+assert.ok(readFileSync(join(root, 'assets/brand/logo.svg'), 'utf8').includes('<svg'), 'brand logo must be SVG');
+assert.ok(readFileSync(join(root, 'assets/brand/splash.svg'), 'utf8').includes('<svg'), 'brand splash source must be SVG');
+assert.ok(readFileSync(join(root, 'public/favicon.svg'), 'utf8').includes('<svg'), 'browser favicon SVG must be valid SVG text');
 assert.deepEqual(tauriConfig.bundle.icon, [
   'icons/32x32.png',
   'icons/128x128.png',
@@ -42,6 +47,12 @@ const expectedIconSizes = new Map([
   ['icon.png', [1024, 1024]],
 ]);
 
+assert.deepEqual(
+  pngDimensions(join(root, 'assets/brand/splash-1920x1080.png')),
+  { width: 1920, height: 1080 },
+  'rendered splash PNG must be 1920x1080',
+);
+
 expectedIconSizes.forEach(([width, height], filename) => {
   assert.deepEqual(
     pngDimensions(join(root, `src-tauri/icons/${filename}`)),
@@ -49,6 +60,32 @@ expectedIconSizes.forEach(([width, height], filename) => {
     `${filename} must be rendered at ${width}x${height}`,
   );
 });
+
+assert.deepEqual(
+  icoSizes(join(root, 'src-tauri/icons/icon.ico')),
+  [
+    [16, 16],
+    [32, 32],
+    [48, 48],
+    [256, 256],
+  ],
+  'Windows app ICO must include 16, 32, 48, and 256px entries',
+);
+assert.deepEqual(
+  icoSizes(join(root, 'public/favicon.ico')),
+  [
+    [16, 16],
+    [32, 32],
+    [48, 48],
+    [256, 256],
+  ],
+  'Browser ICO favicon must include 16, 32, 48, and 256px entries',
+);
+assert.deepEqual(
+  icnsTypes(join(root, 'src-tauri/icons/icon.icns')),
+  ['ic04', 'ic05', 'ic07', 'ic08', 'ic09', 'ic10', 'ic11', 'ic12', 'ic13', 'ic14', 'info'],
+  'macOS ICNS must include retina and standard icon entries',
+);
 
 const requiredIcons = [
   'FileText',
@@ -76,4 +113,38 @@ function pngDimensions(path) {
     width: png.readUInt32BE(16),
     height: png.readUInt32BE(20),
   };
+}
+
+function icoSizes(path) {
+  const ico = readFileSync(path);
+  assert.equal(ico.readUInt16LE(0), 0, `${path} has invalid ICO reserved header`);
+  assert.equal(ico.readUInt16LE(2), 1, `${path} must be an icon resource`);
+  const count = ico.readUInt16LE(4);
+  const sizes = [];
+  for (let index = 0; index < count; index += 1) {
+    const offset = 6 + index * 16;
+    const width = ico[offset] === 0 ? 256 : ico[offset];
+    const height = ico[offset + 1] === 0 ? 256 : ico[offset + 1];
+    const bitDepth = ico.readUInt16LE(offset + 6);
+    assert.equal(bitDepth, 32, `${path} ICO entry ${width}x${height} must be 32-bit`);
+    sizes.push([width, height]);
+  }
+  return sizes;
+}
+
+function icnsTypes(path) {
+  const icns = readFileSync(path);
+  assert.equal(icns.toString('ascii', 0, 4), 'icns', `${path} must be an ICNS bundle`);
+  assert.equal(icns.readUInt32BE(4), icns.length, `${path} has an invalid ICNS length header`);
+  const types = [];
+  let offset = 8;
+  while (offset + 8 <= icns.length) {
+    const type = icns.toString('ascii', offset, offset + 4);
+    const length = icns.readUInt32BE(offset + 4);
+    assert.ok(length >= 8, `${path} ICNS entry ${type} has invalid length`);
+    types.push(type);
+    offset += length;
+  }
+  assert.equal(offset, icns.length, `${path} ICNS entries must consume the full file`);
+  return types.sort();
 }

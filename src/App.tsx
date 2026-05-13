@@ -56,6 +56,7 @@ import { CalibrationPanel } from './components/CalibrationPanel';
 import { ExportPanel } from './components/ExportPanel';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AuthoringPanel } from './components/AuthoringPanel';
+import { DeleteCriterionDialog, TemplateProjectDialog } from './components/StudioDialogs';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 interface TourStep {
@@ -321,7 +322,10 @@ export function App() {
   const [toast, setToast] = useState('Saved');
   const [openedProjectPath, setOpenedProjectPath] = useState<string | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>(readRecentProjects);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [deleteCriterionId, setDeleteCriterionId] = useState<string | null>(null);
   const selectedCriterion = state.project.criteria.find((criterion) => criterion.id === state.selectedCriterionId);
+  const deleteCriterion = state.project.criteria.find((criterion) => criterion.id === deleteCriterionId);
   const selectedSample = state.project.samples.find((sample) => sample.id === state.selectedSampleId) ?? state.project.samples[0];
   const issues = useMemo(() => validateProject(state.project), [state.project]);
   const scoreResults = useMemo(() => scoreSamples(state.project, state.project.samples, state.project.judges), [state.project]);
@@ -479,15 +483,13 @@ export function App() {
       dispatch({ type: 'duplicateCriterion', criterionId: selectedCriterion.id });
     }
     if (action === 'Delete criterion' && selectedCriterion) {
-      if (window.confirm(`Delete ${selectedCriterion.label}?`)) {
-        dispatch({ type: 'deleteCriterion', criterionId: selectedCriterion.id });
-      }
+      setDeleteCriterionId(selectedCriterion.id);
     }
     if (action === 'Save current project') {
       localStorage.setItem('rso:project', JSON.stringify(state.project));
       setToast('Saved current project');
     }
-    if (action === 'New project from template') void createProjectFromTemplate();
+    if (action === 'New project from template') setTemplateDialogOpen(true);
     if (action === 'Quick open') void openProjectPicker();
     if (action === 'Switch to Authoring') setActiveTab('authoring');
     if (action === 'Switch to Preview') setActiveTab('preview');
@@ -518,8 +520,8 @@ export function App() {
     }
   }
 
-  async function createProjectFromTemplate() {
-    const name = window.prompt('Project name', defaultTemplateProjectName())?.trim() || defaultTemplateProjectName();
+  async function createProjectFromTemplate(name: string) {
+    setTemplateDialogOpen(false);
     if (surface === 'browser') {
       dispatch({ type: 'replaceProject', project: { ...sampleProject, id: slugify(name), name } });
       setOpenedProjectPath(null);
@@ -606,7 +608,7 @@ export function App() {
           })}
         </nav>
         <div className="top-actions">
-          <button className="glass-button" type="button" onClick={() => void createProjectFromTemplate()}>
+          <button className="glass-button" type="button" onClick={() => setTemplateDialogOpen(true)}>
             <FilePlus2 className="button-icon" aria-hidden="true" />
             New from Template
           </button>
@@ -669,7 +671,7 @@ export function App() {
           onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
           onRenameCriterion={(criterionId, label) => dispatch({ type: 'updateCriterion', criterionId, patch: { label, id: slugify(label) } })}
           onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
-          onDeleteCriterion={(criterionId) => dispatch({ type: 'deleteCriterion', criterionId })}
+          onDeleteCriterion={(criterionId) => setDeleteCriterionId(criterionId)}
         />
         <section id="main-panel" className="main-panel" role="tabpanel" tabIndex={-1} aria-label={`${activeTab} panel`}>
           {activeTab === 'authoring' && selectedCriterion ? (
@@ -819,6 +821,26 @@ export function App() {
           onPrevious={() => setTourStep((current) => (current === null ? null : Math.max(0, current - 1)))}
           onNext={() => setTourStep((current) => (current === null ? null : Math.min(tourSteps.length - 1, current + 1)))}
           onClose={finishTour}
+        />
+      ) : null}
+
+      {templateDialogOpen ? (
+        <TemplateProjectDialog
+          initialName={defaultTemplateProjectName()}
+          onCancel={() => setTemplateDialogOpen(false)}
+          onCreate={(name) => void createProjectFromTemplate(name)}
+        />
+      ) : null}
+
+      {deleteCriterion ? (
+        <DeleteCriterionDialog
+          criterion={deleteCriterion}
+          onCancel={() => setDeleteCriterionId(null)}
+          onDelete={() => {
+            dispatch({ type: 'deleteCriterion', criterionId: deleteCriterion.id });
+            setDeleteCriterionId(null);
+            setToast(`Deleted ${deleteCriterion.label}`);
+          }}
         />
       ) : null}
     </main>

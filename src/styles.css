@@ -1120,7 +1120,8 @@ small {
 }
 
 .command-palette,
-.wizard {
+.wizard,
+.studio-dialog {
   width: min(720px, calc(100vw - 40px));
   max-height: calc(100vh - 48px);
   overflow: auto;
@@ -1154,6 +1155,40 @@ small {
 
 .wizard {
   text-align: center;
+}
+
+.studio-dialog {
+  width: min(520px, calc(100vw - 40px));
+}
+
+.studio-dialog h2 {
+  margin: 4px 0 8px;
+}
+
+.studio-dialog p {
+  color: var(--muted);
+}
+
+.field-label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.danger-button {
+  border: 1px solid rgba(255, 105, 105, 0.52);
+  border-radius: 8px;
+  background: rgba(255, 105, 105, 0.16);
+  color: #ffd6d6;
+  min-height: 36px;
+  padding: 8px 12px;
+  font-weight: 760;
+}
+
+.danger-button:hover {
+  background: rgba(255, 105, 105, 0.26);
 }
 
 .wizard.wide {

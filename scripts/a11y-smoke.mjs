@@ -73,6 +73,12 @@ try {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toHaveCount(0);
 
+  await page.getByRole('button', { name: 'New from Template' }).click();
+  await expect(page.getByRole('dialog', { name: 'Create from template' })).toBeVisible();
+  await assertAxeClean(page, 'template project dialog');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Create from template' })).toHaveCount(0);
+
   await assertTabAxeClean(page, 'Preview', 'preview browser surface');
   await assertTabAxeClean(page, 'Calibration', 'calibration browser surface');
   await assertTabAxeClean(page, 'Diff', 'diff browser surface');

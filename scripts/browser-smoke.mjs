@@ -41,10 +41,10 @@ try {
     await page.getByRole('button', { name: 'Skip tour' }).click();
   }
 
-  page.once('dialog', async (dialog) => {
-    await dialog.accept('Browser Starter Rubric');
-  });
   await page.getByRole('button', { name: 'New from Template' }).click();
+  await expect(page.getByRole('dialog', { name: 'Create from template' })).toBeVisible();
+  await page.getByLabel('Project name').fill('Browser Starter Rubric');
+  await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByText('Browser Starter Rubric')).toBeVisible();
   await expect(page.locator('body')).toContainText('Created browser starter project in local storage');
 

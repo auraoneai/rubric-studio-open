@@ -1,6 +1,7 @@
 import type { RubricProject, ScoreResult } from './rubric';
 
 export type CatchSort = 'confidence' | 'agreement' | 'score-delta';
+export type CatchVerdictFilter = 'all' | ScoreResult['verdict'];
 
 export interface CatchViewRow {
   sampleId: string;
@@ -16,6 +17,7 @@ export function catchViewRows(
   results: ScoreResult[],
   criterionId: string,
   sort: CatchSort,
+  verdictFilter: CatchVerdictFilter = 'all',
 ): CatchViewRow[] {
   const rows = project.samples
     .map((sample) => {
@@ -37,7 +39,8 @@ export function catchViewRows(
         reasoning: sampleResults.map((result) => `${result.judgeId}: ${result.reasoning}`).join('\n\n'),
       };
     })
-    .filter((row): row is CatchViewRow => Boolean(row));
+    .filter((row): row is CatchViewRow => Boolean(row))
+    .filter((row) => verdictFilter === 'all' || row.verdict === verdictFilter);
 
   return rows.sort((a, b) => {
     if (sort === 'agreement') {

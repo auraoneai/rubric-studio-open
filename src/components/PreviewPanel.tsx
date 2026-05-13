@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { catchViewRows, type CatchSort } from '../domain/catchView';
+import { catchViewRows, type CatchSort, type CatchVerdictFilter } from '../domain/catchView';
 import { distributionForCriterion, scoreSamples } from '../domain/engine';
 import { streamOllamaCriterionScore } from '../domain/ollama';
 import type { ScoreResult, RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
@@ -25,6 +25,7 @@ export function PreviewPanel(props: {
   const [ollamaError, setOllamaError] = useState('');
   const [catchCriterionId, setCatchCriterionId] = useState(props.project.criteria[0]?.id ?? '');
   const [catchSort, setCatchSort] = useState<CatchSort>('confidence');
+  const [catchVerdict, setCatchVerdict] = useState<CatchVerdictFilter>('all');
   const activeResults = props.results.filter((result) => result.sampleId === props.selectedSampleId);
   const disagreementIds = new Set(
     props.project.criteria
@@ -48,7 +49,22 @@ export function PreviewPanel(props: {
     const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
     return ollamaScores[key] ?? result;
   });
-  const catchRows = catchViewRows(props.project, props.results, catchCriterionId, catchSort);
+  const catchRows = catchViewRows(props.project, props.results, catchCriterionId, catchSort, catchVerdict);
+  const themeDistributions = props.project.themes.map((theme) => {
+    const criteria = props.project.criteria.filter((criterion) => criterion.themeId === theme.id);
+    const totals = criteria.reduce(
+      (sum, criterion) => {
+        const distribution = distributionForCriterion(props.results, criterion.id);
+        sum.pass += distribution.pass;
+        sum.partial += distribution.partial;
+        sum.fail += distribution.fail;
+        sum.weight += criterion.weight;
+        return sum;
+      },
+      { pass: 0, partial: 0, fail: 0, weight: 0 },
+    );
+    return { theme, totals };
+  });
 
   async function runOllamaTrace(result: ScoreResult) {
     const criterion = props.project.criteria.find((item) => item.id === result.criterionId);
@@ -170,6 +186,15 @@ export function PreviewPanel(props: {
               <option value="score-delta">score delta</option>
             </select>
           </label>
+          <label>
+            Verdict
+            <select value={catchVerdict} onChange={(event) => setCatchVerdict(event.target.value as CatchVerdictFilter)}>
+              <option value="all">all verdicts</option>
+              <option value="pass">pass</option>
+              <option value="partial">partial</option>
+              <option value="fail">fail</option>
+            </select>
+          </label>
         </div>
         <div className="catch-table" aria-label="Caught samples">
           {catchRows.slice(0, 5).map((row) => (
@@ -190,9 +215,9 @@ export function PreviewPanel(props: {
             <div className="distribution" key={criterion.id}>
               <button type="button" onClick={() => setCatchCriterionId(criterion.id)}>{criterion.label}</button>
               <div className="bars" aria-label={`Distribution for ${criterion.label}`}>
-                <span style={{ width: `${distribution.pass * 18 + 8}%` }} className="pass" />
-                <span style={{ width: `${distribution.partial * 18 + 8}%` }} className="partial" />
-                <span style={{ width: `${distribution.fail * 18 + 8}%` }} className="fail" />
+                <button type="button" aria-label={`${criterion.label} pass samples`} style={{ width: `${distribution.pass * 18 + 8}%` }} className="pass" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('pass'); }} />
+                <button type="button" aria-label={`${criterion.label} partial samples`} style={{ width: `${distribution.partial * 18 + 8}%` }} className="partial" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('partial'); }} />
+                <button type="button" aria-label={`${criterion.label} fail samples`} style={{ width: `${distribution.fail * 18 + 8}%` }} className="fail" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('fail'); }} />
               </div>
               <small>
                 {distribution.pass} pass · {distribution.partial} partial · {distribution.fail} fail
@@ -200,6 +225,19 @@ export function PreviewPanel(props: {
             </div>
           );
         })}
+        <div className="theme-distribution" aria-label="Theme stacked bars">
+          {themeDistributions.map(({ theme, totals }) => (
+            <div key={theme.id} className="distribution theme-row">
+              <strong>{theme.label}</strong>
+              <div className="bars" aria-label={`${theme.label} theme contribution`}>
+                <span style={{ width: `${totals.pass * 10 + 8}%` }} className="pass" />
+                <span style={{ width: `${totals.partial * 10 + 8}%` }} className="partial" />
+                <span style={{ width: `${totals.fail * 10 + 8}%` }} className="fail" />
+              </div>
+              <small>weight {totals.weight.toFixed(2)} · {totals.pass + totals.partial + totals.fail} scored cells</small>
+            </div>
+          ))}
+        </div>
         <div className="callout">
           <strong>{props.surface === 'browser' ? 'Browser scoring' : 'Desktop scoring'}</strong>
           <p>

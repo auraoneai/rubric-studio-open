@@ -40,6 +40,7 @@ assert.ok(results.every((result) => result.reasoning.length > 0));
 const catchRows = catchViewRows(sampleProject, results, sampleProject.criteria[0].id, 'score-delta');
 assert.equal(catchRows.length, sampleProject.samples.length);
 assert.ok(catchRows.every((row) => row.reasoning.includes('local-mock')));
+assert.ok(catchViewRows(sampleProject, results, sampleProject.criteria[0].id, 'confidence', 'pass').every((row) => row.verdict === 'pass'));
 
 const calibration = calculateCalibration(sampleProject, results);
 assert.equal(calibration.length, sampleProject.criteria.length);

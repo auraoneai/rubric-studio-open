@@ -777,7 +777,7 @@ small {
 
 .catch-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 10px;
 }
@@ -846,16 +846,40 @@ small {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.bars span.pass {
+.bars button,
+.bars span {
+  display: block;
+  min-width: 8px;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.bars button:focus-visible {
+  outline-offset: -2px;
+}
+
+.bars .pass {
   background: var(--emerald);
 }
 
-.bars span.partial {
+.bars .partial {
   background: var(--yellow);
 }
 
-.bars span.fail {
+.bars .fail {
   background: var(--red);
+}
+
+.theme-distribution {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.theme-row strong {
+  font-size: 13px;
 }
 
 .metric-row {

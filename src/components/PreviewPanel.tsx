@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { catchViewRows, type CatchSort } from '../domain/catchView';
 import { distributionForCriterion, scoreSamples } from '../domain/engine';
 import { streamOllamaCriterionScore } from '../domain/ollama';
 import type { ScoreResult, RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
@@ -22,6 +23,8 @@ export function PreviewPanel(props: {
   const [ollamaTraces, setOllamaTraces] = useState<Record<string, string>>({});
   const [ollamaScores, setOllamaScores] = useState<Record<string, ScoreResult>>({});
   const [ollamaError, setOllamaError] = useState('');
+  const [catchCriterionId, setCatchCriterionId] = useState(props.project.criteria[0]?.id ?? '');
+  const [catchSort, setCatchSort] = useState<CatchSort>('confidence');
   const activeResults = props.results.filter((result) => result.sampleId === props.selectedSampleId);
   const disagreementIds = new Set(
     props.project.criteria
@@ -45,6 +48,7 @@ export function PreviewPanel(props: {
     const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
     return ollamaScores[key] ?? result;
   });
+  const catchRows = catchViewRows(props.project, props.results, catchCriterionId, catchSort);
 
   async function runOllamaTrace(result: ScoreResult) {
     const criterion = props.project.criteria.find((item) => item.id === result.criterionId);
@@ -151,11 +155,40 @@ export function PreviewPanel(props: {
             <h2>What did this catch?</h2>
           </div>
         </div>
+        <div className="catch-controls">
+          <label>
+            Criterion
+            <select value={catchCriterionId} onChange={(event) => setCatchCriterionId(event.target.value)}>
+              {props.project.criteria.map((criterion) => <option key={criterion.id} value={criterion.id}>{criterion.label}</option>)}
+            </select>
+          </label>
+          <label>
+            Sort
+            <select value={catchSort} onChange={(event) => setCatchSort(event.target.value as CatchSort)}>
+              <option value="confidence">low confidence</option>
+              <option value="agreement">judge disagreement</option>
+              <option value="score-delta">score delta</option>
+            </select>
+          </label>
+        </div>
+        <div className="catch-table" aria-label="Caught samples">
+          {catchRows.slice(0, 5).map((row) => (
+            <details key={row.sampleId} className={`catch-row ${row.verdict}`}>
+              <summary title={row.reasoning}>
+                <strong>{row.sampleId}</strong>
+                <span>{row.verdict}</span>
+                <small>{Math.round(row.confidence * 100)}% confidence</small>
+              </summary>
+              <p>Agreement {Math.round(row.agreement * 100)}% · score delta {row.scoreDelta.toFixed(2)}</p>
+              <pre>{row.reasoning}</pre>
+            </details>
+          ))}
+        </div>
         {props.project.criteria.map((criterion) => {
           const distribution = distributionForCriterion(props.results, criterion.id);
           return (
             <div className="distribution" key={criterion.id}>
-              <button type="button">{criterion.label}</button>
+              <button type="button" onClick={() => setCatchCriterionId(criterion.id)}>{criterion.label}</button>
               <div className="bars" aria-label={`Distribution for ${criterion.label}`}>
                 <span style={{ width: `${distribution.pass * 18 + 8}%` }} className="pass" />
                 <span style={{ width: `${distribution.partial * 18 + 8}%` }} className="partial" />

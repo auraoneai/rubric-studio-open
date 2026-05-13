@@ -775,6 +775,60 @@ small {
   margin-bottom: 12px;
 }
 
+.catch-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.catch-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.catch-table {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.catch-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.catch-row.pass {
+  border-color: rgba(24, 214, 163, 0.45);
+}
+
+.catch-row.partial {
+  border-color: rgba(255, 209, 102, 0.45);
+}
+
+.catch-row.fail {
+  border-color: rgba(255, 107, 122, 0.5);
+}
+
+.catch-row summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.catch-row pre {
+  max-height: 160px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px;
+}
+
 .distribution button {
   border: 0;
   background: transparent;

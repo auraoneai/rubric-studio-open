@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { performance } from 'node:perf_hooks';
 import { createCriterionVariantBranch } from './branching';
+import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { keychainKeyForJudge, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText } from './ollama';
@@ -36,6 +37,9 @@ assert.equal(
 const results = scoreSamples(sampleProject, sampleProject.samples, sampleProject.judges);
 assert.ok(results.length >= sampleProject.samples.length * sampleProject.criteria.length);
 assert.ok(results.every((result) => result.reasoning.length > 0));
+const catchRows = catchViewRows(sampleProject, results, sampleProject.criteria[0].id, 'score-delta');
+assert.equal(catchRows.length, sampleProject.samples.length);
+assert.ok(catchRows.every((row) => row.reasoning.includes('local-mock')));
 
 const calibration = calculateCalibration(sampleProject, results);
 assert.equal(calibration.length, sampleProject.criteria.length);

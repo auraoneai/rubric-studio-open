@@ -35,6 +35,7 @@ type Action =
   | { type: 'addCriterion'; themeId: string }
   | { type: 'duplicateCriterion'; criterionId: string }
   | { type: 'deleteCriterion'; criterionId: string }
+  | { type: 'bulkUpdateCriteria'; criterionIds: string[]; patch: Partial<Criterion> }
   | { type: 'toggleTheme'; themeId: string }
   | { type: 'moveCriterion'; criterionId: string; direction: -1 | 1 }
   | { type: 'toggleJudge'; judgeId: string }
@@ -144,6 +145,13 @@ function reducer(state: StudioState, action: Action): StudioState {
         selectedCriterionId: criteria[0]?.id ?? '',
         project: { ...state.project, criteria },
       };
+    }
+    case 'bulkUpdateCriteria': {
+      const selected = new Set(action.criterionIds);
+      const criteria = state.project.criteria.map((criterion) =>
+        selected.has(criterion.id) ? { ...criterion, ...action.patch } : criterion,
+      );
+      return { ...state, project: { ...state.project, criteria } };
     }
     case 'toggleTheme':
       return {
@@ -393,6 +401,7 @@ export function App() {
               setCaseSensitive={setCaseSensitive}
               onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
               onUpdate={(patch) => dispatch({ type: 'updateCriterion', criterionId: selectedCriterion.id, patch })}
+              onBulkUpdate={(criterionIds, patch) => dispatch({ type: 'bulkUpdateCriteria', criterionIds, patch })}
               onAdd={(themeId) => dispatch({ type: 'addCriterion', themeId })}
               onMove={(direction) => dispatch({ type: 'moveCriterion', criterionId: selectedCriterion.id, direction })}
               onToggleTheme={(themeId) => dispatch({ type: 'toggleTheme', themeId })}
@@ -494,11 +503,25 @@ function AuthoringPanel(props: {
   setCaseSensitive: (value: boolean) => void;
   onSelect: (criterionId: string) => void;
   onUpdate: (patch: Partial<Criterion>) => void;
+  onBulkUpdate: (criterionIds: string[], patch: Partial<Criterion>) => void;
   onAdd: (themeId: string) => void;
   onMove: (direction: -1 | 1) => void;
   onToggleTheme: (themeId: string) => void;
 }) {
   const { project, criterion, issues } = props;
+  const [bulkIds, setBulkIds] = useState<string[]>([]);
+  const bulkSelected = new Set(bulkIds);
+  function toggleBulk(criterionId: string) {
+    setBulkIds((current) =>
+      current.includes(criterionId)
+        ? current.filter((id) => id !== criterionId)
+        : [...current, criterionId],
+    );
+  }
+  function bulkPatch(patch: Partial<Criterion>) {
+    props.onBulkUpdate(bulkIds, patch);
+    setBulkIds([]);
+  }
   return (
     <div className="panel-grid authoring-grid">
       <section className="glass-panel" aria-label="Criterion tree">
@@ -511,6 +534,14 @@ function AuthoringPanel(props: {
             + Criterion
           </button>
         </div>
+        {bulkIds.length > 0 ? (
+          <div className="bulk-toolbar" aria-label="Bulk criterion operations">
+            <strong>{bulkIds.length} selected</strong>
+            <button className="ghost-button" type="button" onClick={() => bulkPatch({ status: 'Live' })}>Mark live</button>
+            <button className="ghost-button" type="button" onClick={() => bulkPatch({ status: 'Draft' })}>Move to draft</button>
+            <button className="ghost-button" type="button" onClick={() => bulkPatch({ weight: Number((1 / bulkIds.length).toFixed(2)) })}>Equal weights</button>
+          </div>
+        ) : null}
         {project.criteria.length === 0 ? (
           <EmptyState title="No criteria yet" body="Create a criterion to start validating the rubric-spec project." />
         ) : (
@@ -523,19 +554,27 @@ function AuthoringPanel(props: {
                 ? project.criteria
                     .filter((item) => item.themeId === theme.id)
                     .map((item) => (
-                      <button
-                        draggable
-                        key={item.id}
-                        className={item.id === criterion.id ? 'criterion-row active' : 'criterion-row'}
-                        type="button"
-                        onClick={() => props.onSelect(item.id)}
-                      >
-                        <span>{item.label}</span>
-                        <small>{item.scale}</small>
-                        <b>{item.weight.toFixed(2)}</b>
-                        <em>{item.status}</em>
-                        <span className="tags">{item.tags.join(' ')}</span>
-                      </button>
+                      <div className="criterion-row-wrap" key={item.id}>
+                        <label className="bulk-check" aria-label={`Select ${item.label} for bulk operations`}>
+                          <input
+                            type="checkbox"
+                            checked={bulkSelected.has(item.id)}
+                            onChange={() => toggleBulk(item.id)}
+                          />
+                        </label>
+                        <button
+                          draggable
+                          className={item.id === criterion.id ? 'criterion-row active' : 'criterion-row'}
+                          type="button"
+                          onClick={() => props.onSelect(item.id)}
+                        >
+                          <span>{item.label}</span>
+                          <small>{item.scale}</small>
+                          <b>{item.weight.toFixed(2)}</b>
+                          <em>{item.status}</em>
+                          <span className="tags">{item.tags.join(' ')}</span>
+                        </button>
+                      </div>
                     ))
                 : null}
             </div>

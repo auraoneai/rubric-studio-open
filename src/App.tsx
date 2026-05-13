@@ -260,6 +260,8 @@ export function App() {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [scoreRunning, setScoreRunning] = useState(false);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
+  const [crashReportingEnabled, setCrashReportingEnabled] = useState(false);
+  const [updateChannel, setUpdateChannel] = useState<'stable' | 'beta'>('stable');
   const [telemetryLog, setTelemetryLog] = useState<TelemetryEvent[]>([]);
   const [visualMode, setVisualMode] = useState<VisualMode>('dark');
   const [shortcuts, setShortcuts] = useState<ShortcutRow[]>(shortcutRows);
@@ -502,6 +504,10 @@ export function App() {
               surface={surface}
               telemetryEnabled={telemetryEnabled}
               setTelemetryEnabled={setTelemetryEnabled}
+              crashReportingEnabled={crashReportingEnabled}
+              setCrashReportingEnabled={setCrashReportingEnabled}
+              updateChannel={updateChannel}
+              setUpdateChannel={setUpdateChannel}
               telemetryLog={telemetryLog}
               shortcuts={shortcuts}
               visualMode={visualMode}

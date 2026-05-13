@@ -29,6 +29,10 @@ try {
   const skip = page.getByRole('button', { name: 'Skip' });
   if (await page.getByRole('dialog', { name: 'First-run wizard' }).isVisible().catch(() => false)) {
     await assertAxeClean(page, 'first-run wizard');
+    await page.getByRole('button', { name: 'Start tour' }).click();
+    await expect(page.getByRole('dialog', { name: 'Author criteria like code' })).toBeVisible();
+    await assertAxeClean(page, 'guided onboarding tour');
+    await page.getByRole('button', { name: 'Skip tour' }).click();
   }
   if (await skip.isVisible().catch(() => false)) {
     await skip.click();

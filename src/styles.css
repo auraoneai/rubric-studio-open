@@ -1194,6 +1194,48 @@ small {
   margin: 12px 0;
 }
 
+.tour-backdrop {
+  place-items: end center;
+}
+
+.tour-card {
+  width: min(620px, calc(100vw - 40px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.tour-card h2 {
+  margin: 4px 0 8px;
+}
+
+.tour-card .callout {
+  margin: 14px 0;
+}
+
+.tour-card .inline-actions {
+  justify-content: flex-end;
+}
+
+.tour-progress {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tour-progress span {
+  min-height: 6px;
+  border-radius: 999px;
+  background: rgba(232, 251, 255, 0.16);
+}
+
+.tour-progress .active {
+  background: linear-gradient(90deg, var(--cyan), var(--emerald));
+}
+
 @media (max-width: 1280px) {
   .topbar {
     flex-wrap: wrap;

@@ -24,9 +24,13 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
 
-  const skip = page.getByRole('button', { name: 'Skip' });
-  if (await skip.isVisible().catch(() => false)) {
-    await skip.click();
+  const startTour = page.getByRole('button', { name: 'Start tour' });
+  if (await startTour.isVisible().catch(() => false)) {
+    await startTour.click();
+    await expect(page.getByRole('dialog', { name: 'Author criteria like code' })).toBeVisible();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
+    await page.getByRole('button', { name: 'Skip tour' }).click();
   }
 
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();

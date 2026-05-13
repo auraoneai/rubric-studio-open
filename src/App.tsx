@@ -53,6 +53,13 @@ import { ExportPanel } from './components/ExportPanel';
 import { FirstRunWizard } from './components/FirstRunWizard';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
+interface TourStep {
+  tab: Tab;
+  title: string;
+  body: string;
+  outcome: string;
+}
+
 type Action =
   | { type: 'select'; criterionId: string }
   | { type: 'updateCriterion'; criterionId: string; patch: Partial<Criterion> }
@@ -103,6 +110,45 @@ const tabIcons: Record<Tab, LucideIcon> = {
   export: FileText,
   settings: Settings,
 };
+
+const tourSteps: TourStep[] = [
+  {
+    tab: 'authoring',
+    title: 'Author criteria like code',
+    body: 'Start in the criterion tree, edit rubric-spec fields, use autocomplete, and keep validation signals visible while you write.',
+    outcome: 'You leave with a valid project structure on disk.',
+  },
+  {
+    tab: 'preview',
+    title: 'Test against samples immediately',
+    body: 'Load held-out examples, score with the local mock judge or BYO providers, and inspect what each criterion caught.',
+    outcome: 'You see pass, partial, and fail behavior before the rubric leaves your machine.',
+  },
+  {
+    tab: 'calibration',
+    title: 'Calibrate against expert scores',
+    body: 'Load gold labels, review IAA metrics, identify low-agreement criteria, and stage rewrite suggestions.',
+    outcome: 'You know which criteria need another authoring pass.',
+  },
+  {
+    tab: 'diff',
+    title: 'Review semantic drift before commit',
+    body: 'Compare wording, score impact, branch variants, and merge back only when the changed behavior is clear.',
+    outcome: 'Rubric changes become reviewable, reproducible diffs.',
+  },
+  {
+    tab: 'export',
+    title: 'Ship portable artifacts',
+    body: 'Export rubric files, judge cards, eval manifests, conformance badges, CI helpers, and AuraOne intake packets.',
+    outcome: 'The same rubric can move to OSS runners, papers, or expert review.',
+  },
+  {
+    tab: 'settings',
+    title: 'Keep trust controls visible',
+    body: 'Review BYO key storage, transparent telemetry, default-off crash reporting, update status, shortcuts, and high contrast.',
+    outcome: 'Local-first behavior and reporting choices stay inspectable.',
+  },
+];
 
 function reducer(state: StudioState, action: Action): StudioState {
   switch (action.type) {
@@ -253,6 +299,7 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [wizardOpen, setWizardOpen] = useState(() => localStorage.getItem('rso:onboarded') !== 'yes');
+  const [tourStep, setTourStep] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('safety');
   const [regex, setRegex] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
@@ -319,6 +366,12 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [shortcuts, selectedCriterion, state.project, surface]);
 
+  useEffect(() => {
+    if (tourStep !== null) {
+      setActiveTab(tourSteps[tourStep].tab);
+    }
+  }, [tourStep]);
+
   function emit(event: string, payload: TelemetryEvent['payload'] = {}) {
     const telemetryEvent = createTelemetryEvent(event, payload);
     setTelemetryLog((current) => [telemetryEvent, ...current].slice(0, 25));
@@ -375,8 +428,14 @@ export function App() {
   function acceptWizard() {
     localStorage.setItem('rso:onboarded', 'yes');
     setWizardOpen(false);
-    setActiveTab('preview');
-    runPreview();
+    setTourStep(0);
+    setToast('Guided tour started');
+  }
+
+  function finishTour() {
+    setTourStep(null);
+    setActiveTab('authoring');
+    setToast('Tour completed');
   }
 
   return (
@@ -578,7 +637,79 @@ export function App() {
           onStart={acceptWizard}
         />
       ) : null}
+
+      {tourStep !== null ? (
+        <OnboardingTour
+          step={tourStep}
+          total={tourSteps.length}
+          tourStep={tourSteps[tourStep]}
+          onPrevious={() => setTourStep((current) => (current === null ? null : Math.max(0, current - 1)))}
+          onNext={() => setTourStep((current) => (current === null ? null : Math.min(tourSteps.length - 1, current + 1)))}
+          onClose={finishTour}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function OnboardingTour(props: {
+  step: number;
+  total: number;
+  tourStep: TourStep;
+  onPrevious: () => void;
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const isLast = props.step === props.total - 1;
+  return (
+    <div className="modal-backdrop tour-backdrop" role="presentation">
+      <section
+        className="tour-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tour-title"
+        aria-describedby="tour-body"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') props.onClose();
+          if (event.key === 'ArrowLeft') props.onPrevious();
+          if (event.key === 'ArrowRight') {
+            if (isLast) props.onClose();
+            else props.onNext();
+          }
+        }}
+      >
+        <div
+          className="tour-progress"
+          role="progressbar"
+          aria-label="Guided tour progress"
+          aria-valuemin={1}
+          aria-valuemax={props.total}
+          aria-valuenow={props.step + 1}
+        >
+          {Array.from({ length: props.total }, (_, index) => (
+            <span key={index} className={index === props.step ? 'active' : ''} />
+          ))}
+        </div>
+        <p className="eyebrow">Guided tour</p>
+        <h2 id="tour-title">{props.tourStep.title}</h2>
+        <p id="tour-body">{props.tourStep.body}</p>
+        <div className="callout">
+          <strong>Outcome</strong>
+          <p>{props.tourStep.outcome}</p>
+        </div>
+        <div className="inline-actions">
+          <button className="ghost-button" type="button" onClick={props.onClose}>
+            Skip tour
+          </button>
+          <button className="ghost-button" type="button" disabled={props.step === 0} onClick={props.onPrevious}>
+            Back
+          </button>
+          <button className="glass-button primary" type="button" onClick={isLast ? props.onClose : props.onNext}>
+            {isLast ? 'Finish tour' : 'Next'}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 

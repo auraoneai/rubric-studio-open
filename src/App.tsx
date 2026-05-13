@@ -28,6 +28,7 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { SettingsPanel, type ShortcutRow, type VisualMode } from './components/SettingsPanel';
 import { DiffPanel } from './components/DiffPanel';
 import { CalibrationPanel } from './components/CalibrationPanel';
+import { ExportPanel } from './components/ExportPanel';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 type Action =
@@ -729,44 +730,6 @@ function AuthoringPanel(props: {
             ))}
           </div>
         </div>
-      </aside>
-    </div>
-  );
-}
-
-function ExportPanel({
-  project,
-  exports,
-  intakeManifest,
-  surface,
-}: {
-  project: RubricProject;
-  exports: Record<string, string>;
-  intakeManifest: string;
-  surface: SurfaceMode;
-}) {
-  const exportEntries = Object.entries(exports);
-  return (
-    <div className="panel-grid export-grid">
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Export</p><h2>Always-on artifacts</h2></div><button className="intake-button" type="button">Send to AuraOne for expert review</button></div>
-        <div className="intake-flow">
-          <div><strong>1. Confirm scope</strong><span>{project.samples.length} samples · {project.criteria.length} criteria · reviewer count selectable</span></div>
-          <div><strong>2. Package</strong><span>rubric + calibration set + judge card + manifest</span></div>
-          <div><strong>3. Destination</strong><span>Cloud signup · existing org upload · local .rubricpkg</span></div>
-        </div>
-        <pre className="export-preview">{intakeManifest}</pre>
-      </section>
-      <aside className="glass-panel">
-        <div className="panel-title"><div><p>Adapters</p><h2>{exportEntries.length} outputs</h2></div></div>
-        {exportEntries.map(([name, content]) => (
-          <details key={name} className="export-item">
-            <summary>{name}</summary>
-            <pre>{content}</pre>
-          </details>
-        ))}
-        <div className="callout"><strong>CLI parity</strong><p>Every artifact shown here maps to rubric export, rubric badge, rubric judge-card, or rubric manifest commands.</p></div>
-        {surface === 'browser' ? <p className="subtle">Browser export uses local download only and never proxies content through AuraOne.</p> : null}
       </aside>
     </div>
   );

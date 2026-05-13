@@ -773,13 +773,14 @@ small {
   margin-bottom: 12px;
 }
 
-.intake-flow div {
+.intake-flow label {
   display: grid;
   gap: 6px;
   border: 1px solid rgba(52, 217, 255, 0.24);
   border-radius: 8px;
   padding: 12px;
   background: rgba(52, 217, 255, 0.06);
+  color: var(--text);
 }
 
 .export-preview,

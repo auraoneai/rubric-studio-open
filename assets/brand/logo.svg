@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Rubric Studio Open logo</title>
+  <desc id="desc">A cyan, emerald, and violet mark with the letters RS.</desc>
+  <defs>
+    <linearGradient id="rso-bg" x1="160" y1="112" x2="864" y2="912" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34d9ff"/>
+      <stop offset="0.54" stop-color="#18d6a3"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="rso-panel" x1="252" y1="214" x2="772" y2="820" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071417"/>
+      <stop offset="1" stop-color="#10262d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="#061113"/>
+  <rect x="96" y="96" width="832" height="832" rx="188" fill="url(#rso-bg)"/>
+  <rect x="176" y="176" width="672" height="672" rx="144" fill="url(#rso-panel)"/>
+  <path d="M316 672V344h166c39 0 70 10 93 31 23 20 35 48 35 83 0 24-6 45-19 63-12 18-30 32-52 42l92 109H520l-76-94h-38v94h-90Zm90-167h70c14 0 25-4 33-12 8-8 12-18 12-31s-4-23-12-31c-8-8-19-12-33-12h-70v86Z" fill="#e8fbff"/>
+  <path d="M653 676c-37 0-70-6-98-19-27-12-50-30-69-53l61-58c15 16 31 28 48 36 18 8 38 12 60 12 18 0 31-3 40-8 9-6 14-14 14-25 0-10-4-18-13-24-8-6-25-12-50-18l-43-10c-34-8-60-22-77-41-17-20-26-45-26-77 0-29 8-55 23-76 15-21 37-37 65-48 28-12 60-17 97-17 31 0 60 5 87 15 27 9 50 24 69 43l-55 61c-14-13-30-23-47-30-17-7-35-11-55-11-17 0-30 3-39 8-9 6-13 14-13 24 0 9 4 16 11 21 8 5 23 10 45 15l44 10c38 9 66 23 84 42 18 20 27 46 27 80 0 45-17 80-52 105-34 25-79 38-135 38Z" fill="#18d6a3"/>
+</svg>

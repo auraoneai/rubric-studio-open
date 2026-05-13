@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -34,6 +34,7 @@ export function AuthoringPanel(props: {
   setWholeWord: (value: boolean) => void;
   caseSensitive: boolean;
   setCaseSensitive: (value: boolean) => void;
+  focusRequest: { target: 'in-file' | 'project'; nonce: number } | null;
   onSelect: (criterionId: string) => void;
   onUpdate: (patch: Partial<Criterion>) => void;
   onBulkUpdate: (criterionIds: string[], patch: Partial<Criterion>) => void;
@@ -47,7 +48,22 @@ export function AuthoringPanel(props: {
   const tagOptions = Array.from(new Set(project.criteria.flatMap((item) => item.tags))).sort();
   const [bulkIds, setBulkIds] = useState<string[]>([]);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [inFileQuery, setInFileQuery] = useState('');
+  const inFileInputRef = useRef<HTMLInputElement>(null);
+  const projectSearchInputRef = useRef<HTMLInputElement>(null);
   const bulkSelected = new Set(bulkIds);
+  const inFileMatches = useMemo(() => findCriterionMatches(criterion, inFileQuery), [criterion, inFileQuery]);
+
+  useEffect(() => {
+    if (props.focusRequest?.target === 'in-file') {
+      inFileInputRef.current?.focus();
+      inFileInputRef.current?.select();
+    }
+    if (props.focusRequest?.target === 'project') {
+      projectSearchInputRef.current?.focus();
+      projectSearchInputRef.current?.select();
+    }
+  }, [props.focusRequest]);
 
   function toggleBulk(criterionId: string) {
     setBulkIds((current) =>
@@ -318,6 +334,32 @@ export function AuthoringPanel(props: {
             <h2>{issues.length} signals</h2>
           </div>
         </div>
+        <div className="search-box">
+          <label>
+            In-file find
+            <input
+              ref={inFileInputRef}
+              aria-label="In-file find"
+              value={inFileQuery}
+              onChange={(event) => setInFileQuery(event.target.value)}
+            />
+          </label>
+          <div className="search-results">
+            {inFileQuery.trim() && inFileMatches.length === 0 ? <EmptyState title="No in-file matches" body="Try another term in the selected criterion." /> : null}
+            {inFileQuery.trim() && inFileMatches.length > 0 ? (
+              <div className="search-summary" role="status">
+                {inFileMatches.length} match{inFileMatches.length === 1 ? '' : 'es'} in this criterion
+              </div>
+            ) : null}
+            {inFileMatches.slice(0, 6).map((match) => (
+              <button key={`${match.field}-${match.index}-${match.excerpt}`} type="button">
+                <Search className="button-icon" aria-hidden="true" />
+                <strong>{match.field}</strong>
+                <small>{match.excerpt}</small>
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="issue-list">
           {issues.length === 0 ? <SuccessState title="No criterion issues" body="rubric-spec and style checks pass for this criterion." /> : null}
           {issues.map((issue) => (
@@ -336,7 +378,11 @@ export function AuthoringPanel(props: {
         <div className="search-box">
           <label>
             Across-project search
-            <input value={props.searchQuery} onChange={(event) => props.setSearchQuery(event.target.value)} />
+            <input
+              ref={projectSearchInputRef}
+              value={props.searchQuery}
+              onChange={(event) => props.setSearchQuery(event.target.value)}
+            />
           </label>
           <div className="toggle-row">
             <label><input type="checkbox" checked={props.regex} onChange={(event) => props.setRegex(event.target.checked)} />Regex</label>
@@ -375,4 +421,43 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 
 function SuccessState({ title, body }: { title: string; body: string }) {
   return <div className="success-state" role="status"><strong>{title}</strong><p>{body}</p></div>;
+}
+
+function findCriterionMatches(criterion: Criterion, query: string): Array<{ field: string; index: number; excerpt: string }> {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return [];
+  }
+
+  return [
+    ['Label', criterion.label],
+    ['ID', criterion.id],
+    ['Description', criterion.description],
+    ['Positive examples', criterion.positiveExamples.join('\n')],
+    ['Negative examples', criterion.negativeExamples.join('\n')],
+    ['Anti-patterns', criterion.antiPatterns.join('\n')],
+    ['Boundaries', criterion.boundaries],
+    ['Edge cases', criterion.edgeCases.join('\n')],
+    ['Tags', criterion.tags.join(', ')],
+    ['References', criterion.references.join('\n')],
+    ['Sibling links', criterion.siblingLinks.join(', ')],
+    ['Comments', criterion.comments.join('\n')],
+  ].flatMap(([field, value]) => {
+    const haystack = value.toLowerCase();
+    const matches: Array<{ field: string; index: number; excerpt: string }> = [];
+    let index = haystack.indexOf(needle);
+    while (index >= 0 && matches.length < 12) {
+      matches.push({ field, index, excerpt: excerptAround(value, index, query.trim().length) });
+      index = haystack.indexOf(needle, index + needle.length);
+    }
+    return matches;
+  });
+}
+
+function excerptAround(value: string, index: number, length: number): string {
+  const start = Math.max(0, index - 24);
+  const end = Math.min(value.length, index + length + 48);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < value.length ? '...' : '';
+  return `${prefix}${value.slice(start, end)}${suffix}`;
 }

@@ -51,6 +51,14 @@ try {
   await expect(page.locator('body')).toContainText('Created browser starter project in local storage');
 
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+F' : 'Control+F');
+  await expect(page.getByRole('textbox', { name: 'In-file find' })).toBeFocused();
+  await page.getByRole('textbox', { name: 'In-file find' }).fill('refuses');
+  await expect(page.getByText(/match(?:es)? in this criterion/)).toBeVisible();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+F' : 'Control+Shift+F');
+  await expect(page.getByRole('textbox', { name: 'Across-project search' })).toBeFocused();
+  await page.getByRole('textbox', { name: 'Across-project search' }).fill('safety');
+  await expect(page.locator('[aria-label="Validation and search"] .search-results').last().getByRole('button', { name: /safe-refusal/ }).first()).toBeVisible();
   await page.getByRole('treeitem', { name: /safe-refusal\.toml/ }).click({ button: 'right' });
   await expect(page.getByRole('menu', { name: /Actions for Safe refusal/ })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Open containing folder' })).toBeVisible();

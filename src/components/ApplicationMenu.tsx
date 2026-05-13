@@ -36,6 +36,8 @@ const menuActions: Record<MenuName, string[]> = {
     'New theme',
     'Duplicate criterion',
     'Delete criterion',
+    'Find in current criterion',
+    'Find across project',
     'Toggle comments',
   ],
   View: [

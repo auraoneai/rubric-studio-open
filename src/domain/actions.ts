@@ -23,6 +23,8 @@ export const studioActions: StudioActionDefinition[] = [
   { label: 'New theme', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-Shift-N' },
   { label: 'Duplicate criterion', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-D' },
   { label: 'Delete criterion', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-Backspace' },
+  { label: 'Find in current criterion', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-F' },
+  { label: 'Find across project', category: 'navigation', defaultShortcut: 'Cmd/Ctrl-Shift-F' },
   { label: 'Save current project', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-S' },
   { label: 'New project from template', category: 'authoring', defaultShortcut: 'Cmd/Ctrl-Alt-N' },
   { label: 'Quick open', category: 'navigation', defaultShortcut: 'Cmd/Ctrl-P' },

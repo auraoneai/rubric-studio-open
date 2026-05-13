@@ -83,6 +83,8 @@ interface StudioState {
   selectedSampleId: string;
 }
 
+type AuthoringFocusRequest = { target: 'in-file' | 'project'; nonce: number };
+
 const tabIcons: Record<Tab, LucideIcon> = {
   authoring: SquarePen,
   preview: Play,
@@ -282,6 +284,7 @@ export function App() {
   const [recentCommands, setRecentCommands] = useState<string[]>([]);
   const [toast, setToast] = useState('Saved');
   const [openedProjectPath, setOpenedProjectPath] = useState<string | null>(null);
+  const [authoringFocusRequest, setAuthoringFocusRequest] = useState<AuthoringFocusRequest | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>(readRecentProjects);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [deleteCriterionId, setDeleteCriterionId] = useState<string | null>(null);
@@ -452,6 +455,14 @@ export function App() {
     }
     if (action === 'New project from template') setTemplateDialogOpen(true);
     if (action === 'Quick open') void openProjectPicker();
+    if (action === 'Find in current criterion') {
+      setActiveTab('authoring');
+      setAuthoringFocusRequest({ target: 'in-file', nonce: Date.now() });
+    }
+    if (action === 'Find across project') {
+      setActiveTab('authoring');
+      setAuthoringFocusRequest({ target: 'project', nonce: Date.now() });
+    }
     if (action === 'Switch to Authoring') setActiveTab('authoring');
     if (action === 'Switch to Preview') setActiveTab('preview');
     if (action === 'Switch to Calibration' || action === 'Open calibration' || action === 'Run bias probes' || action === 'Run contamination audit') setActiveTab('calibration');
@@ -656,6 +667,7 @@ export function App() {
               setWholeWord={setWholeWord}
               caseSensitive={caseSensitive}
               setCaseSensitive={setCaseSensitive}
+              focusRequest={authoringFocusRequest}
               onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
               onUpdate={(patch) => dispatch({ type: 'updateCriterion', criterionId: selectedCriterion.id, patch })}
               onBulkUpdate={(criterionIds, patch) => dispatch({ type: 'bulkUpdateCriteria', criterionIds, patch })}

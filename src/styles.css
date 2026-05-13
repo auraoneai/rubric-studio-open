@@ -181,10 +181,23 @@ small {
   gap: 8px;
 }
 
+.browser-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.browser-controls small {
+  max-width: 96px;
+  line-height: 1.2;
+}
+
 .ghost-button,
 .glass-button,
 .intake-button,
-.tab {
+.tab,
+.file-button {
   border: 1px solid var(--border);
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
@@ -192,10 +205,24 @@ small {
   padding: 8px 11px;
 }
 
-.ghost-button {
+.ghost-button,
+.file-button {
   border-color: transparent;
   background: transparent;
   color: var(--muted);
+}
+
+.file-button {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .glass-button.primary,

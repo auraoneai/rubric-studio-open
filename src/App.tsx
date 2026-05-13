@@ -26,6 +26,7 @@ import {
 } from './domain/rubric';
 import { searchProject, validateProject } from './domain/validation';
 import { ProjectSidebar } from './components/ProjectSidebar';
+import { BrowserProjectControls } from './components/BrowserProjectControls';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 type Action =
@@ -38,7 +39,8 @@ type Action =
   | { type: 'moveCriterion'; criterionId: string; direction: -1 | 1 }
   | { type: 'toggleJudge'; judgeId: string }
   | { type: 'setKeyConfigured'; judgeId: string; configured: boolean }
-  | { type: 'toggleComments' };
+  | { type: 'toggleComments' }
+  | { type: 'replaceProject'; project: RubricProject };
 
 interface StudioState {
   project: RubricProject;
@@ -185,6 +187,13 @@ function reducer(state: StudioState, action: Action): StudioState {
       return {
         ...state,
         project: { ...state.project, commentsVisible: !state.project.commentsVisible },
+      };
+    case 'replaceProject':
+      return {
+        ...state,
+        project: action.project,
+        selectedCriterionId: action.project.criteria[0]?.id ?? '',
+        selectedSampleId: action.project.samples[0]?.id ?? '',
       };
     default:
       return state;
@@ -334,6 +343,14 @@ export function App() {
           ))}
         </nav>
         <div className="top-actions">
+          <BrowserProjectControls
+            project={state.project}
+            surface={surface}
+            onImport={(project) => {
+              dispatch({ type: 'replaceProject', project });
+              setToast('Imported local project bundle');
+            }}
+          />
           <button className="glass-button" type="button" onClick={() => setPaletteOpen(true)}>
             Cmd/Ctrl-K
           </button>

@@ -117,6 +117,55 @@ try {
 
   await expect(page.getByRole('button', { name: 'Export folder' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import folder' })).toBeVisible();
+  await page.getByLabel('Import bundle').setInputFiles({
+    name: 'not-json.rubric-project.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{'),
+  });
+  await expect(page.getByRole('alert')).toContainText('Project import failed. Check that the file is valid JSON and try again.');
+  await page.getByLabel('Import bundle').setInputFiles({
+    name: 'wrong-shape.rubric-project.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ schema: 'https://spec.auraone.ai/rubric-studio-open/project-bundle/v1' })),
+  });
+  await expect(page.getByRole('alert')).toContainText('Invalid project bundle. Choose a Rubric Studio Open JSON export with a project and criteria.');
+  await page.getByLabel('Import bundle').setInputFiles({
+    name: 'schema-errors.rubric-project.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({
+      schema: 'https://spec.auraone.ai/rubric-studio-open/project-bundle/v1',
+      project: {
+        id: 'schema-errors',
+        name: 'Schema Errors',
+        version: '0.1.0',
+        branch: 'main',
+        themes: [{ id: 'safety', label: 'Safety', description: 'Safety theme.', collapsed: false }],
+        criteria: [{
+          id: '',
+          label: '',
+          themeId: 'safety',
+          description: '',
+          weight: 2,
+          scale: 'binary',
+          positiveExamples: [],
+          negativeExamples: [],
+          antiPatterns: [],
+          boundaries: '',
+          edgeCases: [],
+          evidenceRequirement: 'none',
+          tags: [],
+          references: [],
+          siblingLinks: [],
+          status: 'Draft',
+          comments: [],
+        }],
+        samples: [],
+        judges: [],
+        commentsVisible: true,
+      },
+    })),
+  });
+  await expect(page.getByRole('alert')).toContainText('Project bundle has 4 schema errors. Fix the bundle and import again.');
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await expect(page.getByRole('menu', { name: 'File menu' })).toBeVisible();
   await page.getByRole('menuitem', { name: /New project from template/ }).click();

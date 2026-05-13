@@ -6,6 +6,7 @@ import { searchProject, validateProject } from './validation';
 
 const issues = validateProject(sampleProject);
 assert.ok(issues.some((issue) => issue.severity === 'warning'));
+assert.ok(sampleProject.judges.some((judge) => judge.provider === 'ollama' && judge.model.includes('llama')));
 
 const results = scoreSamples(sampleProject, sampleProject.samples, sampleProject.judges);
 assert.ok(results.length >= sampleProject.samples.length * sampleProject.criteria.length);

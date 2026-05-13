@@ -1,4 +1,5 @@
-import type { RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
+import { useState } from 'react';
+import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
 
 export type VisualMode = 'dark' | 'light' | 'high-contrast';
 export type ShortcutRow = [string, string];
@@ -16,6 +17,42 @@ export function SettingsPanel(props: {
   onToggleJudge: (judgeId: string) => void;
   onSetKey: (judgeId: string, configured: boolean) => void;
 }) {
+  const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
+
+  async function configureJudge(judge: JudgeConfig) {
+    if (judge.provider === 'mock') {
+      props.onSetKey(judge.id, true);
+      return;
+    }
+    if (judge.provider === 'ollama') {
+      try {
+        const response = await fetch('http://localhost:11434/api/tags', { method: 'GET' });
+        if (!response.ok) {
+          throw new Error(`Ollama returned ${response.status}`);
+        }
+        setKeyErrors((current) => ({ ...current, [judge.id]: '' }));
+        props.onSetKey(judge.id, true);
+      } catch {
+        setKeyErrors((current) => ({
+          ...current,
+          [judge.id]: 'Ollama was not detected at localhost:11434. Start Ollama or install the recommended local judge.',
+        }));
+      }
+      return;
+    }
+
+    const draft = keyDrafts[judge.id]?.trim() ?? '';
+    if (draft.length < 8) {
+      setKeyErrors((current) => ({ ...current, [judge.id]: 'Paste a provider key before configuring this judge.' }));
+      return;
+    }
+    sessionStorage.setItem(`rso:key:${judge.provider}:${judge.id}`, 'configured');
+    setKeyDrafts((current) => ({ ...current, [judge.id]: '' }));
+    setKeyErrors((current) => ({ ...current, [judge.id]: '' }));
+    props.onSetKey(judge.id, true);
+  }
+
   return (
     <div className="panel-grid settings-grid">
       <section className="glass-panel">
@@ -24,9 +61,19 @@ export function SettingsPanel(props: {
           <div key={judge.id} className="setting-row">
             <div><strong>{judge.label}</strong><small>{judge.provider}/{judge.model}</small></div>
             <label><input type="checkbox" checked={judge.enabled} onChange={() => props.onToggleJudge(judge.id)} />Enabled</label>
-            <button className="glass-button" type="button" onClick={() => props.onSetKey(judge.id, !judge.keyConfigured)}>
-              {judge.keyConfigured ? 'Rotate key' : 'Configure key'}
+            {judge.provider !== 'mock' && judge.provider !== 'ollama' ? (
+              <input
+                aria-label={`${judge.label} API key`}
+                type="password"
+                value={keyDrafts[judge.id] ?? ''}
+                placeholder={judge.keyConfigured ? 'Configured in session' : 'Paste BYO key'}
+                onChange={(event) => setKeyDrafts((current) => ({ ...current, [judge.id]: event.target.value }))}
+              />
+            ) : null}
+            <button className="glass-button" type="button" onClick={() => configureJudge(judge)}>
+              {judge.provider === 'ollama' ? 'Detect Ollama' : judge.keyConfigured ? 'Rotate key' : 'Configure key'}
             </button>
+            {keyErrors[judge.id] ? <span className="inline-error" role="alert">{keyErrors[judge.id]}</span> : null}
           </div>
         ))}
         <div className="callout"><strong>Key storage</strong><p>{props.surface === 'browser' ? 'Browser edition stores BYO keys in session memory for direct provider calls only.' : 'Desktop routes keys through the OS keychain bridge; never plaintext project files.'}</p></div>

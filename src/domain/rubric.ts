@@ -361,5 +361,13 @@ export const sampleProject: RubricProject = {
       enabled: false,
       keyConfigured: false,
     },
+    {
+      id: 'ollama-local',
+      label: 'Ollama local',
+      provider: 'ollama',
+      model: 'llama3.1:8b',
+      enabled: false,
+      keyConfigured: true,
+    },
   ],
 };

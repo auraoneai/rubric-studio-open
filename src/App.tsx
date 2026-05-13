@@ -241,6 +241,7 @@ export function App() {
   const [telemetryLog, setTelemetryLog] = useState<TelemetryEvent[]>([]);
   const [visualMode, setVisualMode] = useState<VisualMode>('dark');
   const [shortcuts, setShortcuts] = useState<ShortcutRow[]>(shortcutRows);
+  const [recentCommands, setRecentCommands] = useState<string[]>([]);
   const [toast, setToast] = useState('Saved');
   const selectedCriterion = state.project.criteria.find((criterion) => criterion.id === state.selectedCriterionId);
   const selectedSample = state.project.samples.find((sample) => sample.id === state.selectedSampleId) ?? state.project.samples[0];
@@ -308,6 +309,7 @@ export function App() {
   function executeCommand(command: string) {
     setPaletteOpen(false);
     setPaletteQuery('');
+    setRecentCommands((current) => [command, ...current.filter((item) => item !== command)].slice(0, 6));
     emit('command.executed', { command });
     if (command === 'New criterion') dispatch({ type: 'addCriterion', themeId: state.project.themes[0].id });
     if (command === 'Duplicate criterion' && selectedCriterion) {
@@ -490,6 +492,7 @@ export function App() {
           query={paletteQuery}
           setQuery={setPaletteQuery}
           commands={commandList}
+          recentCommands={recentCommands}
           onClose={() => setPaletteOpen(false)}
           onExecute={executeCommand}
         />
@@ -739,10 +742,15 @@ function CommandPalette(props: {
   query: string;
   setQuery: (value: string) => void;
   commands: string[];
+  recentCommands: string[];
   onClose: () => void;
   onExecute: (command: string) => void;
 }) {
-  const filtered = props.commands.filter((command) => command.toLowerCase().includes(props.query.toLowerCase()));
+  const sortedCommands = [
+    ...props.recentCommands.filter((command) => props.commands.includes(command)),
+    ...props.commands.filter((command) => !props.recentCommands.includes(command)),
+  ];
+  const filtered = sortedCommands.filter((command) => command.toLowerCase().includes(props.query.toLowerCase()));
   return (
     <div className="modal-backdrop" role="presentation" onClick={props.onClose}>
       <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(event) => event.stopPropagation()}>
@@ -751,7 +759,7 @@ function CommandPalette(props: {
           {filtered.map((command) => (
             <button key={command} type="button" onClick={() => props.onExecute(command)}>
               <span>{command}</span>
-              <small>{command.includes('Export') ? 'Export' : command.includes('Git') ? 'Git' : 'Rubric'}</small>
+              <small>{props.recentCommands.includes(command) ? 'Recent' : command.includes('Export') ? 'Export' : command.includes('Git') ? 'Git' : 'Rubric'}</small>
             </button>
           ))}
         </div>

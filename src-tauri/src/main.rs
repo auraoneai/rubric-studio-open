@@ -96,6 +96,58 @@ fn create_rubric_project_from_template(
 }
 
 #[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+fn reveal_project_path(path: std::path::PathBuf, reveal: bool) -> Result<String, String> {
+    let canonical = path
+        .canonicalize()
+        .map_err(|error| format!("Path is not readable: {error}"))?;
+    let launch_path = if reveal {
+        canonical.clone()
+    } else if canonical.is_dir() {
+        canonical.clone()
+    } else {
+        canonical
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .ok_or_else(|| "Path has no containing folder.".to_string())?
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = std::process::Command::new("open");
+        if reveal {
+            command.arg("-R").arg(&canonical);
+        } else {
+            command.arg(&launch_path);
+        }
+        command
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = std::process::Command::new("explorer");
+        if reveal {
+            command.arg(format!("/select,{}", canonical.display()));
+        } else {
+            command.arg(&launch_path);
+        }
+        command
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = std::process::Command::new("xdg-open");
+        command.arg(&launch_path);
+        command
+    };
+
+    command
+        .spawn()
+        .map_err(|error| format!("File manager could not be opened: {error}"))?;
+    Ok(launch_path.to_string_lossy().into_owned())
+}
+
+#[cfg(feature = "tauri-runtime")]
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
@@ -115,7 +167,8 @@ fn main() {
             prepare_sidecar_invocation,
             platform_reliability_status,
             open_rubric_project_folder,
-            create_rubric_project_from_template
+            create_rubric_project_from_template,
+            reveal_project_path
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rubric Studio Open");

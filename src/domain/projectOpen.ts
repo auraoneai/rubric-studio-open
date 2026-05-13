@@ -77,6 +77,20 @@ export async function openRubricProjectPath(path: string): Promise<OpenedRubricP
   return opened;
 }
 
+export async function revealProjectPath(path: string, mode: 'containing' | 'reveal'): Promise<string> {
+  if (!isDesktopShell()) {
+    throw new Error('Browser edition cannot open the system file manager.');
+  }
+  const invoke = await loadTauriInvoke();
+  if (!invoke) {
+    throw new Error('Desktop file-manager bridge is unavailable.');
+  }
+  return invoke<string>('reveal_project_path', {
+    path,
+    reveal: mode === 'reveal',
+  });
+}
+
 export async function connectProjectDrop(
   onPath: (path: string) => void | Promise<void>,
   onError: (message: string) => void,

@@ -35,6 +35,7 @@ import { searchProject, validateProject } from './domain/validation';
 import { auditStudioActions, defaultShortcutRows, studioActionCategory, studioActionLabels } from './domain/actions';
 import { actionForShortcut, shortcutForAction, type ShortcutRow } from './domain/shortcuts';
 import { classifyDeepLink, connectDesktopDeepLinks } from './domain/deepLink';
+import { tabs, tourSteps, type Tab, type TourStep } from './domain/navigation';
 import {
   connectProjectDrop,
   createRubricProjectFromTemplate,
@@ -42,6 +43,7 @@ import {
   openRubricProjectPath,
   pickRubricProjectFolder,
   readRecentProjects,
+  revealProjectPath,
   type RecentProject,
 } from './domain/projectOpen';
 import { ProjectSidebar } from './components/ProjectSidebar';
@@ -55,14 +57,6 @@ import { FirstRunWizard } from './components/FirstRunWizard';
 import { AuthoringPanel } from './components/AuthoringPanel';
 import { DeleteCriterionDialog, TemplateProjectDialog } from './components/StudioDialogs';
 import { ApplicationMenu } from './components/ApplicationMenu';
-
-type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
-interface TourStep {
-  tab: Tab;
-  title: string;
-  body: string;
-  outcome: string;
-}
 
 type Action =
   | { type: 'select'; criterionId: string }
@@ -89,15 +83,6 @@ interface StudioState {
   selectedSampleId: string;
 }
 
-const tabs: Array<{ id: Tab; label: string; action: string }> = [
-  { id: 'authoring', label: 'Authoring', action: 'Switch to Authoring' },
-  { id: 'preview', label: 'Preview', action: 'Switch to Preview' },
-  { id: 'calibration', label: 'Calibration', action: 'Switch to Calibration' },
-  { id: 'diff', label: 'Diff', action: 'Switch to Diff' },
-  { id: 'export', label: 'Export', action: 'Switch to Export' },
-  { id: 'settings', label: 'Settings', action: 'Switch to Settings' },
-];
-
 const tabIcons: Record<Tab, LucideIcon> = {
   authoring: SquarePen,
   preview: Play,
@@ -106,45 +91,6 @@ const tabIcons: Record<Tab, LucideIcon> = {
   export: FileText,
   settings: Settings,
 };
-
-const tourSteps: TourStep[] = [
-  {
-    tab: 'authoring',
-    title: 'Author criteria like code',
-    body: 'Start in the criterion tree, edit rubric-spec fields, use autocomplete, and keep validation signals visible while you write.',
-    outcome: 'You leave with a valid project structure on disk.',
-  },
-  {
-    tab: 'preview',
-    title: 'Test against samples immediately',
-    body: 'Load held-out examples, score with the local mock judge or BYO providers, and inspect what each criterion caught.',
-    outcome: 'You see pass, partial, and fail behavior before the rubric leaves your machine.',
-  },
-  {
-    tab: 'calibration',
-    title: 'Calibrate against expert scores',
-    body: 'Load gold labels, review IAA metrics, identify low-agreement criteria, and stage rewrite suggestions.',
-    outcome: 'You know which criteria need another authoring pass.',
-  },
-  {
-    tab: 'diff',
-    title: 'Review semantic drift before commit',
-    body: 'Compare wording, score impact, branch variants, and merge back only when the changed behavior is clear.',
-    outcome: 'Rubric changes become reviewable, reproducible diffs.',
-  },
-  {
-    tab: 'export',
-    title: 'Ship portable artifacts',
-    body: 'Export rubric files, judge cards, eval manifests, conformance badges, CI helpers, and AuraOne intake packets.',
-    outcome: 'The same rubric can move to OSS runners, papers, or expert review.',
-  },
-  {
-    tab: 'settings',
-    title: 'Keep trust controls visible',
-    body: 'Review BYO key storage, transparent telemetry, default-off crash reporting, update status, shortcuts, and high contrast.',
-    outcome: 'Local-first behavior and reporting choices stay inspectable.',
-  },
-];
 
 function reducer(state: StudioState, action: Action): StudioState {
   switch (action.type) {
@@ -573,6 +519,19 @@ export function App() {
     }
   }
 
+  async function openSidebarPath(path: string | null, label: string, mode: 'containing' | 'reveal') {
+    if (!path || surface === 'browser') {
+      setToast('Browser edition does not expose system file-manager actions.');
+      return;
+    }
+    try {
+      await revealProjectPath(path, mode);
+      setToast(mode === 'reveal' ? `Revealed ${label}` : `Opened containing folder for ${label}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : `Could not open ${label}`);
+    }
+  }
+
   function runPreview() {
     setActiveTab('preview');
     setScoreRunning(true);
@@ -672,11 +631,15 @@ export function App() {
         <ProjectSidebar
           project={state.project}
           issues={issues.length}
+          projectPath={openedProjectPath}
           selectedCriterionId={state.selectedCriterionId}
           onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
           onRenameCriterion={(criterionId, label) => dispatch({ type: 'updateCriterion', criterionId, patch: { label, id: slugify(label) } })}
           onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
           onDeleteCriterion={(criterionId) => setDeleteCriterionId(criterionId)}
+          onNewCriterion={(themeId) => dispatch({ type: 'addCriterion', themeId })}
+          onOpenContainingFolder={(path, label) => void openSidebarPath(path, label, 'containing')}
+          onRevealInFileManager={(path, label) => void openSidebarPath(path, label, 'reveal')}
         />
         <section id="main-panel" className="main-panel" role="tabpanel" tabIndex={-1} aria-label={`${activeTab} panel`}>
           {activeTab === 'authoring' && selectedCriterion ? (

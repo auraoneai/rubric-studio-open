@@ -51,6 +51,11 @@ try {
   await expect(page.locator('body')).toContainText('Created browser starter project in local storage');
 
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
+  await page.getByRole('treeitem', { name: /safe-refusal\.toml/ }).click({ button: 'right' });
+  await expect(page.getByRole('menu', { name: /Actions for Safe refusal/ })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Open containing folder' })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Reveal in Finder/Explorer' }).click();
+  await expect(page.locator('body')).toContainText('Browser edition does not expose system file-manager actions.');
   await page.locator('[data-criterion-id="cites-uncertainty"]').dragTo(page.locator('[data-criterion-id="actionable-alternative"]'));
   await expect(page.locator('[data-criterion-id="cites-uncertainty"][data-theme-id="helpfulness"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Cites uncertainty' })).toBeVisible();

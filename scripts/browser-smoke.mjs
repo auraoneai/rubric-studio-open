@@ -126,6 +126,21 @@ try {
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
   await expect(page.getByText('Live testing')).toBeVisible();
+  const sampleSelect = page.locator('.sample-controls select');
+  const initialSampleCount = await sampleSelect.locator('option').count();
+  await page.getByRole('button', { name: 'Generate synthetic' }).click();
+  await expect(sampleSelect.locator('option')).toHaveCount(initialSampleCount + 1);
+  await expect(sampleSelect).toHaveValue(/synthetic-/);
+  await expect(page.locator('blockquote')).toContainText('This response includes concrete steps');
+  await page.getByLabel('Paste sample').fill(JSON.stringify({
+    id: 'scratch-e2e',
+    prompt: 'Check the scratch sample path.',
+    response: 'A scratch response with clear evidence and a safe alternative.',
+    metadata: { source: 'browser-e2e' },
+  }));
+  await page.getByRole('button', { name: 'Add scratch' }).click();
+  await expect(sampleSelect).toHaveValue('scratch-e2e');
+  await expect(page.locator('blockquote')).toContainText('A scratch response with clear evidence');
   await page.getByRole('button', { name: 'Score all' }).click();
   await expect(page.getByText('Scoring all criteria with cancellable progress')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel score run' }).click();

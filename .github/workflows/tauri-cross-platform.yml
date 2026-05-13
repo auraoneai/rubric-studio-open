@@ -1,17 +1,10 @@
 name: Rubric Studio Open Tauri
 
 on:
-  pull_request:
-    paths:
-      - "opensource/rubric-studio-open/**"
-      - "pnpm-lock.yaml"
+  pull_request: {}
   push:
     branches:
       - main
-      - azure-production-readiness-2026-05-07
-    paths:
-      - "opensource/rubric-studio-open/**"
-      - "pnpm-lock.yaml"
 
 jobs:
   tauri-shell:
@@ -59,25 +52,25 @@ jobs:
         run: cargo install tauri-driver --version 2.0.6 --locked
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --filter=@auraone/rubric-studio-open
+        run: pnpm install --frozen-lockfile
 
       - name: Verify native e2e preflight
-        run: pnpm --filter=@auraone/rubric-studio-open tauri:e2e:preflight
+        run: pnpm tauri:e2e:preflight
 
       - name: Typecheck
-        run: pnpm --filter=@auraone/rubric-studio-open typecheck
+        run: pnpm typecheck
 
       - name: Unit and regression tests
         run: |
-          pnpm --filter=@auraone/rubric-studio-open test
-          pnpm --filter=@auraone/rubric-studio-open test:regression
+          pnpm test
+          pnpm test:regression
 
       - name: Tauri Rust tests
-        run: pnpm --filter=@auraone/rubric-studio-open tauri:core:test
+        run: pnpm tauri:core:test
 
       - name: Build Tauri shell
-        run: pnpm --filter=@auraone/rubric-studio-open tauri:build:ci
+        run: pnpm tauri:build:ci
 
       - name: Native Tauri e2e
         if: matrix.os != 'macos-latest'
-        run: pnpm --filter=@auraone/rubric-studio-open tauri:e2e
+        run: pnpm tauri:e2e

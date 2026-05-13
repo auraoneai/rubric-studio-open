@@ -95,6 +95,15 @@ try {
       });
       return;
     }
+    if (directProviderRequests === 2) {
+      await route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: { message: 'Rate limit exceeded' } }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -396,8 +405,10 @@ try {
   await gptColumn.getByRole('button', { name: 'Run direct provider score' }).first().click();
   await expect(gptColumn.getByText('OpenAI rejected this BYO key (401). Rotate the key in Settings and retry direct provider scoring.')).toBeVisible();
   await gptColumn.getByRole('button', { name: 'Run direct provider score' }).first().click();
+  await expect(gptColumn.getByText('OpenAI rate limited this browser request (429). Wait for the provider limit to reset, then retry.')).toBeVisible();
+  await gptColumn.getByRole('button', { name: 'Run direct provider score' }).first().click();
   await expect(gptColumn.getByText('Provider e2e pass from direct browser scoring.')).toBeVisible();
-  expect(directProviderRequests).toBe(2);
+  expect(directProviderRequests).toBe(3);
 
   await browser.close();
   console.log('Rubric Studio Open browser e2e smoke passed.');

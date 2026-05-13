@@ -14,6 +14,7 @@
     "test:e2e": "node scripts/browser-smoke.mjs",
     "test:design": "node scripts/design-contract.mjs",
     "test:privacy": "node scripts/privacy-contract.mjs",
+    "test:readme": "node scripts/readme-contract.mjs",
     "test:snapshot": "tsx src/domain/snapshot-test.ts",
     "test:perf": "tsx src/domain/performance-test.ts",
     "test:regression": "pnpm run test:snapshot && pnpm run test:perf",

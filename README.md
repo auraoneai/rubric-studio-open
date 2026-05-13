@@ -28,7 +28,7 @@ Privacy: [local-first privacy and telemetry policy](PRIVACY.md)
 - Browser editor: Vite/React surface with browser constraints available through
   `?surface=browser`.
 - VS Code surface: extension scaffold under `vscode-extension/` with a webview
-  editor command and rubric TOML diagnostics.
+  editor command, live rubric TOML diagnostics, completions, and quick fixes.
 
 ## Run locally
 
@@ -43,8 +43,10 @@ Open `http://127.0.0.1:5174/?surface=browser` to exercise the browser edition.
 ```bash
 pnpm --filter=@auraone/rubric-studio-open typecheck
 pnpm --filter=@auraone/rubric-studio-open test
+pnpm --filter=@auraone/rubric-studio-open test:readme
 pnpm --filter=@auraone/rubric-studio-open test:privacy
 pnpm --filter=@auraone/rubric-studio-open build
+pnpm --filter=@auraone/rubric-studio-open vscode:contract
 pnpm --filter=@auraone/rubric-studio-open vscode:typecheck
 pnpm --filter=@auraone/rubric-studio-open tauri:core:test
 ```

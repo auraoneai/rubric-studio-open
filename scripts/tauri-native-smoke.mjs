@@ -129,7 +129,11 @@ async function webdriver(method, path, body) {
   const text = await response.text();
   const parsed = text ? JSON.parse(text) : {};
   if (!response.ok) {
-    throw new Error(`${method} ${path} failed (${response.status}): ${text}`);
+    throw new Error(`${method} ${path} failed (${response.status}): ${text}${driverOutputBuffer ? `\n\nTauri driver output:\n${tail(driverOutputBuffer)}` : ''}`);
   }
   return parsed;
+}
+
+function tail(value) {
+  return value.split(/\r?\n/).slice(-80).join('\n');
 }

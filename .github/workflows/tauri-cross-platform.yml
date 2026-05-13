@@ -57,6 +57,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install matching Microsoft Edge driver
+        if: matrix.os == 'windows-latest'
+        run: |
+          cargo install --git https://github.com/chippers/msedgedriver-tool
+          & "$HOME/.cargo/bin/msedgedriver-tool.exe"
+          $PWD.Path >> $env:GITHUB_PATH
+
       - name: Install Tauri WebDriver bridge
         run: cargo install tauri-driver --version 2.0.6 --locked
 

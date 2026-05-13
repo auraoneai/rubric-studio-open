@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   SquarePen,
+  Trash2,
   Wrench,
 } from 'lucide-react';
 import {
@@ -36,6 +37,7 @@ export function AuthoringPanel(props: {
   onSelect: (criterionId: string) => void;
   onUpdate: (patch: Partial<Criterion>) => void;
   onBulkUpdate: (criterionIds: string[], patch: Partial<Criterion>) => void;
+  onBulkDelete: (criterionIds: string[]) => void;
   onAdd: (themeId: string) => void;
   onMove: (direction: -1 | 1) => void;
   onReorder: (draggedId: string, targetId: string) => void;
@@ -56,6 +58,15 @@ export function AuthoringPanel(props: {
   function bulkPatch(patch: Partial<Criterion>) {
     props.onBulkUpdate(bulkIds, patch);
     setBulkIds([]);
+  }
+
+  function bulkDelete() {
+    const count = bulkIds.length;
+    if (count === 0) return;
+    if (window.confirm(`Delete ${count} selected criterion${count === 1 ? '' : 's'}?`)) {
+      props.onBulkDelete(bulkIds);
+      setBulkIds([]);
+    }
   }
 
   return (
@@ -85,6 +96,44 @@ export function AuthoringPanel(props: {
             <button className="ghost-button" type="button" onClick={() => bulkPatch({ weight: Number((1 / bulkIds.length).toFixed(2)) })}>
               <SlidersHorizontal className="button-icon" aria-hidden="true" />
               Equal weights
+            </button>
+            <label className="compact-select">
+              <span>Move to theme</span>
+              <select
+                aria-label="Move selected criteria to theme"
+                value=""
+                onChange={(event) => {
+                  if (event.target.value) bulkPatch({ themeId: event.target.value });
+                }}
+              >
+                <option value="">Choose theme</option>
+                {project.themes.map((theme) => (
+                  <option key={theme.id} value={theme.id}>
+                    {theme.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="compact-select">
+              <span>Set scale</span>
+              <select
+                aria-label="Set selected criteria scale"
+                value=""
+                onChange={(event) => {
+                  if (event.target.value) bulkPatch({ scale: event.target.value as Criterion['scale'] });
+                }}
+              >
+                <option value="">Choose scale</option>
+                {scaleOptions.map((scale) => (
+                  <option key={scale} value={scale}>
+                    {scale}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="ghost-button danger" type="button" onClick={bulkDelete}>
+              <Trash2 className="button-icon" aria-hidden="true" />
+              Delete selected
             </button>
           </div>
         ) : null}

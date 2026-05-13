@@ -58,6 +58,22 @@ try {
     nodes.map((node) => node.getAttribute('data-criterion-id')),
   );
   expect(criterionOrder.slice(0, 4)).toEqual(['safe-refusal', 'cites-uncertainty', 'actionable-alternative', 'specificity']);
+  await page.getByLabel('Select Actionable alternative for bulk operations').check();
+  await page.getByLabel('Select Specificity for bulk operations').check();
+  await page.getByLabel('Set selected criteria scale').selectOption('continuous');
+  await expect(page.locator('[data-criterion-id="actionable-alternative"] small')).toHaveText('continuous');
+  await expect(page.locator('[data-criterion-id="specificity"] small')).toHaveText('continuous');
+  await page.getByLabel('Select Actionable alternative for bulk operations').check();
+  await page.getByLabel('Select Specificity for bulk operations').check();
+  await page.getByLabel('Move selected criteria to theme').selectOption('evidence');
+  await expect(page.locator('[data-criterion-id="actionable-alternative"][data-theme-id="evidence"]')).toBeVisible();
+  await expect(page.locator('[data-criterion-id="specificity"][data-theme-id="evidence"]')).toBeVisible();
+  await page.getByLabel('Select Actionable alternative for bulk operations').check();
+  await page.getByLabel('Select Specificity for bulk operations').check();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Delete selected' }).click();
+  await expect(page.locator('[data-criterion-id="actionable-alternative"]')).toHaveCount(0);
+  await expect(page.locator('[data-criterion-id="specificity"]')).toHaveCount(0);
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
   await expect(page.getByText('Live testing')).toBeVisible();

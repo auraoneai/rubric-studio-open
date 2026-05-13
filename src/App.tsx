@@ -72,6 +72,7 @@ type Action =
   | { type: 'duplicateCriterion'; criterionId: string }
   | { type: 'deleteCriterion'; criterionId: string }
   | { type: 'bulkUpdateCriteria'; criterionIds: string[]; patch: Partial<Criterion> }
+  | { type: 'bulkDeleteCriteria'; criterionIds: string[] }
   | { type: 'reorderCriterion'; draggedId: string; targetId: string }
   | { type: 'toggleTheme'; themeId: string }
   | { type: 'moveCriterion'; criterionId: string; direction: -1 | 1 }
@@ -216,6 +217,17 @@ function reducer(state: StudioState, action: Action): StudioState {
         selected.has(criterion.id) ? { ...criterion, ...action.patch } : criterion,
       );
       return { ...state, project: { ...state.project, criteria } };
+    }
+    case 'bulkDeleteCriteria': {
+      const selected = new Set(action.criterionIds);
+      const criteria = state.project.criteria.filter((criterion) => !selected.has(criterion.id));
+      return {
+        ...state,
+        selectedCriterionId: selected.has(state.selectedCriterionId)
+          ? criteria[0]?.id ?? ''
+          : state.selectedCriterionId,
+        project: { ...state.project, criteria },
+      };
     }
     case 'reorderCriterion': {
       const criteria = reorderCriteria(state.project.criteria, action.draggedId, action.targetId);
@@ -684,6 +696,7 @@ export function App() {
               onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
               onUpdate={(patch) => dispatch({ type: 'updateCriterion', criterionId: selectedCriterion.id, patch })}
               onBulkUpdate={(criterionIds, patch) => dispatch({ type: 'bulkUpdateCriteria', criterionIds, patch })}
+              onBulkDelete={(criterionIds) => dispatch({ type: 'bulkDeleteCriteria', criterionIds })}
               onAdd={(themeId) => dispatch({ type: 'addCriterion', themeId })}
               onMove={(direction) => dispatch({ type: 'moveCriterion', criterionId: selectedCriterion.id, direction })}
               onReorder={(draggedId, targetId) => dispatch({ type: 'reorderCriterion', draggedId, targetId })}

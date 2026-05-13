@@ -2,3 +2,20 @@
   border-color: rgba(52, 217, 255, 0.72);
   box-shadow: 0 0 0 2px rgba(52, 217, 255, 0.18);
 }
+
+.bulk-toolbar .compact-select {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.bulk-toolbar .compact-select select {
+  min-width: 128px;
+  min-height: 34px;
+}
+
+.bulk-toolbar .ghost-button.danger {
+  color: #ffd6d6;
+  border-color: rgba(255, 105, 105, 0.42);
+}

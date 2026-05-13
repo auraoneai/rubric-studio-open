@@ -44,13 +44,17 @@ try {
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+4' : 'Control+4');
   await expect(page.getByRole('tabpanel', { name: /diff panel/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Init' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Fetch' })).toBeDisabled();
   await page.getByRole('button', { name: 'Try variant branch' }).click();
   await expect(page.getByText(/try\//)).toBeVisible();
   await page.getByRole('button', { name: 'Merge back' }).click();
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+5' : 'Control+5');
   await expect(page.getByRole('tabpanel', { name: /export panel/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send to AuraOne for expert review' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download AuraOne intake package' })).toBeVisible();
+  await expect(page.getByText('Browser edition is local download only')).toBeVisible();
+  await expect(page.locator('.intake-flow select').nth(1)).toBeDisabled();
   await expect(page.getByText('CLI parity')).toBeVisible();
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+6' : 'Control+6');

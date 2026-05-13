@@ -46,6 +46,10 @@ export function DiffPanel({
   }
 
   function commit() {
+    if (surface === 'browser') {
+      setCommitMessage('Browser preview only - open desktop to commit');
+      return;
+    }
     setCommitMessage(commitMessage || suggestedMessage);
   }
 
@@ -57,11 +61,11 @@ export function DiffPanel({
           <button className="glass-button primary" type="button" onClick={commit}>Git commit</button>
         </div>
         <div className="git-ops" aria-label="Git operations">
-          <button className="ghost-button" type="button">Init</button>
-          <button className="ghost-button" type="button">Status</button>
-          <button className="ghost-button" type="button">Branch</button>
-          <button className="ghost-button" type="button">Fetch</button>
-          <button className="ghost-button" type="button">Fast-forward merge</button>
+          <button className="ghost-button" type="button" disabled={surface === 'browser'}>Init</button>
+          <button className="ghost-button" type="button" disabled={surface === 'browser'}>Status</button>
+          <button className="ghost-button" type="button" disabled={surface === 'browser'}>Branch</button>
+          <button className="ghost-button" type="button" disabled={surface === 'browser'}>Fetch</button>
+          <button className="ghost-button" type="button" disabled={surface === 'browser'}>Fast-forward merge</button>
           <label>
             Commit message
             <input

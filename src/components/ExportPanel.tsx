@@ -16,6 +16,8 @@ export function ExportPanel({
   const [turnaround, setTurnaround] = useState('5 business days');
   const [destination, setDestination] = useState('local-download');
   const exportEntries = Object.entries(exports);
+  const browserLocalOnly = surface === 'browser';
+  const effectiveDestination = browserLocalOnly ? 'local-download' : destination;
 
   function downloadArtifact(name: string, content: string) {
     const url = URL.createObjectURL(new Blob([content], { type: contentType(name) }));
@@ -33,7 +35,7 @@ export function ExportPanel({
         intake_scope: {
           reviewers,
           turnaround,
-          destination,
+          destination: effectiveDestination,
           sample_count: project.samples.length,
           criterion_count: project.criteria.length,
         },
@@ -49,12 +51,26 @@ export function ExportPanel({
       <section className="glass-panel">
         <div className="panel-title">
           <div><p>Export</p><h2>Always-on artifacts</h2></div>
-          <button className="intake-button" type="button" onClick={downloadIntakePackage}>Send to AuraOne for expert review</button>
+          <button className="intake-button" type="button" onClick={downloadIntakePackage}>
+            {browserLocalOnly ? 'Download AuraOne intake package' : 'Send to AuraOne for expert review'}
+          </button>
         </div>
         <div className="intake-flow">
           <label><strong>1. Confirm scope</strong><span>{project.samples.length} samples · {project.criteria.length} criteria</span><input type="number" min={1} max={50} value={reviewers} onChange={(event) => setReviewers(Number(event.target.value))} /></label>
           <label><strong>2. Package</strong><span>rubric + calibration set + judge card + manifest</span><select value={turnaround} onChange={(event) => setTurnaround(event.target.value)}><option>3 business days</option><option>5 business days</option><option>10 business days</option></select></label>
-          <label><strong>3. Destination</strong><span>Cloud signup · existing org upload · local package</span><select value={destination} onChange={(event) => setDestination(event.target.value)}><option value="rubric-studio-cloud-signup">Sign up for Rubric Studio Cloud</option><option value="existing-cloud-org">I already have a Cloud account</option><option value="local-download">Just give me the package</option></select></label>
+          <label>
+            <strong>3. Destination</strong>
+            <span>{browserLocalOnly ? 'Browser edition is local download only' : 'Cloud signup · existing org upload · local package'}</span>
+            <select
+              value={effectiveDestination}
+              disabled={browserLocalOnly}
+              onChange={(event) => setDestination(event.target.value)}
+            >
+              <option value="rubric-studio-cloud-signup">Sign up for Rubric Studio Cloud</option>
+              <option value="existing-cloud-org">I already have a Cloud account</option>
+              <option value="local-download">Just give me the package</option>
+            </select>
+          </label>
         </div>
         <pre className="export-preview">{intakeManifest}</pre>
       </section>

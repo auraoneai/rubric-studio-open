@@ -1,6 +1,13 @@
 name: Rubric Studio Open Tauri
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_native_e2e:
+        description: Run native Tauri WebDriver e2e on the supported Windows runner
+        required: false
+        type: boolean
+        default: false
   pull_request: {}
   push:
     branches:
@@ -11,6 +18,8 @@ jobs:
     name: Tauri shell (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    env:
+      RUN_TAURI_NATIVE_E2E: ${{ github.event_name == 'workflow_dispatch' && inputs.run_native_e2e && '1' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -73,5 +82,5 @@ jobs:
         run: pnpm tauri:build:ci
 
       - name: Native Tauri e2e
-        if: matrix.os != 'macos-latest' && env.RUN_TAURI_NATIVE_E2E == '1'
+        if: matrix.os == 'windows-latest' && env.RUN_TAURI_NATIVE_E2E == '1'
         run: pnpm tauri:e2e

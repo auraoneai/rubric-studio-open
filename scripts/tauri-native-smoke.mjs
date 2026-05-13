@@ -11,7 +11,6 @@ const application = process.env.RSO_TAURI_APP_PATH ?? defaultApplicationPath();
 
 const driverProbe = spawnSync('tauri-driver', ['--help'], {
   encoding: 'utf8',
-  shell: process.platform === 'win32',
 });
 const driverOutput = `${driverProbe.stdout ?? ''}${driverProbe.stderr ?? ''}`.trim();
 if (driverProbe.status !== 0) {
@@ -23,7 +22,6 @@ assert.ok(existsSync(application), `Build the Tauri app before native e2e; missi
 const driver = spawn('tauri-driver', ['--port', String(port)], {
   cwd: root,
   stdio: ['ignore', 'pipe', 'pipe'],
-  shell: process.platform === 'win32',
 });
 
 let driverOutputBuffer = '';

@@ -84,6 +84,13 @@ interface StudioState {
 }
 
 type AuthoringFocusRequest = { target: 'in-file' | 'project'; nonce: number };
+type UpdateChannel = 'stable' | 'beta';
+type StudioPreferences = {
+  telemetryEnabled: boolean;
+  crashReportingEnabled: boolean;
+  updateChannel: UpdateChannel;
+  visualMode: VisualMode;
+};
 
 const tabIcons: Record<Tab, LucideIcon> = {
   authoring: SquarePen,
@@ -259,6 +266,7 @@ function reducer(state: StudioState, action: Action): StudioState {
 export function App() {
   const initialSurface = new URLSearchParams(window.location.search).get('surface') === 'browser' ? 'browser' : 'desktop';
   const [initialProject] = useState(readSavedProject);
+  const [initialPreferences] = useState(readSavedPreferences);
   const [state, dispatch] = useReducer(reducer, {
     project: initialProject,
     selectedCriterionId: initialProject.criteria[0]?.id ?? '',
@@ -275,11 +283,11 @@ export function App() {
   const [wholeWord, setWholeWord] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [scoreRunning, setScoreRunning] = useState(false);
-  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
-  const [crashReportingEnabled, setCrashReportingEnabled] = useState(false);
-  const [updateChannel, setUpdateChannel] = useState<'stable' | 'beta'>('stable');
+  const [telemetryEnabled, setTelemetryEnabled] = useState(initialPreferences.telemetryEnabled);
+  const [crashReportingEnabled, setCrashReportingEnabled] = useState(initialPreferences.crashReportingEnabled);
+  const [updateChannel, setUpdateChannel] = useState<UpdateChannel>(initialPreferences.updateChannel);
   const [telemetryLog, setTelemetryLog] = useState<TelemetryEvent[]>([]);
-  const [visualMode, setVisualMode] = useState<VisualMode>('dark');
+  const [visualMode, setVisualMode] = useState<VisualMode>(initialPreferences.visualMode);
   const [shortcuts, setShortcuts] = useState<ShortcutRow[]>(readSavedShortcuts);
   const [recentCommands, setRecentCommands] = useState<string[]>([]);
   const [toast, setToast] = useState('Saved');
@@ -321,6 +329,15 @@ export function App() {
     }
     localStorage.setItem('rso:shortcuts', JSON.stringify(shortcuts));
   }, [shortcuts]);
+
+  useEffect(() => {
+    localStorage.setItem('rso:preferences', JSON.stringify({
+      telemetryEnabled,
+      crashReportingEnabled,
+      updateChannel,
+      visualMode,
+    }));
+  }, [telemetryEnabled, crashReportingEnabled, updateChannel, visualMode]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -984,6 +1001,30 @@ function readSavedShortcuts(): ShortcutRow[] {
     return mergeSavedShortcuts(JSON.parse(saved) as ShortcutRow[]);
   } catch {
     return defaultShortcutRows();
+  }
+}
+
+function readSavedPreferences(): StudioPreferences {
+  const defaults: StudioPreferences = {
+    telemetryEnabled: false,
+    crashReportingEnabled: false,
+    updateChannel: 'stable',
+    visualMode: 'dark',
+  };
+  try {
+    const saved = localStorage.getItem('rso:preferences');
+    if (!saved) {
+      return defaults;
+    }
+    const parsed = JSON.parse(saved) as Partial<StudioPreferences>;
+    return {
+      telemetryEnabled: parsed.telemetryEnabled === true,
+      crashReportingEnabled: parsed.crashReportingEnabled === true,
+      updateChannel: parsed.updateChannel === 'beta' ? 'beta' : 'stable',
+      visualMode: parsed.visualMode === 'light' || parsed.visualMode === 'high-contrast' ? parsed.visualMode : 'dark',
+    };
+  } catch {
+    return defaults;
   }
 }
 

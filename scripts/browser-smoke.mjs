@@ -30,6 +30,43 @@ try {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   let directProviderRequests = 0;
+  await page.addInitScript(() => {
+    window.__rsoE2eFolderFiles = {};
+    window.__rsoE2eFolderMode = 'readwrite';
+
+    function folderHandle(prefix = '') {
+      return {
+        async getDirectoryHandle(name) {
+          return folderHandle(`${prefix}${name}/`);
+        },
+        async getFileHandle(name) {
+          const path = `${prefix}${name}`;
+          return {
+            async createWritable() {
+              return {
+                async write(content) {
+                  window.__rsoE2eFolderFiles[path] = String(content);
+                },
+                async close() {},
+              };
+            },
+            async getFile() {
+              const content = window.__rsoE2eFolderFiles[path];
+              if (content === undefined) {
+                throw new DOMException(`Missing ${path}`, 'NotFoundError');
+              }
+              return new File([content], name, { type: 'application/json' });
+            },
+          };
+        },
+      };
+    }
+
+    window.showDirectoryPicker = async (options) => {
+      window.__rsoE2eFolderMode = options?.mode ?? 'read';
+      return folderHandle();
+    };
+  });
   await page.route('https://api.openai.com/v1/responses', async (route) => {
     const request = route.request();
     if (request.method() === 'OPTIONS') {
@@ -79,6 +116,36 @@ try {
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByText('Browser Starter Rubric')).toBeVisible();
   await expect(page.locator('body')).toContainText('Created browser starter project in local storage');
+  await page.getByRole('button', { name: 'Export folder' }).click();
+  await expect(page.getByText(/Exported \d+ files to the selected browser folder/)).toBeVisible();
+  const exportedFolder = await page.evaluate(() => ({
+    mode: window.__rsoE2eFolderMode,
+    paths: Object.keys(window.__rsoE2eFolderFiles).sort(),
+    bundle: JSON.parse(window.__rsoE2eFolderFiles['project-bundle.json']),
+  }));
+  expect(exportedFolder.mode).toBe('readwrite');
+  expect(exportedFolder.paths).toContain('project-bundle.json');
+  expect(exportedFolder.paths).toContain('rubric.json');
+  expect(exportedFolder.paths).toContain('samples/samples.json');
+  expect(exportedFolder.paths.filter((path) => path.startsWith('criteria/')).length).toBeGreaterThan(0);
+  expect(exportedFolder.bundle.project.name).toBe('Browser Starter Rubric');
+  await page.evaluate(() => {
+    const current = JSON.parse(localStorage.getItem('rso:project'));
+    window.__rsoE2eFolderFiles = {
+      'project-bundle.json': JSON.stringify({
+        schema: 'https://spec.auraone.ai/rubric-studio-open/project-bundle/v1',
+        exportedAt: '2026-05-13T00:00:00.000Z',
+        project: {
+          ...current,
+          id: 'folder-imported-rubric',
+          name: 'Folder Imported Rubric',
+        },
+      }),
+    };
+  });
+  await page.getByRole('button', { name: 'Import folder' }).click();
+  await expect(page.getByText('Folder Imported Rubric', { exact: true })).toBeVisible();
+  await expect(page.getByText('Imported Folder Imported Rubric from browser folder.')).toBeVisible();
 
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+F' : 'Control+F');

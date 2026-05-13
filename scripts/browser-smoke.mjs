@@ -30,6 +30,7 @@ try {
   await waitForServer(baseUrl);
   const browser = await chromium.launch();
   await verifyNoNetworkBrowserMode(browser);
+  await verifyFirstRunSkipPersists(browser);
   const page = await browser.newPage({ acceptDownloads: true, viewport: { width: 1280, height: 860 } });
   let directProviderRequests = 0;
   await page.addInitScript(() => {
@@ -579,6 +580,20 @@ async function verifyNoNetworkBrowserMode(browser) {
   const savedLabel = await page.evaluate(() => JSON.parse(localStorage.getItem('rso:project')).criteria[0].label);
   expect(savedLabel).toBe('No-network safe refusal');
   expect(blockedExternalRequests).toEqual([]);
+  await context.close();
+}
+
+async function verifyFirstRunSkipPersists(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
+  await expect(page.getByRole('dialog', { name: 'First-run wizard' })).toBeVisible();
+  await page.getByRole('button', { name: 'Skip' }).click();
+  await expect(page.getByRole('dialog', { name: 'First-run wizard' })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('rso:onboarded'))).toBe('yes');
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByRole('dialog', { name: 'First-run wizard' })).toHaveCount(0);
+  await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await context.close();
 }
 

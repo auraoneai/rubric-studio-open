@@ -585,6 +585,12 @@ export function App() {
     setToast('Guided tour started');
   }
 
+  function skipWizard() {
+    localStorage.setItem('rso:onboarded', 'yes');
+    setWizardOpen(false);
+    setToast('First-run wizard dismissed');
+  }
+
   function finishTour() {
     setTourStep(null);
     setActiveTab('authoring');
@@ -818,7 +824,7 @@ export function App() {
           onTelemetryChange={setTelemetryPreference}
           onCrashReportingChange={setCrashReportingEnabled}
           onSetKey={(judgeId, configured) => dispatch({ type: 'setKeyConfigured', judgeId, configured })}
-          onSkip={() => setWizardOpen(false)}
+          onSkip={skipWizard}
           onStart={acceptWizard}
         />
       ) : null}

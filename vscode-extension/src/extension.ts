@@ -26,11 +26,26 @@ const webviewCommands = [
   'Open desktop-only sidecar note',
 ];
 
+const criterionSelector: vscode.DocumentSelector = [{ scheme: 'file', pattern: '**/criteria/**/*.toml' }];
+const criterionFieldSnippets: Record<string, string> = {
+  id: 'id = "new-criterion"\n',
+  label: 'label = "New criterion"\n',
+  description: 'description = "Describe the observable behavior this criterion measures."\n',
+  weight: 'weight = 0.25\n',
+  scale: 'scale = "binary"\n',
+  positive_examples: 'positive_examples = ["A strong matching response", "Another positive reviewer example"]\n',
+  negative_examples: 'negative_examples = ["A weak or unsafe response", "Another negative reviewer example"]\n',
+};
+const criterionFieldOrder = Object.keys(criterionFieldSnippets);
+
 let currentPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection('rubric-studio-open');
   context.subscriptions.push(diagnostics);
+  registerLiveValidation(context, diagnostics);
+  registerCriterionCompletions(context);
+  registerCriterionQuickFixes(context);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('auraone.rubricStudio.open', async () => {
@@ -160,6 +175,122 @@ async function validateWorkspace(collection: vscode.DiagnosticCollection): Promi
   return files.length;
 }
 
+function registerLiveValidation(
+  context: vscode.ExtensionContext,
+  collection: vscode.DiagnosticCollection,
+): void {
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const schedule = (document: vscode.TextDocument) => {
+    if (!isCriterionDocument(document)) {
+      return;
+    }
+    const key = document.uri.fsPath;
+    clearTimeout(timers.get(key));
+    timers.set(
+      key,
+      setTimeout(() => {
+        validateDocument(document, collection);
+        void postProject(currentPanel, collection);
+      }, 150),
+    );
+  };
+
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument((document) => {
+      void validateDocument(document, collection);
+    }),
+    vscode.workspace.onDidChangeTextDocument((event) => schedule(event.document)),
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      void validateDocument(document, collection);
+      void postProject(currentPanel, collection);
+    }),
+    {
+      dispose() {
+        timers.forEach((timer) => clearTimeout(timer));
+        timers.clear();
+      },
+    },
+  );
+
+  vscode.workspace.textDocuments.forEach((document) => {
+    if (isCriterionDocument(document)) {
+      void validateDocument(document, collection);
+    }
+  });
+}
+
+function registerCriterionCompletions(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      criterionSelector,
+      {
+        provideCompletionItems(document) {
+          const existing = existingFields(document.getText());
+          return criterionFieldOrder
+            .filter((field) => !existing.has(field))
+            .map((field) => {
+              const item = new vscode.CompletionItem(field, vscode.CompletionItemKind.Field);
+              item.detail = 'rubric-spec v1 criterion field';
+              item.insertText = criterionFieldSnippets[field];
+              return item;
+            });
+        },
+      },
+      '=',
+      '\n',
+    ),
+  );
+}
+
+function registerCriterionQuickFixes(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      criterionSelector,
+      {
+        provideCodeActions(document, _range, actionContext) {
+          return actionContext.diagnostics
+            .filter((diagnostic) => diagnostic.source === 'Rubric Studio Open')
+            .map((diagnostic) => quickFixForDiagnostic(document, diagnostic))
+            .filter((action): action is vscode.CodeAction => action !== null);
+        },
+      },
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
+    ),
+  );
+}
+
+async function validateDocument(
+  document: vscode.TextDocument,
+  collection: vscode.DiagnosticCollection,
+): Promise<void> {
+  if (!isCriterionDocument(document)) {
+    return;
+  }
+  collection.set(
+    document.uri,
+    validateCriterionToml({ file: document.uri.fsPath, content: document.getText() }).map(toDiagnostic),
+  );
+}
+
+function quickFixForDiagnostic(
+  document: vscode.TextDocument,
+  diagnostic: vscode.Diagnostic,
+): vscode.CodeAction | null {
+  const field = String(diagnostic.code ?? '');
+  const snippet = criterionFieldSnippets[field];
+  if (!snippet) {
+    return null;
+  }
+  const action = new vscode.CodeAction(`Add ${field} to criterion`, vscode.CodeActionKind.QuickFix);
+  const edit = new vscode.WorkspaceEdit();
+  const prefix = document.getText().endsWith('\n') ? '' : '\n';
+  edit.insert(document.uri, new vscode.Position(document.lineCount, 0), `${prefix}${snippet}`);
+  action.edit = edit;
+  action.diagnostics = [diagnostic];
+  action.isPreferred = diagnostic.severity === vscode.DiagnosticSeverity.Error;
+  return action;
+}
+
 async function readCriterionFiles(): Promise<CriterionFile[]> {
   const files = await vscode.workspace.findFiles('**/criteria/**/*.toml', '**/.rubric/**');
   const items: CriterionFile[] = [];
@@ -176,6 +307,19 @@ async function readCriterionFiles(): Promise<CriterionFile[]> {
     });
   }
   return items.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function existingFields(content: string): Set<string> {
+  return new Set(
+    content
+      .split('\n')
+      .map((line) => /^([a-z_]+)\s*=/.exec(line.trim())?.[1])
+      .filter((field): field is string => Boolean(field)),
+  );
+}
+
+function isCriterionDocument(document: vscode.TextDocument): boolean {
+  return /[/\\]criteria[/\\].+\.toml$/i.test(document.uri.fsPath);
 }
 
 function toDiagnostic(input: RubricDiagnostic): vscode.Diagnostic {

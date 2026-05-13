@@ -9,6 +9,22 @@ declare module 'vscode' {
     fsPath: string;
   }
 
+  export interface TextDocument {
+    uri: Uri;
+    lineCount: number;
+    getText(): string;
+  }
+
+  export interface TextDocumentChangeEvent {
+    document: TextDocument;
+  }
+
+  export interface CodeActionContext {
+    diagnostics: Diagnostic[];
+  }
+
+  export type DocumentSelector = Array<{ scheme?: string; language?: string; pattern?: string }>;
+
   export interface Webview {
     html: string;
     options: Record<string, unknown>;
@@ -34,10 +50,40 @@ declare module 'vscode' {
     constructor(range: Range, message: string, severity: DiagnosticSeverity);
     source?: string;
     code?: string;
+    severity: DiagnosticSeverity;
   }
 
   export class Range {
     constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
+  }
+
+  export class Position {
+    constructor(line: number, character: number);
+  }
+
+  export class WorkspaceEdit {
+    insert(uri: Uri, position: Position, text: string): void;
+  }
+
+  export class CodeAction {
+    constructor(title: string, kind: CodeActionKind);
+    edit?: WorkspaceEdit;
+    diagnostics?: Diagnostic[];
+    isPreferred?: boolean;
+  }
+
+  export class CodeActionKind {
+    static readonly QuickFix: CodeActionKind;
+  }
+
+  export class CompletionItem {
+    constructor(label: string, kind?: CompletionItemKind);
+    detail?: string;
+    insertText?: string;
+  }
+
+  export enum CompletionItemKind {
+    Field = 5,
   }
 
   export enum DiagnosticSeverity {
@@ -68,7 +114,11 @@ declare module 'vscode' {
 
   export const workspace: {
     workspaceFolders?: Array<{ uri: Uri }>;
+    textDocuments: TextDocument[];
     findFiles(include: string, exclude?: string): Thenable<Uri[]>;
+    onDidOpenTextDocument(listener: (document: TextDocument) => unknown): { dispose(): unknown };
+    onDidChangeTextDocument(listener: (event: TextDocumentChangeEvent) => unknown): { dispose(): unknown };
+    onDidSaveTextDocument(listener: (document: TextDocument) => unknown): { dispose(): unknown };
     fs: {
       readFile(uri: Uri): Thenable<Uint8Array>;
       writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
@@ -77,6 +127,24 @@ declare module 'vscode' {
 
   export const languages: {
     createDiagnosticCollection(name: string): DiagnosticCollection;
+    registerCodeActionsProvider(
+      selector: DocumentSelector,
+      provider: {
+        provideCodeActions(
+          document: TextDocument,
+          range: Range,
+          context: CodeActionContext,
+        ): CodeAction[] | Thenable<CodeAction[]>;
+      },
+      metadata?: { providedCodeActionKinds: CodeActionKind[] },
+    ): { dispose(): unknown };
+    registerCompletionItemProvider(
+      selector: DocumentSelector,
+      provider: {
+        provideCompletionItems(document: TextDocument): CompletionItem[] | Thenable<CompletionItem[]>;
+      },
+      ...triggerCharacters: string[]
+    ): { dispose(): unknown };
   };
 
   export const Uri: {

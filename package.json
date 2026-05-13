@@ -23,6 +23,7 @@
     "tauri:build:mac:debug": "tauri build --debug --bundles app",
     "tauri:core:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri:check": "cargo check --manifest-path src-tauri/Cargo.toml --features tauri-runtime",
+    "vscode:contract": "node scripts/vscode-extension-contract.mjs",
     "vscode:typecheck": "tsc -p vscode-extension/tsconfig.json --noEmit"
   },
   "dependencies": {

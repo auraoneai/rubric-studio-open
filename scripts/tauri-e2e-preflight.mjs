@@ -14,6 +14,7 @@ const requiredScripts = [
   'build',
   'test:e2e',
   'test:a11y',
+  'test:product',
   'tauri:e2e',
   'tauri:check',
   'tauri:core:test',
@@ -41,6 +42,8 @@ assert.ok(workflow.includes('windows-latest'), 'cross-platform Tauri workflow mu
 assert.ok(workflow.includes('ubuntu-22.04'), 'cross-platform Tauri workflow must include Linux');
 assert.ok(workflow.includes('tauri:build:ci'), 'cross-platform workflow must run the shared Tauri CI build script');
 assert.ok(workflow.includes('tauri:e2e:preflight'), 'cross-platform workflow must run the native e2e preflight');
+assert.ok(workflow.includes('playwright install chromium'), 'cross-platform workflow must install the browser e2e runtime');
+assert.ok(workflow.includes('pnpm test:product'), 'cross-platform workflow must run product/browser/vscode gates');
 assert.ok(workflow.includes('cargo install tauri-driver'), 'cross-platform workflow must install tauri-driver');
 assert.ok(workflow.includes('pnpm tauri:e2e'), 'cross-platform workflow must run native e2e on supported runners');
 assert.ok(existsSync(join(root, 'scripts/tauri-native-smoke.mjs')), 'native Tauri e2e smoke runner is required');

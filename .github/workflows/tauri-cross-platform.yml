@@ -54,16 +54,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install browser test runtime
+        run: pnpm exec playwright install chromium
+
       - name: Verify native e2e preflight
         run: pnpm tauri:e2e:preflight
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit and regression tests
-        run: |
-          pnpm test
-          pnpm test:regression
+      - name: Product surface tests
+        run: pnpm test:product
 
       - name: Tauri Rust tests
         run: pnpm tauri:core:test

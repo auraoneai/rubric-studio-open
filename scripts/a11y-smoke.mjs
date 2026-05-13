@@ -27,6 +27,9 @@ try {
   await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
 
   const skip = page.getByRole('button', { name: 'Skip' });
+  if (await page.getByRole('dialog', { name: 'First-run wizard' }).isVisible().catch(() => false)) {
+    await assertAxeClean(page, 'first-run wizard');
+  }
   if (await skip.isVisible().catch(() => false)) {
     await skip.click();
   }
@@ -36,6 +39,7 @@ try {
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Skip to editor' })).toBeAttached();
   await assertAxeClean(page, 'authoring browser surface');
+  await assertKeyboardPath(page);
 
   const unnamedButtons = await page.evaluate(() =>
     Array.from(document.querySelectorAll('button'))
@@ -57,8 +61,12 @@ try {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toHaveCount(0);
 
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+6' : 'Control+6');
-  await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();
+  await assertTabAxeClean(page, 'Preview', 'preview browser surface');
+  await assertTabAxeClean(page, 'Calibration', 'calibration browser surface');
+  await assertTabAxeClean(page, 'Diff', 'diff browser surface');
+  await assertTabAxeClean(page, 'Export', 'export browser surface');
+  await assertTabAxeClean(page, 'Settings', 'settings browser surface');
+
   await page.getByRole('radio', { name: 'high-contrast' }).click();
   await expect(page.locator('.app-shell')).toHaveAttribute('data-theme', 'high-contrast');
   await assertAxeClean(page, 'settings high-contrast surface');
@@ -73,6 +81,24 @@ try {
   console.log('Rubric Studio Open accessibility smoke passed.');
 } finally {
   server.kill('SIGTERM');
+}
+
+async function assertTabAxeClean(page, tabName, label) {
+  await page.getByRole('tab', { name: new RegExp(tabName, 'i') }).click();
+  await expect(page.getByRole('tabpanel', { name: new RegExp(`${tabName} panel`, 'i') })).toBeVisible();
+  await assertAxeClean(page, label);
+}
+
+async function assertKeyboardPath(page) {
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Skip to editor' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeFocused();
+  await page.keyboard.press('Tab');
+  const focusedName = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? '');
+  if (!focusedName) {
+    throw new Error('Keyboard-only path did not land on a named interactive control after the editor skip link.');
+  }
 }
 
 async function assertAxeClean(page, label) {

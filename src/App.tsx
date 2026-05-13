@@ -439,7 +439,7 @@ export function App() {
           onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
           onDeleteCriterion={(criterionId) => dispatch({ type: 'deleteCriterion', criterionId })}
         />
-        <section id="main-panel" className="main-panel" role="tabpanel" aria-label={`${activeTab} panel`}>
+        <section id="main-panel" className="main-panel" role="tabpanel" tabIndex={-1} aria-label={`${activeTab} panel`}>
           {activeTab === 'authoring' && selectedCriterion ? (
             <AuthoringPanel
               project={state.project}

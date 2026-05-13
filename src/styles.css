@@ -862,13 +862,14 @@ small {
   border: 0;
   background: transparent;
   color: var(--text);
-  padding: 0;
+  min-height: 24px;
+  padding: 3px 0;
   text-align: left;
   font-weight: 700;
 }
 
 .bars {
-  height: 10px;
+  min-height: 24px;
   display: flex;
   overflow: hidden;
   border-radius: 999px;
@@ -878,7 +879,7 @@ small {
 .bars button,
 .bars span {
   display: block;
-  min-width: 8px;
+  min-width: 24px;
   height: 100%;
   border: 0;
   border-radius: 0;

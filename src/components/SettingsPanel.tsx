@@ -187,7 +187,7 @@ export function SettingsPanel(props: {
       <section className="glass-panel">
         <div className="panel-title"><div><p>Telemetry</p><h2>Transparent event log</h2></div><label className="switch"><span>Opt in</span><input type="checkbox" checked={props.telemetryEnabled} onChange={(event) => props.setTelemetryEnabled(event.target.checked)} /></label></div>
         <p className="subtle">Collected only when opted in: anonymous install hash, feature usage counts, and error rates. Never rubric content, samples, judge prompts, or API keys.</p>
-        <pre className="export-preview">{JSON.stringify(props.telemetryLog, null, 2)}</pre>
+        <pre className="export-preview" tabIndex={0} aria-label="Transparent telemetry event log JSON">{JSON.stringify(props.telemetryLog, null, 2)}</pre>
       </section>
       <section className="glass-panel">
         <div className="panel-title">
@@ -208,7 +208,7 @@ export function SettingsPanel(props: {
           </button>
           {updateCheck ? <span className="success-chip" role="status">{updateCheck.status}</span> : null}
         </div>
-        <pre className="export-preview">{JSON.stringify({
+        <pre className="export-preview" tabIndex={0} aria-label="Reliability status JSON">{JSON.stringify({
           crash_reporting_enabled: reliabilityStatus?.crash.enabled ?? props.crashReportingEnabled,
           crash_provider: reliabilityStatus?.crash.provider ?? 'sentry',
           crash_default_off: reliabilityStatus?.crash.default_off ?? true,

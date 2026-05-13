@@ -214,7 +214,7 @@ export function PreviewPanel(props: {
           return (
             <div className="distribution" key={criterion.id}>
               <button type="button" onClick={() => setCatchCriterionId(criterion.id)}>{criterion.label}</button>
-              <div className="bars" aria-label={`Distribution for ${criterion.label}`}>
+              <div className="bars" role="group" aria-label={`Distribution for ${criterion.label}`}>
                 <button type="button" aria-label={`${criterion.label} pass samples`} style={{ width: `${distribution.pass * 18 + 8}%` }} className="pass" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('pass'); }} />
                 <button type="button" aria-label={`${criterion.label} partial samples`} style={{ width: `${distribution.partial * 18 + 8}%` }} className="partial" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('partial'); }} />
                 <button type="button" aria-label={`${criterion.label} fail samples`} style={{ width: `${distribution.fail * 18 + 8}%` }} className="fail" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('fail'); }} />
@@ -229,7 +229,7 @@ export function PreviewPanel(props: {
           {themeDistributions.map(({ theme, totals }) => (
             <div key={theme.id} className="distribution theme-row">
               <strong>{theme.label}</strong>
-              <div className="bars" aria-label={`${theme.label} theme contribution`}>
+              <div className="bars" role="img" aria-label={`${theme.label} theme contribution`}>
                 <span style={{ width: `${totals.pass * 10 + 8}%` }} className="pass" />
                 <span style={{ width: `${totals.partial * 10 + 8}%` }} className="partial" />
                 <span style={{ width: `${totals.fail * 10 + 8}%` }} className="fail" />

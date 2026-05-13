@@ -20,6 +20,8 @@ pnpm --filter=@auraone/rubric-studio-open dev
 
 Docs: [Rubric Studio Open docs](docs/README.md)
 
+Privacy: [local-first privacy and telemetry policy](PRIVACY.md)
+
 ## Current surfaces
 
 - Desktop shell: Tauri 2 scaffold with a Rust core in `src-tauri/`.
@@ -41,6 +43,7 @@ Open `http://127.0.0.1:5174/?surface=browser` to exercise the browser edition.
 ```bash
 pnpm --filter=@auraone/rubric-studio-open typecheck
 pnpm --filter=@auraone/rubric-studio-open test
+pnpm --filter=@auraone/rubric-studio-open test:privacy
 pnpm --filter=@auraone/rubric-studio-open build
 pnpm --filter=@auraone/rubric-studio-open vscode:typecheck
 pnpm --filter=@auraone/rubric-studio-open tauri:core:test

@@ -21,6 +21,29 @@ export interface ReliabilityStatus {
   };
 }
 
+export type UpdateCheckResult =
+  | {
+      status: 'unavailable';
+      reason: string;
+      checked_at: string;
+    }
+  | {
+      status: 'current';
+      checked_at: string;
+    }
+  | {
+      status: 'available';
+      version: string;
+      body: string;
+      date: string | null;
+      checked_at: string;
+    }
+  | {
+      status: 'error';
+      reason: string;
+      checked_at: string;
+    };
+
 type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 
 export async function getReliabilityStatus(
@@ -67,6 +90,37 @@ export function fallbackReliabilityStatus(
       kill_switch_supported: true,
     },
   };
+}
+
+export async function checkForPlatformUpdate(surface: SurfaceMode): Promise<UpdateCheckResult> {
+  const checked_at = new Date().toISOString();
+  if (surface !== 'desktop') {
+    return {
+      status: 'unavailable',
+      reason: 'Browser edition cannot install signed desktop updates.',
+      checked_at,
+    };
+  }
+  try {
+    const updater = await import('@tauri-apps/plugin-updater');
+    const update = await updater.check();
+    if (!update) {
+      return { status: 'current', checked_at };
+    }
+    return {
+      status: 'available',
+      version: update.version,
+      body: update.body ?? '',
+      date: update.date ?? null,
+      checked_at,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      reason: error instanceof Error ? error.message : 'Desktop updater check failed.',
+      checked_at,
+    };
+  }
 }
 
 async function tauriInvoke(): Promise<Invoke | null> {

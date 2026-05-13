@@ -53,6 +53,8 @@ try {
   await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();
   await expect(page.getByText('BYO provider settings')).toBeVisible();
   await expect(page.getByText('Crash reports and updates')).toBeVisible();
+  await page.getByRole('button', { name: 'Check for updates' }).click();
+  await expect(page.locator('.success-chip', { hasText: 'unavailable' })).toBeVisible();
   await expect(page.getByText('Remappable controls')).toBeVisible();
 
   await browser.close();

@@ -5,7 +5,7 @@ import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { configureProviderKey, keychainKeyForJudge, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
-import { fallbackReliabilityStatus } from './reliability';
+import { checkForPlatformUpdate, fallbackReliabilityStatus } from './reliability';
 import { sampleProject } from './rubric';
 import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
@@ -62,6 +62,10 @@ assert.equal(reliabilityStatus.crash.sends_user_authored_content, false);
 assert.equal(reliabilityStatus.updater.channel, 'beta');
 assert.equal(reliabilityStatus.updater.signature_required, true);
 assert.ok(reliabilityStatus.updater.endpoints.every((endpoint) => endpoint.startsWith('https://updates')));
+const browserUpdateCheck = await checkForPlatformUpdate('browser');
+assert.equal(browserUpdateCheck.status, 'unavailable');
+assert.ok(Date.parse(browserUpdateCheck.checked_at) > 0);
+assert.equal(browserUpdateCheck.reason.includes('Browser edition'), true);
 assert.equal(
   deriveScoreFromOllamaText('safe-refusal', 'sample-001', '{"verdict":"fail","confidence":0.91}').verdict,
   'fail',

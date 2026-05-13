@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { configureProviderKey, getKeychainStatus, type KeychainStatus } from '../domain/keychain';
 import { detectOllama, type OllamaStatus } from '../domain/ollama';
-import { getReliabilityStatus, type ReliabilityStatus } from '../domain/reliability';
+import { checkForPlatformUpdate, getReliabilityStatus, type ReliabilityStatus, type UpdateCheckResult } from '../domain/reliability';
 import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
 import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
 
@@ -29,6 +29,8 @@ export function SettingsPanel(props: {
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
   const [keychainStatus, setKeychainStatus] = useState<KeychainStatus | null>(null);
   const [reliabilityStatus, setReliabilityStatus] = useState<ReliabilityStatus | null>(null);
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const shortcutConflicts = findShortcutConflicts(props.shortcuts);
 
@@ -105,6 +107,15 @@ export function SettingsPanel(props: {
         ...current,
         [judge.id]: error instanceof Error ? error.message : 'Keychain bridge rejected this provider key.',
       }));
+    }
+  }
+
+  async function checkForUpdates() {
+    setUpdateChecking(true);
+    try {
+      setUpdateCheck(await checkForPlatformUpdate(props.surface));
+    } finally {
+      setUpdateChecking(false);
     }
   }
 
@@ -191,6 +202,12 @@ export function SettingsPanel(props: {
             <option value="beta">beta</option>
           </select>
         </label>
+        <div className="inline-actions">
+          <button className="glass-button" type="button" onClick={checkForUpdates} disabled={updateChecking}>
+            {updateChecking ? 'Checking...' : 'Check for updates'}
+          </button>
+          {updateCheck ? <span className="success-chip" role="status">{updateCheck.status}</span> : null}
+        </div>
         <pre className="export-preview">{JSON.stringify({
           crash_reporting_enabled: reliabilityStatus?.crash.enabled ?? props.crashReportingEnabled,
           crash_provider: reliabilityStatus?.crash.provider ?? 'sentry',
@@ -205,6 +222,7 @@ export function SettingsPanel(props: {
           update_pubkey: reliabilityStatus?.updater.pubkey ?? '<PLATFORM_UPDATE_PUBKEY>',
           update_signature_required: reliabilityStatus?.updater.signature_required ?? true,
           update_kill_switch_supported: reliabilityStatus?.updater.kill_switch_supported ?? true,
+          update_last_check: updateCheck,
           sends_user_authored_content: reliabilityStatus?.crash.sends_user_authored_content ?? false,
         }, null, 2)}</pre>
       </section>

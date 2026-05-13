@@ -300,6 +300,18 @@ try {
   await page.getByLabel('Command search').fill('Switch to Authoring');
   await page.getByRole('button', { name: /Switch to Authoring/ }).click();
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Save current project/ }).click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('rso:project')).id)).toBe('folder-imported-rubric');
+  await page.getByRole('button', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Switch to Preview/ }).click();
+  await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Open keyboard shortcuts/ }).click();
+  await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();
+  await expect(page.getByText('Remappable controls')).toBeVisible();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+1' : 'Control+1');
+  await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+F' : 'Control+F');
   await expect(page.getByRole('textbox', { name: 'In-file find' })).toBeFocused();
   await page.getByRole('textbox', { name: 'In-file find' }).fill('refuses');

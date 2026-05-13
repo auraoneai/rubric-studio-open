@@ -3,14 +3,12 @@ import {
   buildIntakePackageManifest,
   calculateCalibration,
   createTelemetryEvent,
-  distributionForCriterion,
   generateExports,
   projectHealth,
   runBiasProbes,
   runContaminationAudit,
   scoreSamples,
   semanticDiff,
-  summarizeCatchView,
 } from './domain/engine';
 import {
   createCriterion,
@@ -21,12 +19,14 @@ import {
   statusOptions,
   type Criterion,
   type RubricProject,
+  type RubricSample,
   type SurfaceMode,
   type TelemetryEvent,
 } from './domain/rubric';
 import { searchProject, validateProject } from './domain/validation';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { BrowserProjectControls } from './components/BrowserProjectControls';
+import { PreviewPanel } from './components/PreviewPanel';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 type Action =
@@ -40,6 +40,8 @@ type Action =
   | { type: 'toggleJudge'; judgeId: string }
   | { type: 'setKeyConfigured'; judgeId: string; configured: boolean }
   | { type: 'toggleComments' }
+  | { type: 'setSelectedSample'; sampleId: string }
+  | { type: 'addSample'; sample: RubricSample }
   | { type: 'replaceProject'; project: RubricProject };
 
 interface StudioState {
@@ -188,6 +190,14 @@ function reducer(state: StudioState, action: Action): StudioState {
         ...state,
         project: { ...state.project, commentsVisible: !state.project.commentsVisible },
       };
+    case 'setSelectedSample':
+      return { ...state, selectedSampleId: action.sampleId };
+    case 'addSample':
+      return {
+        ...state,
+        selectedSampleId: action.sample.id,
+        project: { ...state.project, samples: [...state.project.samples, action.sample] },
+      };
     case 'replaceProject':
       return {
         ...state,
@@ -232,7 +242,6 @@ export function App() {
     () => searchProject(state.project, { query: searchQuery, regex, caseSensitive, wholeWord }),
     [state.project, searchQuery, regex, caseSensitive, wholeWord],
   );
-  const catchView = useMemo(() => summarizeCatchView(scoreResults), [scoreResults]);
   const saveTimer = useRef<number>();
 
   useEffect(() => {
@@ -397,8 +406,12 @@ export function App() {
               results={scoreResults}
               running={scoreRunning}
               surface={surface}
-              catchView={catchView}
               onRun={runPreview}
+              onSelectSample={(sampleId) => dispatch({ type: 'setSelectedSample', sampleId })}
+              onAddSample={(sample) => {
+                dispatch({ type: 'addSample', sample });
+                setToast(`Loaded sample ${sample.id}`);
+              }}
             />
           ) : null}
           {activeTab === 'calibration' ? (
@@ -665,91 +678,6 @@ function AuthoringPanel(props: {
               </button>
             ))}
           </div>
-        </div>
-      </aside>
-    </div>
-  );
-}
-
-function PreviewPanel(props: {
-  project: RubricProject;
-  selectedSampleId: string;
-  selectedSample: RubricProject['samples'][number];
-  results: ReturnType<typeof scoreSamples>;
-  running: boolean;
-  surface: SurfaceMode;
-  catchView: ReturnType<typeof summarizeCatchView>;
-  onRun: () => void;
-}) {
-  const activeResults = props.results.filter((result) => result.sampleId === props.selectedSampleId);
-  return (
-    <div className="panel-grid preview-grid">
-      <section className="glass-panel">
-        <div className="panel-title">
-          <div>
-            <p>Preview</p>
-            <h2>Live testing</h2>
-          </div>
-          <div className="inline-actions">
-            <button className="glass-button" type="button" onClick={props.onRun}>Score current</button>
-            <button className="glass-button primary" type="button" onClick={props.onRun}>Score all</button>
-          </div>
-        </div>
-        {props.running ? <LoadingState label="Scoring all criteria with cancellable progress" /> : null}
-        <article className="sample-card">
-          <p>Response 1 of {props.project.samples.length}</p>
-          <blockquote>{props.selectedSample.response}</blockquote>
-        </article>
-        <div className="judge-grid">
-          {props.project.judges.filter((judge) => judge.enabled).map((judge) => (
-            <div key={judge.id} className="judge-column">
-              <h3>{judge.label}</h3>
-              {activeResults
-                .filter((result) => result.judgeId === judge.id)
-                .map((result) => (
-                  <details key={`${result.judgeId}-${result.criterionId}`} className={`score-card ${result.verdict}`}>
-                    <summary>
-                      <span>{props.project.criteria.find((criterion) => criterion.id === result.criterionId)?.label}</span>
-                      <strong>{result.verdict}</strong>
-                      <small>{result.confidence}</small>
-                    </summary>
-                    <p>{result.reasoning}</p>
-                  </details>
-                ))}
-            </div>
-          ))}
-        </div>
-      </section>
-      <aside className="glass-panel">
-        <div className="panel-title">
-          <div>
-            <p>Analysis</p>
-            <h2>What did this catch?</h2>
-          </div>
-        </div>
-        {props.project.criteria.map((criterion) => {
-          const distribution = distributionForCriterion(props.results, criterion.id);
-          return (
-            <div className="distribution" key={criterion.id}>
-              <button type="button">{criterion.label}</button>
-              <div className="bars" aria-label={`Distribution for ${criterion.label}`}>
-                <span style={{ width: `${distribution.pass * 18 + 8}%` }} className="pass" />
-                <span style={{ width: `${distribution.partial * 18 + 8}%` }} className="partial" />
-                <span style={{ width: `${distribution.fail * 18 + 8}%` }} className="fail" />
-              </div>
-              <small>
-                {distribution.pass} pass · {distribution.partial} partial · {distribution.fail} fail
-              </small>
-            </div>
-          );
-        })}
-        <div className="callout">
-          <strong>{props.surface === 'browser' ? 'Browser scoring' : 'Desktop scoring'}</strong>
-          <p>
-            {props.surface === 'browser'
-              ? 'Provider calls use BYO keys directly from the browser; Python sidecars remain disabled.'
-              : 'Desktop can run local mock, Ollama, provider judges, and Python sidecars through the Rust core.'}
-          </p>
         </div>
       </aside>
     </div>

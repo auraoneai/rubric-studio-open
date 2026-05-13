@@ -517,6 +517,34 @@ small {
   border-radius: 0 8px 8px 0;
 }
 
+.sample-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.sample-controls label {
+  display: grid;
+  gap: 6px;
+  color: #ccebf0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sample-controls .scratch-pane {
+  grid-column: 1 / -1;
+}
+
+.sample-controls textarea {
+  min-height: 64px;
+}
+
+.filter-row {
+  margin-bottom: 10px;
+}
+
 .judge-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));

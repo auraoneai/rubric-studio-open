@@ -417,7 +417,7 @@ export function App() {
         <div>Git: {state.project.branch} · sync local · {toast}</div>
       </footer>
 
-      <nav className="tabbar" aria-label="Rubric Studio tabs">
+      <nav className="tabbar" aria-label="Rubric Studio Open tabs">
         {tabs.map((tab) => (
           <button
             key={tab.id}

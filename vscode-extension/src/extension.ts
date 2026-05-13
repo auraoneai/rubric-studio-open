@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext): void {
         currentPanel ??
         createPanel(context, async () => {
           const count = await validateWorkspace(diagnostics);
-          await vscode.window.showInformationMessage(`Rubric Studio validated ${count} criterion files.`);
+          await vscode.window.showInformationMessage(`Rubric Studio Open validated ${count} criterion files.`);
         });
       currentPanel.reveal();
       await currentPanel.webview.postMessage({
@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('auraone.rubricStudio.validate', async () => {
       const count = await validateWorkspace(diagnostics);
-      await vscode.window.showInformationMessage(`Rubric Studio validated ${count} criterion files.`);
+      await vscode.window.showInformationMessage(`Rubric Studio Open validated ${count} criterion files.`);
     }),
   );
 }

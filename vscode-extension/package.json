@@ -19,11 +19,11 @@
     "commands": [
       {
         "command": "auraone.rubricStudio.open",
-        "title": "Rubric Studio: Open Editor"
+        "title": "Rubric Studio Open: Editor"
       },
       {
         "command": "auraone.rubricStudio.validate",
-        "title": "Rubric Studio: Validate Project"
+        "title": "Rubric Studio Open: Validate Project"
       }
     ],
     "keybindings": [

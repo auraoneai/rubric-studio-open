@@ -427,9 +427,26 @@ export function App() {
     };
   }, [surface]);
 
-  function emit(event: string, payload: TelemetryEvent['payload'] = {}) {
+  function recordTelemetryEvent(event: string, payload: TelemetryEvent['payload'] = {}) {
     const telemetryEvent = createTelemetryEvent(event, payload);
     setTelemetryLog((current) => [telemetryEvent, ...current].slice(0, 25));
+  }
+
+  function emit(event: string, payload: TelemetryEvent['payload'] = {}) {
+    if (!telemetryEnabled) {
+      return;
+    }
+    recordTelemetryEvent(event, payload);
+  }
+
+  function setTelemetryPreference(enabled: boolean) {
+    setTelemetryEnabled(enabled);
+    if (enabled && !telemetryEnabled) {
+      recordTelemetryEvent('telemetry.opted_in', { surface });
+    }
+    if (!enabled && telemetryEnabled) {
+      recordTelemetryEvent('telemetry.opted_out', { surface });
+    }
   }
 
   function executeCommand(command: string) {
@@ -729,7 +746,7 @@ export function App() {
               project={state.project}
               surface={surface}
               telemetryEnabled={telemetryEnabled}
-              setTelemetryEnabled={setTelemetryEnabled}
+              setTelemetryEnabled={setTelemetryPreference}
               crashReportingEnabled={crashReportingEnabled}
               setCrashReportingEnabled={setCrashReportingEnabled}
               updateChannel={updateChannel}
@@ -798,7 +815,7 @@ export function App() {
           surface={surface}
           telemetryEnabled={telemetryEnabled}
           crashReportingEnabled={crashReportingEnabled}
-          onTelemetryChange={setTelemetryEnabled}
+          onTelemetryChange={setTelemetryPreference}
           onCrashReportingChange={setCrashReportingEnabled}
           onSetKey={(judgeId, configured) => dispatch({ type: 'setKeyConfigured', judgeId, configured })}
           onSkip={() => setWizardOpen(false)}

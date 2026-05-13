@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { RubricProject } from '../domain/rubric';
 
 export function ProjectSidebar({
@@ -28,12 +28,12 @@ export function ProjectSidebar({
         <strong>{project.name}</strong>
       </div>
       <div className="tree-group" role="tree" aria-label="Rubric criteria files">
-        <button className="tree-root" type="button" aria-expanded="true">
+        <button className="tree-root" type="button" role="treeitem" aria-expanded="true" aria-level={1}>
           rubric/
         </button>
         {project.themes.map((theme) => (
-          <div key={theme.id}>
-            <button className="tree-folder" type="button" aria-expanded="true">
+          <Fragment key={theme.id}>
+            <button className="tree-folder" type="button" role="treeitem" aria-expanded="true" aria-level={2}>
               ▾ {theme.label}
             </button>
             {project.criteria
@@ -44,6 +44,7 @@ export function ProjectSidebar({
                   className={criterion.id === selectedCriterionId ? 'tree-file active' : 'tree-file'}
                   type="button"
                   role="treeitem"
+                  aria-level={3}
                   aria-current={criterion.id === selectedCriterionId ? 'true' : undefined}
                   onClick={() => onSelect(criterion.id)}
                   onContextMenu={(event) => {
@@ -54,7 +55,7 @@ export function ProjectSidebar({
                   {criterion.status === 'Live' ? '●' : '○'} {criterion.id}.toml
                 </button>
               ))}
-          </div>
+          </Fragment>
         ))}
       </div>
       <div className="tree-group">

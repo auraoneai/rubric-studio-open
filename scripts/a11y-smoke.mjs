@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import AxeBuilder from '@axe-core/playwright';
 import { chromium, expect } from '@playwright/test';
 
 const port = Number(process.env.RSO_A11Y_PORT ?? 5207);
@@ -21,7 +22,8 @@ server.stderr.on('data', (chunk) => {
 try {
   await waitForServer(baseUrl);
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1024, height: 760 } });
+  const context = await browser.newContext({ viewport: { width: 1024, height: 760 } });
+  const page = await context.newPage();
   await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
 
   const skip = page.getByRole('button', { name: 'Skip' });
@@ -33,6 +35,7 @@ try {
   await expect(page.getByRole('tablist', { name: 'Rubric Studio Open tabs' })).toBeVisible();
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Skip to editor' })).toBeAttached();
+  await assertAxeClean(page, 'authoring browser surface');
 
   const unnamedButtons = await page.evaluate(() =>
     Array.from(document.querySelectorAll('button'))
@@ -58,16 +61,36 @@ try {
   await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();
   await page.getByRole('radio', { name: 'high-contrast' }).click();
   await expect(page.locator('.app-shell')).toHaveAttribute('data-theme', 'high-contrast');
+  await assertAxeClean(page, 'settings high-contrast surface');
 
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   if (scrollWidth > 1024) {
     throw new Error(`1024px browser layout overflowed horizontally: ${scrollWidth}px`);
   }
 
+  await context.close();
   await browser.close();
   console.log('Rubric Studio Open accessibility smoke passed.');
 } finally {
   server.kill('SIGTERM');
+}
+
+async function assertAxeClean(page, label) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  if (results.violations.length > 0) {
+    throw new Error(
+      `${label} has axe violations:\n${results.violations
+        .map((violation) => {
+          const nodes = violation.nodes
+            .map((node) => `${node.target.join(' ')}: ${node.failureSummary ?? violation.help}`)
+            .join('\n');
+          return `${violation.id} (${violation.impact ?? 'unknown'}): ${violation.help}\n${nodes}`;
+        })
+        .join('\n\n')}`,
+    );
+  }
 }
 
 async function waitForServer(url) {

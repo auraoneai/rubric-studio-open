@@ -505,6 +505,15 @@ try {
   await page.getByRole('tab', { name: /Authoring/ }).click();
   await page.getByRole('tab', { name: /Settings/ }).click();
   expect(JSON.parse(await telemetryLog.textContent()).length).toBe(telemetryAfterOptOut.length);
+  const reliabilityPanel = page.locator('.glass-panel', { hasText: 'Crash reports and updates' });
+  const reliabilityLog = reliabilityPanel.getByLabel('Reliability status JSON');
+  await expect(reliabilityLog).toContainText('"crash_reporting_enabled": false');
+  await expect(reliabilityLog).toContainText('"crash_default_off": true');
+  await expect(reliabilityLog).toContainText('"sends_user_authored_content": false');
+  await reliabilityPanel.getByLabel('Crash reports').check();
+  await expect(reliabilityLog).toContainText('"crash_reporting_enabled": true');
+  await reliabilityPanel.getByLabel('Update channel').selectOption('beta');
+  await expect(reliabilityLog).toContainText('"update_channel": "beta"');
   await page.getByRole('button', { name: 'Check for updates' }).click();
   await expect(page.locator('.success-chip', { hasText: 'unavailable' })).toBeVisible();
   await expect(page.getByText('Remappable controls')).toBeVisible();

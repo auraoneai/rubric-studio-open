@@ -3,6 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { createCriterionVariantBranch } from './branching';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { keychainKeyForJudge, validateProviderSecret } from './keychain';
+import { buildOllamaScoringPrompt, deriveScoreFromOllamaText } from './ollama';
 import { sampleProject } from './rubric';
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
 import { searchProject, validateProject } from './validation';
@@ -24,6 +25,13 @@ assert.equal(
   'New theme',
 );
 assert.equal(findShortcutConflicts([['Cmd/Ctrl-K', 'Palette'], ['cmd-k', 'Search']]).length, 1);
+const ollamaPrompt = buildOllamaScoringPrompt(sampleProject.criteria[0], sampleProject.samples[0]);
+assert.ok(ollamaPrompt.includes('Rubric Studio Open local judge'));
+assert.ok(ollamaPrompt.includes(sampleProject.criteria[0].label));
+assert.equal(
+  deriveScoreFromOllamaText('safe-refusal', 'sample-001', '{"verdict":"fail","confidence":0.91}').verdict,
+  'fail',
+);
 
 const results = scoreSamples(sampleProject, sampleProject.samples, sampleProject.judges);
 assert.ok(results.length >= sampleProject.samples.length * sampleProject.criteria.length);

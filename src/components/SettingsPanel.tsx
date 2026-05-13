@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { configureProviderKey, getKeychainStatus, type KeychainStatus } from '../domain/keychain';
+import { detectOllama, type OllamaStatus } from '../domain/ollama';
 import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
 import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
 
@@ -26,6 +27,7 @@ export function SettingsPanel(props: {
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
   const [keychainStatus, setKeychainStatus] = useState<KeychainStatus | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const shortcutConflicts = findShortcutConflicts(props.shortcuts);
 
   useEffect(() => {
@@ -58,10 +60,8 @@ export function SettingsPanel(props: {
     }
     if (judge.provider === 'ollama') {
       try {
-        const response = await fetch('http://localhost:11434/api/tags', { method: 'GET' });
-        if (!response.ok) {
-          throw new Error(`Ollama returned ${response.status}`);
-        }
+        const status = await detectOllama();
+        setOllamaStatus(status);
         setKeyErrors((current) => ({ ...current, [judge.id]: '' }));
         props.onSetKey(judge.id, true);
       } catch {
@@ -111,6 +111,19 @@ export function SettingsPanel(props: {
             {keyErrors[judge.id] ? <span className="inline-error" role="alert">{keyErrors[judge.id]}</span> : null}
           </div>
         ))}
+        <div className="callout">
+          <strong>Local judge</strong>
+          <p>Ollama runs at localhost only. Rubric Studio Open detects installed models, uses native streaming for local traces, and never sends local prompts to AuraOne.</p>
+          <dl className="status-grid">
+            <div><dt>Endpoint</dt><dd>{ollamaStatus?.endpoint ?? 'localhost:11434'}</dd></div>
+            <div><dt>Models</dt><dd>{ollamaStatus?.models.map((model) => model.name).join(', ') || 'detect to list'}</dd></div>
+            <div><dt>Recommended</dt><dd>{ollamaStatus?.recommendedModel ?? 'llama3.1:8b'}</dd></div>
+          </dl>
+          <div className="inline-actions">
+            <a className="ghost-button" href="https://ollama.com/download" target="_blank" rel="noreferrer">Install Ollama</a>
+            <code>ollama pull llama3.1:8b</code>
+          </div>
+        </div>
         <div className="callout">
           <strong>Key storage</strong>
           <p>{props.surface === 'browser' ? 'Browser edition stores BYO keys in session memory for direct provider calls only.' : 'Desktop routes keys through the OS keychain bridge; never plaintext project files.'}</p>

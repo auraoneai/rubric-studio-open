@@ -743,6 +743,20 @@ small {
   cursor: pointer;
 }
 
+.ollama-trace {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ollama-trace pre {
+  max-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(4, 17, 20, 0.52);
+  padding: 10px;
+}
+
 .distribution {
   display: grid;
   gap: 6px;

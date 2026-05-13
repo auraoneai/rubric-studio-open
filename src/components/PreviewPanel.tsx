@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { distributionForCriterion, scoreSamples } from '../domain/engine';
-import type { RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
+import { streamOllamaCriterionScore } from '../domain/ollama';
+import type { ScoreResult, RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
 import { SampleControls } from './SampleControls';
 
 export function PreviewPanel(props: {
@@ -17,6 +18,10 @@ export function PreviewPanel(props: {
   const [failuresOnly, setFailuresOnly] = useState(false);
   const [disagreementsOnly, setDisagreementsOnly] = useState(false);
   const [lowConfidenceOnly, setLowConfidenceOnly] = useState(false);
+  const [ollamaRunningId, setOllamaRunningId] = useState<string | null>(null);
+  const [ollamaTraces, setOllamaTraces] = useState<Record<string, string>>({});
+  const [ollamaScores, setOllamaScores] = useState<Record<string, ScoreResult>>({});
+  const [ollamaError, setOllamaError] = useState('');
   const activeResults = props.results.filter((result) => result.sampleId === props.selectedSampleId);
   const disagreementIds = new Set(
     props.project.criteria
@@ -36,6 +41,35 @@ export function PreviewPanel(props: {
     if (lowConfidenceOnly && result.confidence >= 0.72) return false;
     return true;
   });
+  const resultsWithLiveOllama = visibleResults.map((result) => {
+    const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
+    return ollamaScores[key] ?? result;
+  });
+
+  async function runOllamaTrace(result: ScoreResult) {
+    const criterion = props.project.criteria.find((item) => item.id === result.criterionId);
+    const judge = props.project.judges.find((item) => item.id === result.judgeId);
+    if (!criterion || !judge || judge.provider !== 'ollama') {
+      return;
+    }
+    const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
+    setOllamaError('');
+    setOllamaRunningId(key);
+    setOllamaTraces((current) => ({ ...current, [key]: '' }));
+    try {
+      const score = await streamOllamaCriterionScore({
+        model: judge.model,
+        criterion,
+        sample: props.selectedSample,
+        onToken: (token) => setOllamaTraces((current) => ({ ...current, [key]: `${current[key] ?? ''}${token}` })),
+      });
+      setOllamaScores((current) => ({ ...current, [key]: { ...score, judgeId: judge.id } }));
+    } catch (error) {
+      setOllamaError(error instanceof Error ? error.message : 'Ollama stream failed.');
+    } finally {
+      setOllamaRunningId(null);
+    }
+  }
 
   return (
     <div className="panel-grid preview-grid">
@@ -72,7 +106,11 @@ export function PreviewPanel(props: {
           {props.project.judges.filter((judge) => judge.enabled).map((judge) => (
             <div key={judge.id} className="judge-column">
               <h3>{judge.label}</h3>
-              {visibleResults
+              {judge.provider === 'ollama' && props.surface === 'browser' ? (
+                <div className="callout"><strong>Desktop only</strong><p>Browser edition cannot reach local model judges. Open the desktop app for Ollama streaming.</p></div>
+              ) : null}
+              {judge.provider === 'ollama' && ollamaError ? <span className="inline-error" role="alert">{ollamaError}</span> : null}
+              {resultsWithLiveOllama
                 .filter((result) => result.judgeId === judge.id)
                 .map((result) => (
                   <details key={`${result.judgeId}-${result.criterionId}`} className={`score-card ${result.verdict}`}>
@@ -82,9 +120,24 @@ export function PreviewPanel(props: {
                       <small>{result.confidence}</small>
                     </summary>
                     <p>{result.reasoning}</p>
+                    {judge.provider === 'ollama' ? (
+                      <div className="ollama-trace">
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          disabled={props.surface === 'browser' || ollamaRunningId === `${result.sampleId}:${result.criterionId}:${result.judgeId}`}
+                          onClick={() => runOllamaTrace(result)}
+                        >
+                          {ollamaRunningId === `${result.sampleId}:${result.criterionId}:${result.judgeId}` ? 'Streaming...' : 'Stream Ollama trace'}
+                        </button>
+                        {ollamaTraces[`${result.sampleId}:${result.criterionId}:${result.judgeId}`] ? (
+                          <pre>{ollamaTraces[`${result.sampleId}:${result.criterionId}:${result.judgeId}`]}</pre>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </details>
                 ))}
-              {visibleResults.filter((result) => result.judgeId === judge.id).length === 0 ? (
+              {resultsWithLiveOllama.filter((result) => result.judgeId === judge.id).length === 0 ? (
                 <EmptyState title="No visible scores" body="Adjust filters or score a different sample." />
               ) : null}
             </div>

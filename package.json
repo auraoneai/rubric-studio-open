@@ -17,7 +17,7 @@
     "test:snapshot": "tsx src/domain/snapshot-test.ts",
     "test:perf": "tsx src/domain/performance-test.ts",
     "test:regression": "pnpm run test:snapshot && pnpm run test:perf",
-    "tauri:e2e": "node scripts/tauri-e2e-preflight.mjs --require-driver",
+    "tauri:e2e": "node scripts/tauri-native-smoke.mjs",
     "tauri:e2e:preflight": "node scripts/tauri-e2e-preflight.mjs",
     "tauri:build:ci": "tauri build --debug --no-bundle",
     "tauri:build:mac:debug": "tauri build --debug --bundles app",

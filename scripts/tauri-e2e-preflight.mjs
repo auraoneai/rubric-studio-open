@@ -41,6 +41,9 @@ assert.ok(workflow.includes('windows-latest'), 'cross-platform Tauri workflow mu
 assert.ok(workflow.includes('ubuntu-22.04'), 'cross-platform Tauri workflow must include Linux');
 assert.ok(workflow.includes('tauri:build:ci'), 'cross-platform workflow must run the shared Tauri CI build script');
 assert.ok(workflow.includes('tauri:e2e:preflight'), 'cross-platform workflow must run the native e2e preflight');
+assert.ok(workflow.includes('cargo install tauri-driver'), 'cross-platform workflow must install tauri-driver');
+assert.ok(workflow.includes('pnpm --filter=@auraone/rubric-studio-open tauri:e2e'), 'cross-platform workflow must run native e2e on supported runners');
+assert.ok(existsSync(join(root, 'scripts/tauri-native-smoke.mjs')), 'native Tauri e2e smoke runner is required');
 
 const tauriVersion = execFileSync('pnpm', ['exec', 'tauri', '--version'], {
   cwd: root,

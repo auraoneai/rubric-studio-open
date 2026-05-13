@@ -38,6 +38,7 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
+            webkit2gtk-driver \
             patchelf
 
       - name: Setup pnpm
@@ -53,6 +54,9 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri WebDriver bridge
+        run: cargo install tauri-driver --version 2.0.6 --locked
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --filter=@auraone/rubric-studio-open
@@ -73,3 +77,7 @@ jobs:
 
       - name: Build Tauri shell
         run: pnpm --filter=@auraone/rubric-studio-open tauri:build:ci
+
+      - name: Native Tauri e2e
+        if: matrix.os != 'macos-latest'
+        run: pnpm --filter=@auraone/rubric-studio-open tauri:e2e

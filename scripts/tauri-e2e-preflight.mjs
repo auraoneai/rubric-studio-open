@@ -10,6 +10,7 @@ const tauriConfig = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.jso
 const cargoToml = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8');
 const tauriMain = readFileSync(join(root, 'src-tauri/src/main.rs'), 'utf8');
 const deepLinkSource = readFileSync(join(root, 'src-tauri/src/deep_link.rs'), 'utf8');
+const rendererDeepLinkSource = readFileSync(join(root, 'src/domain/deepLink.ts'), 'utf8');
 const workflow = readFileSync(join(root, '.github/workflows/tauri-cross-platform.yml'), 'utf8');
 
 const requiredScripts = [
@@ -43,8 +44,11 @@ assert.ok(cargoToml.includes('tauri-plugin-deep-link'), 'Tauri shell must depend
 assert.ok(cargoToml.includes('tauri-plugin-updater'), 'Tauri shell must depend on the updater plugin');
 assert.ok(tauriMain.includes('tauri_plugin_deep_link::init()'), 'Tauri shell must register the deep-link plugin');
 assert.ok(tauriMain.includes('deep_link::register'), 'Tauri shell must attach the deep-link event handler');
+assert.ok(tauriMain.includes('open_rubric_project_folder'), 'Tauri shell must expose rubric project folder opening');
 assert.ok(deepLinkSource.includes('auraone://deep-link'), 'deep-link handler must emit the renderer event');
 assert.ok(deepLinkSource.includes('rubric-studio-open'), 'deep-link parser must recognize Rubric Studio Open');
+assert.ok(rendererDeepLinkSource.includes("listen<DeepLinkPayload>('auraone://deep-link'"), 'renderer must listen for deep-link events');
+assert.ok(rendererDeepLinkSource.includes('open_rubric_project_folder'), 'renderer must route project deep links into the native opener');
 assert.deepEqual(tauriConfig.plugins['deep-link'].desktop.schemes, ['auraone']);
 assert.ok(workflow.includes('macos-latest'), 'cross-platform Tauri workflow must include macOS');
 assert.ok(workflow.includes('windows-latest'), 'cross-platform Tauri workflow must include Windows');

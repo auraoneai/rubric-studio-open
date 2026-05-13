@@ -5,6 +5,7 @@ import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { configureProviderKey, keychainKeyForJudge, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
+import { classifyDeepLink } from './deepLink';
 import { checkForPlatformUpdate, fallbackReliabilityStatus } from './reliability';
 import { sampleProject } from './rubric';
 import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
@@ -66,6 +67,35 @@ const browserUpdateCheck = await checkForPlatformUpdate('browser');
 assert.equal(browserUpdateCheck.status, 'unavailable');
 assert.ok(Date.parse(browserUpdateCheck.checked_at) > 0);
 assert.equal(browserUpdateCheck.reason.includes('Browser edition'), true);
+assert.deepEqual(
+  classifyDeepLink({
+    flagship: 'rubric-studio-open',
+    action: 'open-project',
+    params: { path: '/tmp/rubric-project' },
+  }),
+  {
+    kind: 'open-project',
+    flagship: 'rubric-studio-open',
+    path: '/tmp/rubric-project',
+  },
+);
+assert.equal(
+  classifyDeepLink({
+    flagship: 'agent-studio-open',
+    action: 'open-project',
+    params: { path: '/tmp/agent-project' },
+  }).kind,
+  'ignored-flagship',
+);
+assert.equal(
+  classifyDeepLink({
+    flagship: 'future-studio',
+    action: 'open',
+    params: {},
+    installUrl: 'https://auraone.ai/open/future-studio',
+  }).kind,
+  'install',
+);
 assert.equal(
   deriveScoreFromOllamaText('safe-refusal', 'sample-001', '{"verdict":"fail","confidence":0.91}').verdict,
   'fail',

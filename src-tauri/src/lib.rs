@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+mod project;
+
+pub use project::{open_rubric_project_folder, OpenedRubricProject, ProjectOpenFailure};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CriterionInput {
     pub id: String,
@@ -519,6 +523,7 @@ fn round2(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn criterion(id: &str) -> CriterionInput {
         CriterionInput {
@@ -660,5 +665,35 @@ mod tests {
         assert!(status.updater.kill_switch_supported);
         assert!(status.updater.endpoints[0].starts_with("https://updates.auraone.ai/"));
         assert_eq!(status.updater.pubkey, "<PLATFORM_UPDATE_PUBKEY>");
+    }
+
+    #[test]
+    fn opens_rubric_project_folder_from_manifest() {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let project_path = manifest_dir
+            .parent()
+            .unwrap()
+            .join("examples/helpful-response-evaluation");
+
+        let opened = open_rubric_project_folder(project_path).unwrap();
+
+        assert_eq!(opened.project.id, "helpful-response-evaluation");
+        assert_eq!(opened.project.criteria.len(), 4);
+        assert!(opened
+            .project
+            .themes
+            .iter()
+            .any(|theme| theme.id == "safety"));
+        assert!(opened
+            .project
+            .samples
+            .iter()
+            .any(|sample| sample.id == "sample-001"));
+        assert!(opened
+            .project
+            .judges
+            .iter()
+            .any(|judge| judge.id == "local-mock"));
+        assert!(!opened.project.judges[0].key_configured);
     }
 }

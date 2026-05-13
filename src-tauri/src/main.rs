@@ -77,6 +77,15 @@ fn platform_reliability_status(
 }
 
 #[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+fn open_rubric_project_folder(
+    path: std::path::PathBuf,
+) -> Result<rubric_studio_open_core::OpenedRubricProject, rubric_studio_open_core::ProjectOpenFailure>
+{
+    rubric_studio_open_core::open_rubric_project_folder(path)
+}
+
+#[cfg(feature = "tauri-runtime")]
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
@@ -93,7 +102,8 @@ fn main() {
             platform_keychain_status,
             platform_keychain_set,
             prepare_sidecar_invocation,
-            platform_reliability_status
+            platform_reliability_status,
+            open_rubric_project_folder
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rubric Studio Open");

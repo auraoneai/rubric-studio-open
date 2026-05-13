@@ -39,9 +39,16 @@ export async function scoreProviderCriterion({
   fetcher?: FetchLike;
 }): Promise<ScoreResult> {
   const prompt = buildProviderScoringPrompt(criterion, sample);
-  const response = await fetcher(providerEndpoint(judge), providerRequest(judge, apiKey, prompt));
+  let response: Response;
+  try {
+    response = await fetcher(providerEndpoint(judge), providerRequest(judge, apiKey, prompt));
+  } catch {
+    throw new Error(
+      `${providerLabel(judge.provider)} network request failed. Check browser network or CORS access, then retry direct provider scoring.`,
+    );
+  }
   if (!response.ok) {
-    throw new Error(`${judge.provider} judge returned ${response.status}`);
+    throw new Error(providerHttpError(judge.provider, response.status));
   }
   const payload = await response.json();
   return parseProviderScore(judge.id, criterion.id, sample.id, providerText(judge.provider, payload));
@@ -71,6 +78,26 @@ function providerEndpoint(judge: JudgeConfig & { provider: RemoteJudgeProvider }
   if (judge.provider === 'openai') return 'https://api.openai.com/v1/responses';
   if (judge.provider === 'anthropic') return 'https://api.anthropic.com/v1/messages';
   return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(judge.model)}:generateContent`;
+}
+
+function providerHttpError(provider: RemoteJudgeProvider, status: number): string {
+  const label = providerLabel(provider);
+  if (status === 401 || status === 403) {
+    return `${label} rejected this BYO key (${status}). Rotate the key in Settings and retry direct provider scoring.`;
+  }
+  if (status === 429) {
+    return `${label} rate limited this browser request (429). Wait for the provider limit to reset, then retry.`;
+  }
+  if (status >= 500) {
+    return `${label} is temporarily unavailable (${status}). Retry direct provider scoring in a moment.`;
+  }
+  return `${label} judge returned ${status}. Check provider settings and retry direct provider scoring.`;
+}
+
+function providerLabel(provider: RemoteJudgeProvider): string {
+  if (provider === 'openai') return 'OpenAI';
+  if (provider === 'anthropic') return 'Anthropic';
+  return 'Google';
 }
 
 function providerRequest(judge: JudgeConfig & { provider: RemoteJudgeProvider }, apiKey: string, prompt: string): RequestInit {

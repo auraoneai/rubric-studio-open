@@ -159,6 +159,30 @@ const directGoogleScore = await scoreProviderCriterion({
 assert.equal(directGoogleScore.verdict, 'partial');
 assert.equal(directGoogleScore.confidence, 0.68);
 assert.equal(directGoogleScore.judgeId, googleJudge.id);
+await assert.rejects(
+  () =>
+    scoreProviderCriterion({
+      judge: openAiJudge,
+      criterion: sampleProject.criteria[0],
+      sample: sampleProject.samples[0],
+      apiKey: 'sk-expired-value',
+      fetcher: async () => new Response('{}', { status: 401 }),
+    }),
+  /OpenAI rejected this BYO key \(401\)\. Rotate the key in Settings/,
+);
+await assert.rejects(
+  () =>
+    scoreProviderCriterion({
+      judge: googleJudge,
+      criterion: sampleProject.criteria[0],
+      sample: sampleProject.samples[0],
+      apiKey: 'gemini-test-value',
+      fetcher: async () => {
+        throw new TypeError('Failed to fetch');
+      },
+    }),
+  /Google network request failed\. Check browser network or CORS access/,
+);
 const reliabilityStatus = fallbackReliabilityStatus(false, 'beta');
 assert.equal(reliabilityStatus.crash.default_off, true);
 assert.equal(reliabilityStatus.crash.sends_user_authored_content, false);

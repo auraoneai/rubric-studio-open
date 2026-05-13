@@ -1,0 +1,45 @@
+{
+  "name": "rubric-studio-open-vscode",
+  "displayName": "Rubric Studio Open",
+  "publisher": "auraone",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": false,
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:auraone.rubricStudio.open",
+    "onCommand:auraone.rubricStudio.validate",
+    "workspaceContains:**/rubric.toml"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "auraone.rubricStudio.open",
+        "title": "Rubric Studio: Open Editor"
+      },
+      {
+        "command": "auraone.rubricStudio.validate",
+        "title": "Rubric Studio: Validate Project"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "auraone.rubricStudio.open",
+        "key": "ctrl+k ctrl+r",
+        "mac": "cmd+k cmd+r"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.17.9"
+  }
+}

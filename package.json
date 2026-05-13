@@ -1,0 +1,29 @@
+{
+  "name": "@auraone/rubric-studio-open",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "description": "Local-first IDE for authoring, validating, testing, calibrating, diffing, and exporting AI evaluation rubrics.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx src/domain/self-test.ts",
+    "tauri:core:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "vscode:typecheck": "tsc -p vscode-extension/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "vite": "^5.0.0",
+    "typescript": "^5.5.0",
+    "tsx": "^4.19.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.9",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0"
+  }
+}

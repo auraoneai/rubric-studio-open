@@ -717,6 +717,31 @@ small {
   margin-bottom: 10px;
 }
 
+.git-ops,
+.branch-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(52, 217, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(52, 217, 255, 0.06);
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.git-ops {
+  grid-template-columns: repeat(5, auto);
+  align-items: end;
+}
+
+.git-ops label {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  color: #ccebf0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .diff-row.cosmetic {
   border-color: rgba(52, 217, 255, 0.34);
 }

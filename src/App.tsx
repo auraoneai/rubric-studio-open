@@ -28,6 +28,7 @@ import { ProjectSidebar } from './components/ProjectSidebar';
 import { BrowserProjectControls } from './components/BrowserProjectControls';
 import { PreviewPanel } from './components/PreviewPanel';
 import { SettingsPanel, type ShortcutRow, type VisualMode } from './components/SettingsPanel';
+import { DiffPanel } from './components/DiffPanel';
 
 type Tab = 'authoring' | 'preview' | 'calibration' | 'diff' | 'export' | 'settings';
 type Action =
@@ -782,36 +783,6 @@ function CalibrationPanel({
           <div key={row.sampleId} className="metric-row compact"><strong>{row.sampleId}</strong><span>{row.ngramOverlap} overlap</span><span>{row.exactMatch ? 'exact match' : 'no exact match'}</span></div>
         ))}
       </aside>
-    </div>
-  );
-}
-
-function DiffPanel({ project, diff, surface }: { project: RubricProject; diff: ReturnType<typeof semanticDiff>; surface: SurfaceMode }) {
-  return (
-    <div className="panel-grid diff-grid">
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Versioning</p><h2>Semantic diff</h2></div><button className="glass-button primary" type="button">Git commit</button></div>
-        {diff.map((item) => (
-          <div key={item.criterionId} className={`diff-row ${item.severity}`}>
-            <strong>{item.label}</strong>
-            <span>{item.severity}</span>
-            <p>{item.summary}</p>
-          </div>
-        ))}
-      </section>
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Impact</p><h2>Score overlay</h2></div><button className="glass-button" type="button">Try variant branch</button></div>
-        {surface === 'browser' ? <p className="subtle">Browser edition shows semantic diff only; git operations and held-out re-scoring need desktop file access.</p> : null}
-        <table>
-          <thead><tr><th>Criterion</th><th>Pass → fail</th><th>Fail → pass</th></tr></thead>
-          <tbody>
-            {diff.map((item) => (
-              <tr key={item.criterionId}><td>{item.label}</td><td>{item.passToFail}</td><td>{item.failToPass}</td></tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="callout"><strong>What changed and what broke</strong><p>{project.name} has {diff.filter((item) => item.severity !== 'cosmetic').length} substantive changes affecting held-out samples.</p></div>
-      </section>
     </div>
   );
 }

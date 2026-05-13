@@ -1,0 +1,75 @@
+name: Rubric Studio Open Tauri
+
+on:
+  pull_request:
+    paths:
+      - "opensource/rubric-studio-open/**"
+      - "pnpm-lock.yaml"
+  push:
+    branches:
+      - main
+      - azure-production-readiness-2026-05-07
+    paths:
+      - "opensource/rubric-studio-open/**"
+      - "pnpm-lock.yaml"
+
+jobs:
+  tauri-shell:
+    name: Tauri shell (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+          - ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux WebKit dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter=@auraone/rubric-studio-open
+
+      - name: Verify native e2e preflight
+        run: pnpm --filter=@auraone/rubric-studio-open tauri:e2e:preflight
+
+      - name: Typecheck
+        run: pnpm --filter=@auraone/rubric-studio-open typecheck
+
+      - name: Unit and regression tests
+        run: |
+          pnpm --filter=@auraone/rubric-studio-open test
+          pnpm --filter=@auraone/rubric-studio-open test:regression
+
+      - name: Tauri Rust tests
+        run: pnpm --filter=@auraone/rubric-studio-open tauri:core:test
+
+      - name: Build Tauri shell
+        run: pnpm --filter=@auraone/rubric-studio-open tauri:build:ci

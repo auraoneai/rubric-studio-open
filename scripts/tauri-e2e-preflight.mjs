@@ -8,6 +8,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const tauriConfig = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'));
 const cargoToml = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8');
+const workflow = readFileSync(join(root, '.github/workflows/tauri-cross-platform.yml'), 'utf8');
 
 const requiredScripts = [
   'build',
@@ -16,6 +17,7 @@ const requiredScripts = [
   'tauri:e2e',
   'tauri:check',
   'tauri:core:test',
+  'tauri:build:ci',
   'tauri:build:mac:debug',
 ];
 
@@ -34,6 +36,11 @@ assert.ok(
   'every Tauri bundle icon must exist',
 );
 assert.ok(cargoToml.includes('tauri-runtime = ["tauri", "tauri-plugin-updater"]'));
+assert.ok(workflow.includes('macos-latest'), 'cross-platform Tauri workflow must include macOS');
+assert.ok(workflow.includes('windows-latest'), 'cross-platform Tauri workflow must include Windows');
+assert.ok(workflow.includes('ubuntu-22.04'), 'cross-platform Tauri workflow must include Linux');
+assert.ok(workflow.includes('tauri:build:ci'), 'cross-platform workflow must run the shared Tauri CI build script');
+assert.ok(workflow.includes('tauri:e2e:preflight'), 'cross-platform workflow must run the native e2e preflight');
 
 const tauriVersion = execFileSync('pnpm', ['exec', 'tauri', '--version'], {
   cwd: root,

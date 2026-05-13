@@ -120,6 +120,34 @@ pub struct SidecarFailure {
     pub child_crash_safe: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReliabilityStatus {
+    pub crash: CrashReporterStatus,
+    pub updater: UpdaterStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CrashReporterStatus {
+    pub enabled: bool,
+    pub provider: String,
+    pub project: String,
+    pub default_off: bool,
+    pub scrub_paths: bool,
+    pub scrub_hostnames: bool,
+    pub scrub_api_keys: bool,
+    pub sends_user_authored_content: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UpdaterStatus {
+    pub active: bool,
+    pub channel: String,
+    pub endpoints: Vec<String>,
+    pub pubkey: String,
+    pub signature_required: bool,
+    pub kill_switch_supported: bool,
+}
+
 pub fn validate_project(criteria: Vec<CriterionInput>) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut ids = std::collections::HashSet::new();
@@ -372,6 +400,37 @@ pub fn prepare_sidecar_invocation(
     })
 }
 
+pub fn reliability_status(crash_enabled: bool, update_channel: String) -> ReliabilityStatus {
+    let channel = match update_channel.as_str() {
+        "stable" | "beta" => update_channel,
+        _ => "stable".into(),
+    };
+
+    ReliabilityStatus {
+        crash: CrashReporterStatus {
+            enabled: crash_enabled,
+            provider: "sentry".into(),
+            project: "rubric-studio-open".into(),
+            default_off: true,
+            scrub_paths: true,
+            scrub_hostnames: true,
+            scrub_api_keys: true,
+            sends_user_authored_content: false,
+        },
+        updater: UpdaterStatus {
+            active: true,
+            channel,
+            endpoints: vec![
+                "https://updates.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}".into(),
+                "https://updates2.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}".into(),
+            ],
+            pubkey: "<PLATFORM_UPDATE_PUBKEY>".into(),
+            signature_required: true,
+            kill_switch_supported: true,
+        },
+    }
+}
+
 pub fn git_status_summary(branch: &str, changed_files: usize) -> String {
     format!("{branch}: {changed_files} changed files, local-only")
 }
@@ -585,5 +644,21 @@ mod tests {
 
         assert!(error.child_crash_safe);
         assert!(error.message.contains("valid JSON"));
+    }
+
+    #[test]
+    fn reliability_status_uses_platform_update_and_crash_contracts() {
+        let status = reliability_status(false, "beta".into());
+
+        assert!(!status.crash.enabled);
+        assert!(status.crash.default_off);
+        assert!(status.crash.scrub_api_keys);
+        assert!(!status.crash.sends_user_authored_content);
+        assert!(status.updater.active);
+        assert_eq!(status.updater.channel, "beta");
+        assert!(status.updater.signature_required);
+        assert!(status.updater.kill_switch_supported);
+        assert!(status.updater.endpoints[0].starts_with("https://updates.auraone.ai/"));
+        assert_eq!(status.updater.pubkey, "<PLATFORM_UPDATE_PUBKEY>");
     }
 }

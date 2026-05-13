@@ -5,6 +5,7 @@ import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { configureProviderKey, keychainKeyForJudge, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
+import { fallbackReliabilityStatus } from './reliability';
 import { sampleProject } from './rubric';
 import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './actions';
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
@@ -55,6 +56,12 @@ const ollamaStatus = await detectOllama(async () => new Response(
 ));
 assert.equal(ollamaStatus.detected, true);
 assert.equal(ollamaStatus.models[0].name, 'llama3.1:8b');
+const reliabilityStatus = fallbackReliabilityStatus(false, 'beta');
+assert.equal(reliabilityStatus.crash.default_off, true);
+assert.equal(reliabilityStatus.crash.sends_user_authored_content, false);
+assert.equal(reliabilityStatus.updater.channel, 'beta');
+assert.equal(reliabilityStatus.updater.signature_required, true);
+assert.ok(reliabilityStatus.updater.endpoints.every((endpoint) => endpoint.startsWith('https://updates')));
 assert.equal(
   deriveScoreFromOllamaText('safe-refusal', 'sample-001', '{"verdict":"fail","confidence":0.91}').verdict,
   'fail',

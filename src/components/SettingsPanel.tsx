@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { configureProviderKey, getKeychainStatus, type KeychainStatus } from '../domain/keychain';
 import { detectOllama, type OllamaStatus } from '../domain/ollama';
+import { getReliabilityStatus, type ReliabilityStatus } from '../domain/reliability';
 import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
 import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
 
@@ -27,6 +28,7 @@ export function SettingsPanel(props: {
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
   const [keychainStatus, setKeychainStatus] = useState<KeychainStatus | null>(null);
+  const [reliabilityStatus, setReliabilityStatus] = useState<ReliabilityStatus | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const shortcutConflicts = findShortcutConflicts(props.shortcuts);
 
@@ -52,6 +54,24 @@ export function SettingsPanel(props: {
       cancelled = true;
     };
   }, [props.surface]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getReliabilityStatus(props.surface, props.crashReportingEnabled, props.updateChannel)
+      .then((status) => {
+        if (!cancelled) {
+          setReliabilityStatus(status);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setReliabilityStatus(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.surface, props.crashReportingEnabled, props.updateChannel]);
 
   async function configureJudge(judge: JudgeConfig) {
     if (judge.provider === 'mock') {
@@ -172,12 +192,20 @@ export function SettingsPanel(props: {
           </select>
         </label>
         <pre className="export-preview">{JSON.stringify({
-          crash_reporting_enabled: props.crashReportingEnabled,
-          update_channel: props.updateChannel,
-          primary_update_endpoint: 'https://updates.auraone.ai/rubric-studio-open',
-          fallback_update_endpoint: 'https://updates2.auraone.ai/rubric-studio-open',
-          sends_api_keys: false,
-          sends_user_authored_content: false,
+          crash_reporting_enabled: reliabilityStatus?.crash.enabled ?? props.crashReportingEnabled,
+          crash_provider: reliabilityStatus?.crash.provider ?? 'sentry',
+          crash_default_off: reliabilityStatus?.crash.default_off ?? true,
+          crash_scrubs_api_keys: reliabilityStatus?.crash.scrub_api_keys ?? true,
+          update_channel: reliabilityStatus?.updater.channel ?? props.updateChannel,
+          update_active: reliabilityStatus?.updater.active ?? true,
+          update_endpoints: reliabilityStatus?.updater.endpoints ?? [
+            'https://updates.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}',
+            'https://updates2.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}',
+          ],
+          update_pubkey: reliabilityStatus?.updater.pubkey ?? '<PLATFORM_UPDATE_PUBKEY>',
+          update_signature_required: reliabilityStatus?.updater.signature_required ?? true,
+          update_kill_switch_supported: reliabilityStatus?.updater.kill_switch_supported ?? true,
+          sends_user_authored_content: reliabilityStatus?.crash.sends_user_authored_content ?? false,
         }, null, 2)}</pre>
       </section>
       <section className="glass-panel">

@@ -66,8 +66,18 @@ fn prepare_sidecar_invocation(
 }
 
 #[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+fn platform_reliability_status(
+    crash_enabled: bool,
+    update_channel: String,
+) -> rubric_studio_open_core::ReliabilityStatus {
+    rubric_studio_open_core::reliability_status(crash_enabled, update_channel)
+}
+
+#[cfg(feature = "tauri-runtime")]
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             validate_project,
             mock_score,
@@ -75,7 +85,8 @@ fn main() {
             build_intake_manifest,
             platform_keychain_status,
             platform_keychain_set,
-            prepare_sidecar_invocation
+            prepare_sidecar_invocation,
+            platform_reliability_status
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Rubric Studio Open");

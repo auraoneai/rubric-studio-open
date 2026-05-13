@@ -72,6 +72,7 @@ function requireField(document: CriterionDocument, field: string, diagnostics: R
 
 function lineFor(content: string, field: string): number {
   const lines = content.split('\n');
-  const index = lines.findIndex((line) => line.trim().startsWith(`${field} =`));
+  const fieldPattern = new RegExp(`^${field}\\s*=`);
+  const index = lines.findIndex((line) => fieldPattern.test(line.trim()));
   return index >= 0 ? index : 0;
 }

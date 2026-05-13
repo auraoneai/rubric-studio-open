@@ -21,7 +21,7 @@
     "test:regression": "pnpm run test:snapshot && pnpm run test:perf",
     "tauri:e2e": "node scripts/tauri-native-smoke.mjs",
     "tauri:e2e:preflight": "node scripts/tauri-e2e-preflight.mjs",
-    "tauri:build:ci": "tauri build --debug --no-bundle",
+    "tauri:build:ci": "tauri build --debug --no-bundle --features tauri-runtime",
     "tauri:build:mac:debug": "tauri build --debug --bundles app",
     "tauri:core:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri:check": "cargo check --manifest-path src-tauri/Cargo.toml --features tauri-runtime",

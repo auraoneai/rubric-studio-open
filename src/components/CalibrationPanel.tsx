@@ -93,7 +93,7 @@ export function CalibrationPanel({
 }
 
 function EmptyState({ title, body }: { title: string; body: string }) {
-  return <div className="empty-state"><strong>{title}</strong><p>{body}</p></div>;
+  return <div className="empty-state" role="status"><strong>{title}</strong><p>{body}</p></div>;
 }
 
 function DisabledFeature({ title, body }: { title: string; body: string }) {

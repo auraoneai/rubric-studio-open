@@ -252,9 +252,9 @@ export function PreviewPanel(props: {
 }
 
 function EmptyState({ title, body }: { title: string; body: string }) {
-  return <div className="empty-state"><strong>{title}</strong><p>{body}</p></div>;
+  return <div className="empty-state" role="status"><strong>{title}</strong><p>{body}</p></div>;
 }
 
 function LoadingState({ label }: { label: string }) {
-  return <div className="loading-state"><span /><div><strong>{label}</strong><progress value={66} max={100}>66%</progress></div><button className="ghost-button" type="button">Cancel</button></div>;
+  return <div className="loading-state" role="status" aria-live="polite"><span /><div><strong>{label}</strong><progress value={66} max={100}>66%</progress></div><button className="ghost-button" type="button">Cancel</button></div>;
 }

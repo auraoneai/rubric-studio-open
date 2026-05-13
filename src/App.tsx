@@ -396,7 +396,7 @@ export function App() {
           onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
           onDeleteCriterion={(criterionId) => dispatch({ type: 'deleteCriterion', criterionId })}
         />
-        <section id="main-panel" className="main-panel" aria-label={`${activeTab} panel`}>
+        <section id="main-panel" className="main-panel" role="tabpanel" aria-label={`${activeTab} panel`}>
           {activeTab === 'authoring' && selectedCriterion ? (
             <AuthoringPanel
               project={state.project}
@@ -487,12 +487,15 @@ export function App() {
         <div>Git: {state.project.branch} · sync local · {toast}</div>
       </footer>
 
-      <nav className="tabbar" aria-label="Rubric Studio Open tabs">
+      <nav className="tabbar" role="tablist" aria-label="Rubric Studio Open tabs">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             className={tab.id === activeTab ? 'tab active' : 'tab'}
             type="button"
+            role="tab"
+            aria-selected={tab.id === activeTab}
+            aria-controls="main-panel"
             onClick={() => {
               setActiveTab(tab.id);
               emit('tab.opened', { tab: tab.id });
@@ -592,7 +595,7 @@ function AuthoringPanel(props: {
         ) : (
           project.themes.map((theme) => (
             <div className="theme-block" key={theme.id}>
-              <button className="theme-title" type="button" onClick={() => props.onToggleTheme(theme.id)}>
+              <button className="theme-title" type="button" aria-expanded={!theme.collapsed} onClick={() => props.onToggleTheme(theme.id)}>
                 {theme.collapsed ? '▸' : '▾'} {theme.label}
               </button>
               {!theme.collapsed
@@ -611,6 +614,7 @@ function AuthoringPanel(props: {
                           draggable
                           className={item.id === criterion.id ? 'criterion-row active' : 'criterion-row'}
                           type="button"
+                          aria-current={item.id === criterion.id ? 'true' : undefined}
                           onClick={() => props.onSelect(item.id)}
                         >
                           <span>{item.label}</span>
@@ -633,10 +637,10 @@ function AuthoringPanel(props: {
             <h2>{criterion.label}</h2>
           </div>
           <div className="inline-actions">
-            <button className="ghost-button" type="button" onClick={() => props.onMove(-1)}>
+            <button className="ghost-button" type="button" aria-label="Move criterion up" onClick={() => props.onMove(-1)}>
               ↑
             </button>
-            <button className="ghost-button" type="button" onClick={() => props.onMove(1)}>
+            <button className="ghost-button" type="button" aria-label="Move criterion down" onClick={() => props.onMove(1)}>
               ↓
             </button>
           </div>
@@ -790,7 +794,18 @@ function CommandPalette(props: {
   return (
     <div className="modal-backdrop" role="presentation" onClick={props.onClose}>
       <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(event) => event.stopPropagation()}>
-        <input autoFocus placeholder="Run a command..." value={props.query} onChange={(event) => props.setQuery(event.target.value)} />
+        <input
+          autoFocus
+          aria-label="Command search"
+          placeholder="Run a command..."
+          value={props.query}
+          onChange={(event) => props.setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              props.onClose();
+            }
+          }}
+        />
         <div>
           {filtered.map((command) => (
             <button key={command} type="button" onClick={() => props.onExecute(command)}>
@@ -814,15 +829,15 @@ function Field({ label, issueCount = 0, children }: { label: string; issueCount?
 }
 
 function EmptyState({ title, body }: { title: string; body: string }) {
-  return <div className="empty-state"><strong>{title}</strong><p>{body}</p></div>;
+  return <div className="empty-state" role="status"><strong>{title}</strong><p>{body}</p></div>;
 }
 
 function SuccessState({ title, body }: { title: string; body: string }) {
-  return <div className="success-state"><strong>{title}</strong><p>{body}</p></div>;
+  return <div className="success-state" role="status"><strong>{title}</strong><p>{body}</p></div>;
 }
 
 function LoadingState({ label }: { label: string }) {
-  return <div className="loading-state"><span /><div><strong>{label}</strong><progress value={66} max={100}>66%</progress></div><button className="ghost-button" type="button">Cancel</button></div>;
+  return <div className="loading-state" role="status" aria-live="polite"><span /><div><strong>{label}</strong><progress value={66} max={100}>66%</progress></div><button className="ghost-button" type="button">Cancel</button></div>;
 }
 
 function DisabledFeature({ title, body }: { title: string; body: string }) {

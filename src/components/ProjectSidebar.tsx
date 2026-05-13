@@ -27,13 +27,13 @@ export function ProjectSidebar({
         <p>Project</p>
         <strong>{project.name}</strong>
       </div>
-      <div className="tree-group">
-        <button className="tree-root" type="button">
+      <div className="tree-group" role="tree" aria-label="Rubric criteria files">
+        <button className="tree-root" type="button" aria-expanded="true">
           rubric/
         </button>
         {project.themes.map((theme) => (
           <div key={theme.id}>
-            <button className="tree-folder" type="button">
+            <button className="tree-folder" type="button" aria-expanded="true">
               ▾ {theme.label}
             </button>
             {project.criteria
@@ -43,6 +43,8 @@ export function ProjectSidebar({
                   key={criterion.id}
                   className={criterion.id === selectedCriterionId ? 'tree-file active' : 'tree-file'}
                   type="button"
+                  role="treeitem"
+                  aria-current={criterion.id === selectedCriterionId ? 'true' : undefined}
                   onClick={() => onSelect(criterion.id)}
                   onContextMenu={(event) => {
                     event.preventDefault();
@@ -56,21 +58,21 @@ export function ProjectSidebar({
         ))}
       </div>
       <div className="tree-group">
-        <button className="tree-root" type="button">
+        <button className="tree-root" type="button" aria-expanded="true">
           samples/
         </button>
         {project.samples.map((sample) => (
-          <button key={sample.id} className="tree-file" type="button">
+          <button key={sample.id} className="tree-file" type="button" aria-label={`Sample file ${sample.id}`}>
             {sample.id}.jsonl
           </button>
         ))}
       </div>
       <div className="tree-group">
-        <button className="tree-root" type="button">
+        <button className="tree-root" type="button" aria-expanded="true">
           judges/
         </button>
         {project.judges.map((judge) => (
-          <button key={judge.id} className="tree-file" type="button">
+          <button key={judge.id} className="tree-file" type="button" aria-label={`${judge.enabled ? 'Enabled' : 'Disabled'} judge ${judge.label}`}>
             {judge.enabled ? '●' : '○'} {judge.id}.toml
           </button>
         ))}

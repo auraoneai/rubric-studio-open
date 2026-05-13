@@ -144,6 +144,8 @@ export function SettingsPanel(props: {
               key={mode}
               className={props.visualMode === mode ? 'active' : ''}
               type="button"
+              role="radio"
+              aria-checked={props.visualMode === mode}
               onClick={() => props.setVisualMode(mode)}
             >
               {mode}

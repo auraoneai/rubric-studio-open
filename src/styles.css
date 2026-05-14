@@ -1628,6 +1628,57 @@ small {
   color: #ffe6a3;
 }
 
+.plugin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.plugin-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(52, 217, 255, 0.06);
+  padding: 12px;
+}
+
+.plugin-card span {
+  width: max-content;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plugin-card.ok span {
+  border-color: rgba(24, 214, 163, 0.45);
+  color: #c8fff0;
+}
+
+.plugin-card.blocked span {
+  border-color: rgba(255, 209, 102, 0.5);
+  color: #ffe6a3;
+}
+
+.plugin-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.plugin-card small {
+  color: var(--muted);
+}
+
+.plugin-policy {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
 .segmented {
   display: inline-grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1932,6 +1983,7 @@ small {
   .git-ops,
   .text-diff-columns,
   .ab-summary-grid,
+  .plugin-grid,
   .status-grid {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -805,6 +805,17 @@ try {
   await expect(diagnosticsLog).toContainText('"recovery_states_covered"');
   await expect(diagnosticsLog).toContainText('"sidecar-crash"');
   await expect(diagnosticsLog).not.toContainText('not-run-this-session');
+  const pluginPanel = page.locator('.glass-panel', { hasText: 'Engine plugin catalog' });
+  const pluginCatalog = pluginPanel.getByLabel('Engine plugin catalog JSON');
+  await expect(pluginPanel.getByLabel('Engine plugin marketplace')).toBeVisible();
+  await expect(pluginPanel).toContainText('rubric-spec validator');
+  await expect(pluginPanel).toContainText('Inspect export adapter');
+  await expect(pluginPanel).toContainText('Unsigned remote runner');
+  await expect(pluginPanel).toContainText('Desktop-only sidecar plugins are disabled in Browser Edition.');
+  await expect(pluginCatalog).toContainText('"total": 5');
+  await expect(pluginCatalog).toContainText('"available": 1');
+  await expect(pluginCatalog).toContainText('"blocked": 3');
+  await expect(pluginCatalog).toContainText('"sendsUserContent": 1');
   await page.reload({ waitUntil: 'networkidle' });
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+6' : 'Control+6');
   await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();

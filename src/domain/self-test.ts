@@ -26,6 +26,12 @@ import { runLocalGitOperation } from './git';
 import { htmlLangForLocale, normalizeLocale, studioMessages, supportedLocales, type StudioMessages } from './i18n';
 import { configureProviderKey, keychainKeyForJudge, readBrowserProviderSecret, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
+import {
+  enginePluginCatalog,
+  enginePluginCompatibility,
+  summarizeEnginePluginCatalog,
+  validateEnginePluginManifest,
+} from './pluginMarketplace';
 import { runNativeScoreRun } from './nativeScoring';
 import { buildProviderScoringPrompt, isRemoteJudge, parseProviderScore, scoreProviderCriterion } from './providerJudge';
 import { classifyDeepLink } from './deepLink';
@@ -157,6 +163,27 @@ for (const locale of supportedLocales) {
   assert.ok(studioMessages[locale.code].tabs.preview);
   assert.ok(studioMessages[locale.code].settings.interfaceLanguage);
 }
+assert.equal(enginePluginCatalog.length, 5);
+assert.ok(enginePluginCatalog.some((plugin) => plugin.id === 'inspect-export-adapter' && plugin.trustLevel === 'verified-community'));
+assert.ok(enginePluginCatalog.every((plugin) => validateEnginePluginManifest(plugin).length === 0));
+const desktopPluginSummary = summarizeEnginePluginCatalog(enginePluginCatalog, 'desktop');
+assert.equal(desktopPluginSummary.total, enginePluginCatalog.length);
+assert.equal(desktopPluginSummary.installed, 3);
+assert.equal(desktopPluginSummary.available, 1);
+assert.equal(desktopPluginSummary.blocked, 1);
+assert.equal(desktopPluginSummary.sendsUserContent, 1);
+const browserPluginSummary = summarizeEnginePluginCatalog(enginePluginCatalog, 'browser');
+assert.equal(browserPluginSummary.installed, 1);
+assert.equal(browserPluginSummary.available, 1);
+assert.equal(browserPluginSummary.blocked, 3);
+assert.equal(enginePluginCompatibility(enginePluginCatalog[1], 'browser').message, 'Desktop-only sidecar plugins are disabled in Browser Edition.');
+assert.match(enginePluginCompatibility(enginePluginCatalog[4], 'desktop').message, /Unsigned plugins/);
+assert.ok(validateEnginePluginManifest({
+  ...enginePluginCatalog[3],
+  id: 'Bad Plugin',
+  manifestSha256: 'not-a-sha',
+  sandbox: { ...enginePluginCatalog[3].sandbox, unsignedCode: true },
+}).length >= 2);
 const crdtSnapshot = buildReadOnlyCrdtSnapshot(sampleProject, 'reviewer one', '2026-05-13T00:00:00.000Z');
 assert.equal(crdtSnapshot.mode, 'read-only');
 assert.equal(crdtSnapshot.actorId, 'reviewer-one');

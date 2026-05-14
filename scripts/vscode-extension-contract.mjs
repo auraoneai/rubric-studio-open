@@ -7,6 +7,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const extension = readFileSync(join(root, 'vscode-extension/src/extension.ts'), 'utf8');
 const webview = readFileSync(join(root, 'vscode-extension/media/webview.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(join(root, 'vscode-extension/package.json'), 'utf8'));
+const buildConfig = JSON.parse(readFileSync(join(root, 'vscode-extension/tsconfig.build.json'), 'utf8'));
 
 [
   'auraone.rubricStudio.open',
@@ -53,5 +54,12 @@ assert.ok(
   'VS Code webview must ship a locked CSP',
 );
 assert.equal(manifest.engines.vscode, '^1.92.0');
+assert.equal(manifest.main, './dist/extension.js');
+assert.equal(manifest.scripts['vscode:prepublish'], 'npm run build');
+assert.equal(manifest.scripts.build, 'node -e "require(\'fs\').rmSync(\'dist\',{recursive:true,force:true})" && tsc -p tsconfig.build.json');
+assert.equal(manifest.repository.url, 'https://github.com/auraoneai/rubric-studio-open.git');
+assert.deepEqual(manifest.files, ['dist/extension.js', 'dist/validator.js', 'media/**', 'LICENSE']);
+assert.deepEqual(buildConfig.include, ['src/extension.ts', 'src/validator.ts', 'src/vscode-shim.d.ts']);
+assert.deepEqual(buildConfig.exclude, ['src/*test.ts']);
 
 console.log('Rubric Studio Open VS Code extension contract passed.');

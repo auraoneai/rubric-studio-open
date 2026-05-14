@@ -19,7 +19,7 @@ const validatorProject = {
 const validatorStart = performance.now();
 const issues = validateProject(validatorProject);
 const validatorMs = performance.now() - validatorStart;
-assert.ok(issues.length > 0);
+assert.equal(issues.some((issue) => issue.severity === 'error'), false);
 assert.ok(
   validatorMs < 40,
   `validator exceeded local ${VALIDATOR_SAMPLE_COUNT.toLocaleString()}-sample budget: ${validatorMs.toFixed(2)}ms`,

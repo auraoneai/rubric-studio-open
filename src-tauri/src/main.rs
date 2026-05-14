@@ -20,6 +20,17 @@ fn mock_score(
 
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
+fn prepare_score_run(
+    project_id: String,
+    criteria: Vec<rubric_studio_open_core::CriterionInput>,
+    samples: Vec<rubric_studio_open_core::SampleInput>,
+    judge_ids: Vec<String>,
+) -> rubric_studio_open_core::ScoreRunOutput {
+    rubric_studio_open_core::prepare_score_run(project_id, criteria, samples, judge_ids)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
 fn semantic_diff(
     current: Vec<rubric_studio_open_core::CriterionInput>,
     baseline: Vec<rubric_studio_open_core::CriterionInput>,
@@ -69,6 +80,14 @@ fn prepare_sidecar_invocation(
 
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
+fn run_sidecar_json(
+    request: rubric_studio_open_core::SidecarRequest,
+) -> Result<rubric_studio_open_core::SidecarRunOutput, rubric_studio_open_core::SidecarFailure> {
+    rubric_studio_open_core::run_sidecar_json(request)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
 fn platform_reliability_status(
     crash_enabled: bool,
     update_channel: String,
@@ -93,6 +112,34 @@ fn create_rubric_project_from_template(
 ) -> Result<rubric_studio_open_core::OpenedRubricProject, rubric_studio_open_core::ProjectOpenFailure>
 {
     rubric_studio_open_core::create_rubric_project_from_template(parent, name)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+fn save_rubric_project_folder(
+    path: std::path::PathBuf,
+    project: rubric_studio_open_core::RubricProjectFile,
+) -> Result<rubric_studio_open_core::OpenedRubricProject, rubric_studio_open_core::ProjectOpenFailure>
+{
+    rubric_studio_open_core::save_rubric_project_folder(path, project)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+fn run_project_git_operation(
+    path: std::path::PathBuf,
+    operation: String,
+    target_branch: String,
+    remote_url: String,
+    commit_message: String,
+) -> Result<rubric_studio_open_core::ProjectGitResult, rubric_studio_open_core::ProjectGitFailure> {
+    rubric_studio_open_core::run_project_git_operation(
+        path,
+        operation,
+        target_branch,
+        remote_url,
+        commit_message,
+    )
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -160,14 +207,18 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             validate_project,
             mock_score,
+            prepare_score_run,
             semantic_diff,
             build_intake_manifest,
             platform_keychain_status,
             platform_keychain_set,
             prepare_sidecar_invocation,
+            run_sidecar_json,
             platform_reliability_status,
             open_rubric_project_folder,
             create_rubric_project_from_template,
+            save_rubric_project_folder,
+            run_project_git_operation,
             reveal_project_path
         ])
         .run(tauri::generate_context!())

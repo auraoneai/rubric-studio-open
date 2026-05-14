@@ -11,6 +11,13 @@ import type {
 } from './rubric';
 import { validateProject } from './validation';
 
+export interface StandardTextDiffRow {
+  path: string;
+  changeType: 'added' | 'modified' | 'removed';
+  before: string;
+  after: string;
+}
+
 export function scoreSamples(
   project: RubricProject,
   samples: RubricSample[],
@@ -202,6 +209,100 @@ export function semanticDiff(project: RubricProject): DiffResult[] {
   });
 }
 
+export function buildSemanticDiffMarkdown(project: RubricProject, diff: DiffResult[]): string {
+  const counts = diff.reduce(
+    (bySeverity, item) => {
+      bySeverity[item.severity] += 1;
+      return bySeverity;
+    },
+    { cosmetic: 0, substantive: 0, breaking: 0 },
+  );
+  const flippedSamples = diff.reduce(
+    (total, item) => total + item.passToFail + item.failToPass,
+    0,
+  );
+
+  return [
+    `# Semantic Diff Report: ${project.name}`,
+    '',
+    `Project: \`${project.id}\``,
+    `Version: \`${project.version}\``,
+    `Branch: \`${project.branch}\``,
+    `Criteria analyzed: ${diff.length}`,
+    `Substantive or breaking changes: ${counts.substantive + counts.breaking}`,
+    `Estimated held-out sample flips: ${flippedSamples}`,
+    '',
+    '## Severity Summary',
+    '',
+    '| Severity | Count |',
+    '| --- | ---: |',
+    `| Cosmetic | ${counts.cosmetic} |`,
+    `| Substantive | ${counts.substantive} |`,
+    `| Breaking | ${counts.breaking} |`,
+    '',
+    '## Criterion Changes',
+    '',
+    '| Criterion | Severity | Summary | Pass to fail | Fail to pass |',
+    '| --- | --- | --- | ---: | ---: |',
+    ...diff.map((item) =>
+      `| ${escapeMarkdownCell(item.label)} | ${item.severity} | ${escapeMarkdownCell(item.summary)} | ${item.passToFail} | ${item.failToPass} |`,
+    ),
+    '',
+    '## Review Notes',
+    '',
+    '- Review breaking rows before merging or exporting downstream evaluation tasks.',
+    '- Re-score the held-out set when pass-to-fail or fail-to-pass counts move.',
+    '- Attach this report to PRs that change rubric scoring intent.',
+  ].join('\n');
+}
+
+export function buildStandardTextDiff(
+  baseline: RubricProject,
+  current: RubricProject,
+): StandardTextDiffRow[] {
+  const baselineCriteria = new Map(baseline.criteria.map((criterion) => [criterion.id, criterion]));
+  const currentCriteria = new Map(current.criteria.map((criterion) => [criterion.id, criterion]));
+  const criterionIds = [...new Set([...baselineCriteria.keys(), ...currentCriteria.keys()])].sort();
+
+  return criterionIds.reduce<StandardTextDiffRow[]>((rows, criterionId) => {
+    const before = baselineCriteria.get(criterionId);
+    const after = currentCriteria.get(criterionId);
+    if (!before && after) {
+      rows.push({
+        path: criterionPath(after),
+        changeType: 'added',
+        before: '',
+        after: serializeCriterionForTextDiff(after),
+      });
+      return rows;
+    }
+    if (before && !after) {
+      rows.push({
+        path: criterionPath(before),
+        changeType: 'removed',
+        before: serializeCriterionForTextDiff(before),
+        after: '',
+      });
+      return rows;
+    }
+    if (!before || !after) {
+      return rows;
+    }
+    const beforeText = serializeCriterionForTextDiff(before);
+    const afterText = serializeCriterionForTextDiff(after);
+    if (beforeText === afterText) {
+      return rows;
+    }
+    rows.push({
+      path: criterionPath(after),
+      changeType: 'modified',
+      before: beforeText,
+      after: afterText,
+    });
+    return rows;
+  }, []);
+}
+
 export function generateExports(
   project: RubricProject,
   issues: ValidationIssue[],
@@ -286,6 +387,33 @@ export function generateExports(
     '.circleci/config.yml': 'version: 2.1\njobs:\n  rubric:\n    docker:\n      - image: cimg/python:3.11\n    steps:\n      - checkout\n      - run: rubric validate ./rubric.toml\n',
     Makefile: 'rubric-validate:\n\trubric validate ./rubric.toml\n',
   };
+}
+
+function escapeMarkdownCell(value: string): string {
+  return value.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+}
+
+function criterionPath(criterion: Criterion): string {
+  return `criteria/${criterion.themeId}/${criterion.id}.toml`;
+}
+
+function serializeCriterionForTextDiff(criterion: Criterion): string {
+  return [
+    `id = "${criterion.id}"`,
+    `label = "${criterion.label}"`,
+    `theme = "${criterion.themeId}"`,
+    `status = "${criterion.status}"`,
+    `scale = "${criterion.scale}"`,
+    `weight = ${criterion.weight}`,
+    '',
+    'description = """',
+    criterion.description.trim(),
+    '"""',
+    '',
+    '[examples]',
+    ...criterion.positiveExamples.map((example) => `positive = "${example}"`),
+    ...criterion.negativeExamples.map((example) => `negative = "${example}"`),
+  ].join('\n');
 }
 
 export function buildIntakePackageManifest(project: RubricProject): string {

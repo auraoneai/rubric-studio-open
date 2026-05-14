@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/extension.ts", "src/validator.ts", "src/vscode-shim.d.ts"],
+  "exclude": ["src/*test.ts"]
+}

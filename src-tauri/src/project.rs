@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -139,6 +139,7 @@ pub fn open_rubric_project_folder(
     })?;
     let paths = manifest.get("paths");
 
+    let criterion_comments = read_criterion_comments(&project_root)?;
     let project = RubricProjectFile {
         id: manifest
             .get("project")
@@ -158,10 +159,14 @@ pub fn open_rubric_project_folder(
             .into(),
         branch: "main".into(),
         themes: read_themes(&project_root, paths)?,
-        criteria: read_criteria(&project_root, paths)?,
+        criteria: read_criteria(&project_root, paths, &criterion_comments)?,
         samples: read_samples(&project_root, paths)?,
         judges: read_judges(&project_root, paths)?,
-        comments_visible: true,
+        comments_visible: manifest
+            .get("ui")
+            .and_then(|ui| ui.get("comments_visible"))
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true),
     };
 
     if project.criteria.is_empty() {
@@ -177,6 +182,101 @@ pub fn open_rubric_project_folder(
         opened_at: current_unix_timestamp_string(),
         source: "desktop-folder".into(),
     })
+}
+
+pub fn save_rubric_project_folder(
+    path: PathBuf,
+    project: RubricProjectFile,
+) -> Result<OpenedRubricProject, ProjectOpenFailure> {
+    let project_root = path.canonicalize().map_err(|error| {
+        project_open_failure("path", format!("Project path is not readable: {error}"))
+    })?;
+    if !project_root.is_dir() {
+        return Err(project_open_failure(
+            "path",
+            "Project path must be a folder.",
+        ));
+    }
+
+    for directory in [
+        "themes",
+        "criteria",
+        "samples",
+        "judges",
+        "exports",
+        ".rubric/score-runs",
+    ] {
+        std::fs::create_dir_all(project_root.join(directory)).map_err(|error| {
+            project_open_failure(
+                "path",
+                format!("Project directory {directory} could not be created: {error}"),
+            )
+        })?;
+    }
+
+    write_file_atomic(project_root.join("rubric.toml"), &manifest_source(&project))?;
+    write_file_atomic(
+        project_root.join(".rubric-comments.toml"),
+        &comments_source(&project),
+    )?;
+
+    let mut desired_theme_files = HashSet::new();
+    for theme in &project.themes {
+        let file_name = safe_file_segment(&theme.id);
+        let path = project_root.join("themes").join(format!("{file_name}.md"));
+        desired_theme_files.insert(path.clone());
+        write_file_atomic(
+            path,
+            &format!("# {}\n\n{}\n", theme.label.trim(), theme.description.trim()),
+        )?;
+    }
+
+    let mut desired_criterion_files = HashSet::new();
+    for criterion in &project.criteria {
+        let theme_segment = safe_file_segment(&criterion.theme_id);
+        let criterion_segment = safe_file_segment(&criterion.id);
+        let criterion_dir = project_root.join("criteria").join(theme_segment);
+        std::fs::create_dir_all(&criterion_dir).map_err(|error| {
+            project_open_failure(
+                "criteria",
+                format!("Criterion theme folder could not be created: {error}"),
+            )
+        })?;
+        let path = criterion_dir.join(format!("{criterion_segment}.toml"));
+        desired_criterion_files.insert(path.clone());
+        write_file_atomic(path, &criterion_source(criterion))?;
+    }
+
+    let sample_path = project_root.join("samples").join("gold-and-held-out.jsonl");
+    let desired_sample_files = HashSet::from([sample_path.clone()]);
+    write_file_atomic(sample_path, &samples_source(&project.samples)?)?;
+
+    let mut desired_judge_files = HashSet::new();
+    for judge in &project.judges {
+        let judge_segment = safe_file_segment(&judge.id);
+        let path = project_root
+            .join("judges")
+            .join(format!("{judge_segment}.toml"));
+        desired_judge_files.insert(path.clone());
+        write_file_atomic(path, &judge_source(judge))?;
+    }
+
+    remove_stale_files(&project_root.join("themes"), "md", &desired_theme_files)?;
+    remove_stale_files(
+        &project_root.join("criteria"),
+        "toml",
+        &desired_criterion_files,
+    )?;
+    remove_stale_files(
+        &project_root.join("samples"),
+        "jsonl",
+        &desired_sample_files,
+    )?;
+    remove_stale_files(&project_root.join("judges"), "toml", &desired_judge_files)?;
+
+    let mut opened = open_rubric_project_folder(project_root)?;
+    opened.source = "desktop-autosave".into();
+    Ok(opened)
 }
 
 fn read_themes(
@@ -216,6 +316,7 @@ fn read_themes(
 fn read_criteria(
     root: &Path,
     paths: Option<&toml::Value>,
+    criterion_comments: &BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<CriterionFile>, ProjectOpenFailure> {
     let criteria_root = path_from_manifest(root, paths, "criteria", "criteria")?;
     let mut criteria = Vec::new();
@@ -232,8 +333,13 @@ fn read_criteria(
                 format!("Criterion file is invalid TOML: {error}"),
             )
         })?;
+        let id = required_string(&value, "id")?;
+        let comments = criterion_comments
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| string_array(&value, "comments"));
         criteria.push(CriterionFile {
-            id: required_string(&value, "id")?,
+            id,
             label: required_string(&value, "label")?,
             theme_id: required_string(&value, "theme")?,
             description: required_string(&value, "description")?,
@@ -268,10 +374,43 @@ fn read_criteria(
                 .and_then(toml::Value::as_str)
                 .unwrap_or("Draft")
                 .into(),
-            comments: string_array(&value, "comments"),
+            comments,
         });
     }
     Ok(criteria)
+}
+
+fn read_criterion_comments(
+    root: &Path,
+) -> Result<BTreeMap<String, Vec<String>>, ProjectOpenFailure> {
+    let path = root.join(".rubric-comments.toml");
+    if !path.exists() {
+        return Ok(BTreeMap::new());
+    }
+
+    let source = std::fs::read_to_string(&path).map_err(|error| {
+        project_open_failure(
+            ".rubric-comments.toml",
+            format!(".rubric-comments.toml could not be read: {error}"),
+        )
+    })?;
+    let value = source.parse::<toml::Value>().map_err(|error| {
+        project_open_failure(
+            ".rubric-comments.toml",
+            format!(".rubric-comments.toml is invalid TOML: {error}"),
+        )
+    })?;
+
+    let mut comments = BTreeMap::new();
+    if let Some(criteria) = value.get("criteria").and_then(toml::Value::as_table) {
+        for (criterion_id, criterion_value) in criteria {
+            comments.insert(
+                criterion_id.clone(),
+                string_array(criterion_value, "comments"),
+            );
+        }
+    }
+    Ok(comments)
 }
 
 fn read_samples(
@@ -527,19 +666,216 @@ cache = ".rubric"
         root.join("judges/local-mock.toml"),
         TEMPLATE_JUDGE_LOCAL_MOCK,
     )?;
+    write_file(root.join(".rubric-comments.toml"), TEMPLATE_COMMENTS)?;
     Ok(())
 }
 
 fn write_file(path: PathBuf, contents: &str) -> Result<(), ProjectOpenFailure> {
-    std::fs::write(&path, contents).map_err(|error| {
+    write_file_atomic(path, contents)
+}
+
+fn write_file_atomic(path: PathBuf, contents: &str) -> Result<(), ProjectOpenFailure> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            project_open_failure(
+                "path",
+                format!(
+                    "Project directory {} could not be created: {error}",
+                    parent.display()
+                ),
+            )
+        })?;
+    }
+    let tmp_path = path.with_extension(format!(
+        "{}tmp-{}",
+        path.extension()
+            .and_then(|value| value.to_str())
+            .map(|value| format!("{value}."))
+            .unwrap_or_default(),
+        std::process::id()
+    ));
+    std::fs::write(&tmp_path, contents).map_err(|error| {
         project_open_failure(
             "path",
             format!(
-                "Template file {} could not be written: {error}",
+                "Project file {} could not be written: {error}",
+                tmp_path.display()
+            ),
+        )
+    })?;
+    std::fs::rename(&tmp_path, &path).map_err(|error| {
+        let _ = std::fs::remove_file(&tmp_path);
+        project_open_failure(
+            "path",
+            format!(
+                "Project file {} could not be saved atomically: {error}",
                 path.display()
             ),
         )
     })
+}
+
+fn remove_stale_files(
+    root: &Path,
+    extension: &str,
+    desired: &HashSet<PathBuf>,
+) -> Result<(), ProjectOpenFailure> {
+    for file in sorted_files(root, extension)? {
+        if !desired.contains(&file) {
+            std::fs::remove_file(&file).map_err(|error| {
+                project_open_failure(
+                    "path",
+                    format!(
+                        "Stale project file {} could not be removed: {error}",
+                        file.display()
+                    ),
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn manifest_source(project: &RubricProjectFile) -> String {
+    format!(
+        r#"schema_version = "rubric-studio-open.v0"
+name = {}
+version = {}
+default_judge = {}
+weight_mode = "theme-local-sum-to-one"
+
+[project]
+id = {}
+description = "Rubric Studio Open project saved from the desktop editor."
+
+[paths]
+themes = "themes"
+criteria = "criteria"
+samples = "samples"
+judges = "judges"
+exports = "exports"
+cache = ".rubric"
+
+[ui]
+comments_visible = {}
+"#,
+        toml_string(&project.name),
+        toml_string(&project.version),
+        toml_string(
+            project
+                .judges
+                .iter()
+                .find(|judge| judge.enabled)
+                .map(|judge| judge.id.as_str())
+                .unwrap_or("local-mock")
+        ),
+        toml_string(&project.id),
+        project.comments_visible,
+    )
+}
+
+fn criterion_source(criterion: &CriterionFile) -> String {
+    format!(
+        r#"id = {}
+label = {}
+theme = {}
+description = {}
+weight = {}
+scale = {}
+status = {}
+evidence_requirement = {}
+tags = {}
+references = {}
+sibling_links = {}
+positive_examples = {}
+negative_examples = {}
+anti_patterns = {}
+boundaries = {}
+edge_cases = {}
+"#,
+        toml_string(&criterion.id),
+        toml_string(&criterion.label),
+        toml_string(&criterion.theme_id),
+        toml_string(&criterion.description),
+        criterion.weight,
+        toml_string(&criterion.scale),
+        toml_string(&criterion.status),
+        toml_string(&criterion.evidence_requirement),
+        toml_array(&criterion.tags),
+        toml_array(&criterion.references),
+        toml_array(&criterion.sibling_links),
+        toml_array(&criterion.positive_examples),
+        toml_array(&criterion.negative_examples),
+        toml_array(&criterion.anti_patterns),
+        toml_string(&criterion.boundaries),
+        toml_array(&criterion.edge_cases),
+    )
+}
+
+fn comments_source(project: &RubricProjectFile) -> String {
+    let mut source = String::from(
+        "# Local Rubric Studio Open criterion comments.\n# Kept separate from rubric-spec criterion files.\n\n",
+    );
+    for criterion in project
+        .criteria
+        .iter()
+        .filter(|criterion| !criterion.comments.is_empty())
+    {
+        source.push_str(&format!(
+            "[criteria.{}]\ncomments = {}\n\n",
+            toml_string(&criterion.id),
+            toml_array(&criterion.comments)
+        ));
+    }
+    source
+}
+
+fn samples_source(samples: &[SampleFile]) -> Result<String, ProjectOpenFailure> {
+    samples
+        .iter()
+        .map(|sample| {
+            serde_json::to_string(sample).map_err(|error| {
+                project_open_failure(
+                    "samples",
+                    format!("Sample could not be serialized: {error}"),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|lines| format!("{}\n", lines.join("\n")))
+}
+
+fn judge_source(judge: &JudgeFile) -> String {
+    format!(
+        r#"id = {}
+label = {}
+provider = {}
+model = {}
+enabled = {}
+key_required = {}
+"#,
+        toml_string(&judge.id),
+        toml_string(&judge.label),
+        toml_string(&judge.provider),
+        toml_string(&judge.model),
+        judge.enabled,
+        judge.provider != "mock",
+    )
+}
+
+fn toml_array(values: &[String]) -> String {
+    format!(
+        "[{}]",
+        values
+            .iter()
+            .map(|value| toml_string(value))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn safe_file_segment(value: &str) -> String {
+    safe_project_slug(value)
 }
 
 fn safe_project_slug(value: &str) -> String {
@@ -611,6 +947,10 @@ packaging.
 
 const TEMPLATE_GITIGNORE: &str = r#".rubric/
 exports/
+"#;
+
+const TEMPLATE_COMMENTS: &str = r#"# Local Rubric Studio Open criterion comments.
+# Kept separate from rubric-spec criterion files.
 "#;
 
 const TEMPLATE_THEME_SAFETY: &str = r#"# Safety
@@ -818,6 +1158,102 @@ criteria = "../outside"
 
         assert_eq!(error.field, "paths.criteria");
         assert!(error.message.contains("cannot use"));
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn saving_project_round_trips_to_disk_and_removes_stale_criteria() {
+        let root = std::env::temp_dir().join(format!(
+            "rubric-studio-open-save-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(root.parent().unwrap()).unwrap();
+        if root.exists() {
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+        write_template_project(&root, "Save Round Trip", "save-round-trip").unwrap();
+        std::fs::write(
+            root.join("criteria/safety/stale-criterion.toml"),
+            TEMPLATE_CRITERION_SAFE_REFUSAL.replace("safe-refusal", "stale-criterion"),
+        )
+        .unwrap();
+
+        let mut opened = open_rubric_project_folder(root.clone()).unwrap();
+        opened.project.name = "Saved Project".into();
+        opened.project.comments_visible = false;
+        opened
+            .project
+            .criteria
+            .retain(|criterion| criterion.id != "stale-criterion");
+        let safe_refusal = opened
+            .project
+            .criteria
+            .iter_mut()
+            .find(|criterion| criterion.id == "safe-refusal")
+            .unwrap();
+        safe_refusal.label = "Saved safe refusal".into();
+        safe_refusal.weight = 0.5;
+        safe_refusal.comments = vec![
+            "Keep this note outside criterion TOML.".into(),
+            "Second local reviewer note.".into(),
+        ];
+
+        let saved = save_rubric_project_folder(root.clone(), opened.project.clone()).unwrap();
+        let reopened = open_rubric_project_folder(root.clone()).unwrap();
+        let comments_file = std::fs::read_to_string(root.join(".rubric-comments.toml")).unwrap();
+        let criterion_file =
+            std::fs::read_to_string(root.join("criteria/safety/safe-refusal.toml")).unwrap();
+
+        assert_eq!(saved.source, "desktop-autosave");
+        assert_eq!(reopened.project.name, "Saved Project");
+        assert_eq!(reopened.project.comments_visible, false);
+        assert!(reopened
+            .project
+            .criteria
+            .iter()
+            .any(|criterion| criterion.label == "Saved safe refusal" && criterion.weight == 0.5));
+        assert!(comments_file.contains("[criteria.\"safe-refusal\"]"));
+        assert!(comments_file.contains("Keep this note outside criterion TOML."));
+        assert!(!criterion_file.contains("comments ="));
+        assert!(reopened.project.criteria.iter().any(|criterion| {
+            criterion.id == "safe-refusal"
+                && criterion
+                    .comments
+                    .iter()
+                    .any(|comment| comment.contains("outside criterion TOML"))
+        }));
+        assert!(!root.join("criteria/safety/stale-criterion.toml").exists());
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn opening_project_reads_criterion_comments_sidecar() {
+        let root = std::env::temp_dir().join(format!(
+            "rubric-studio-open-comments-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(root.parent().unwrap()).unwrap();
+        if root.exists() {
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+        write_template_project(&root, "Comments Sidecar", "comments-sidecar").unwrap();
+        std::fs::write(
+            root.join(".rubric-comments.toml"),
+            r#"
+[criteria."safe-refusal"]
+comments = ["Reviewer note from sidecar."]
+"#,
+        )
+        .unwrap();
+
+        let opened = open_rubric_project_folder(root.clone()).unwrap();
+
+        assert!(opened.project.criteria.iter().any(|criterion| {
+            criterion.id == "safe-refusal"
+                && criterion.comments == vec!["Reviewer note from sidecar.".to_string()]
+        }));
 
         std::fs::remove_dir_all(root).unwrap();
     }

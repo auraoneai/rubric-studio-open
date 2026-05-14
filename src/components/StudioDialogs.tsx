@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import type { Criterion } from '../domain/rubric';
+import { useDialogFocusTrap } from './useDialogFocusTrap';
 
 export function TemplateProjectDialog({
   initialName,
@@ -9,9 +11,13 @@ export function TemplateProjectDialog({
   onCancel: () => void;
   onCreate: (name: string) => void;
 }) {
+  const dialogRef = useRef<HTMLFormElement | null>(null);
+  useDialogFocusTrap(dialogRef);
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onCancel}>
       <form
+        ref={dialogRef}
         className="studio-dialog"
         role="dialog"
         aria-modal="true"
@@ -59,9 +65,13 @@ export function DeleteCriterionDialog({
   onCancel: () => void;
   onDelete: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  useDialogFocusTrap(dialogRef);
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onCancel}>
       <section
+        ref={dialogRef}
         className="studio-dialog"
         role="dialog"
         aria-modal="true"
@@ -78,10 +88,10 @@ export function DeleteCriterionDialog({
           This removes the criterion from the local project. Use version control before deleting live criteria that reviewers depend on.
         </p>
         <div className="inline-actions">
-          <button className="ghost-button" type="button" onClick={onCancel}>
+          <button className="ghost-button" type="button" autoFocus onClick={onCancel}>
             Cancel
           </button>
-          <button className="danger-button" type="button" autoFocus onClick={onDelete}>
+          <button className="danger-button" type="button" onClick={onDelete}>
             Delete criterion
           </button>
         </div>

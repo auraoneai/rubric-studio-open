@@ -36,8 +36,10 @@ try {
   const skip = page.getByRole('button', { name: 'Skip' });
   if (await page.getByRole('dialog', { name: 'First-run wizard' }).isVisible().catch(() => false)) {
     await assertAxeClean(page, 'first-run wizard');
+    await assertDialogFocusTrap(page, 'First-run wizard');
     await page.getByRole('button', { name: 'Start tour' }).click();
     await expect(page.getByRole('dialog', { name: 'Author criteria like code' })).toBeVisible();
+    await assertDialogFocusTrap(page, 'Author criteria like code');
     await assertAxeClean(page, 'guided onboarding tour');
     await page.getByRole('button', { name: 'Skip tour' }).click();
   }
@@ -75,12 +77,14 @@ try {
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+  await assertDialogFocusTrap(page, 'Command palette');
   await page.getByLabel('Command search').fill('Settings');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'New from Template' }).click();
   await expect(page.getByRole('dialog', { name: 'Create from template' })).toBeVisible();
+  await assertDialogFocusTrap(page, 'Create from template');
   await assertAxeClean(page, 'template project dialog');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Create from template' })).toHaveCount(0);
@@ -123,6 +127,30 @@ async function assertKeyboardPath(page) {
   if (!focusedName) {
     throw new Error('Keyboard-only path did not land on a named interactive control after the editor skip link.');
   }
+}
+
+async function assertDialogFocusTrap(page, name) {
+  const dialog = page.getByRole('dialog', { name });
+  await expect(dialog).toHaveAttribute('data-focus-trap', 'active');
+  await dialog.evaluate((element) => {
+    const focusable = Array.from(
+      element.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'),
+    );
+    const first = focusable[0] ?? element;
+    first.focus();
+  });
+  await page.keyboard.press('Shift+Tab');
+  await expectPollDialogContainsFocus(dialog, `${name} backward focus trap`);
+  await page.keyboard.press('Tab');
+  await expectPollDialogContainsFocus(dialog, `${name} forward focus trap`);
+}
+
+async function expectPollDialogContainsFocus(dialog, label) {
+  await expect
+    .poll(async () => dialog.evaluate((element) => element.contains(document.activeElement)), {
+      message: `${label} did not keep focus inside the active dialog`,
+    })
+    .toBe(true);
 }
 
 async function assertAxeClean(page, label) {

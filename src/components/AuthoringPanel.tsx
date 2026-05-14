@@ -17,8 +17,10 @@ import {
   statusOptions,
   type Criterion,
   type RubricProject,
+  type ValidationIssue,
 } from '../domain/rubric';
 import { searchProject, validateProject } from '../domain/validation';
+import { useDialogFocusTrap } from './useDialogFocusTrap';
 import './AuthoringPanel.css';
 
 export function AuthoringPanel(props: {
@@ -52,10 +54,16 @@ export function AuthoringPanel(props: {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [inFileQuery, setInFileQuery] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
+  const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState<string[] | null>(null);
   const inFileInputRef = useRef<HTMLInputElement>(null);
   const projectSearchInputRef = useRef<HTMLInputElement>(null);
   const bulkSelected = new Set(bulkIds);
   const inFileMatches = useMemo(() => findCriterionMatches(criterion, inFileQuery), [criterion, inFileQuery]);
+  const visibleIssues = useMemo(
+    () => issues.filter((issue) => !issue.criterionId || issue.criterionId === criterion.id),
+    [criterion.id, issues],
+  );
+  const issuesForField = (field: string) => visibleIssues.filter((issue) => issue.field === field);
 
   useEffect(() => {
     if (props.focusRequest?.target === 'in-file') {
@@ -82,10 +90,16 @@ export function AuthoringPanel(props: {
   function bulkDelete() {
     const count = bulkIds.length;
     if (count === 0) return;
-    if (window.confirm(`Delete ${count} selected criterion${count === 1 ? '' : 's'}?`)) {
-      props.onBulkDelete(bulkIds);
-      setBulkIds([]);
+    setPendingBulkDeleteIds([...bulkIds]);
+  }
+
+  function confirmBulkDelete() {
+    if (!pendingBulkDeleteIds?.length) {
+      return;
     }
+    props.onBulkDelete(pendingBulkDeleteIds);
+    setBulkIds([]);
+    setPendingBulkDeleteIds(null);
   }
 
   function addComment() {
@@ -95,6 +109,64 @@ export function AuthoringPanel(props: {
     }
     props.onUpdate({ comments: [...criterion.comments, body] });
     setCommentDraft('');
+  }
+
+  function applyQuickFix(issue: (typeof issues)[number]) {
+    if (issue.quickFix === 'Use draft label') {
+      props.onUpdate({ label: 'Draft criterion' });
+    }
+    if (issue.quickFix === 'Shorten label') {
+      props.onUpdate({ label: criterion.label.slice(0, 80).trim() });
+    }
+    if (issue.quickFix === 'Derive slug from label') {
+      props.onUpdate({ id: slugify(criterion.label) });
+    }
+    if (issue.quickFix === 'Add description starter') {
+      props.onUpdate({ description: 'Describe the observable reviewer-visible behavior this criterion measures.' });
+    }
+    if (issue.quickFix === 'Trim description') {
+      props.onUpdate({ description: criterion.description.slice(0, 2000).trim() });
+    }
+    if (issue.quickFix === 'Clamp weight') {
+      props.onUpdate({ weight: Math.min(1, Math.max(0, criterion.weight)) });
+    }
+    if (issue.quickFix === 'Normalize theme weights') {
+      const themeCriteria = project.criteria.filter((item) => item.themeId === criterion.themeId);
+      if (themeCriteria.length > 0) {
+        props.onBulkUpdate(
+          themeCriteria.map((item) => item.id),
+          { weight: Number((1 / themeCriteria.length).toFixed(2)) },
+        );
+      }
+    }
+    if (issue.quickFix === 'Add positive example') {
+      props.onUpdate({
+        positiveExamples: [
+          ...criterion.positiveExamples,
+          `Positive calibration example ${criterion.positiveExamples.length + 1}`,
+        ],
+      });
+    }
+    if (issue.quickFix === 'Add negative example') {
+      props.onUpdate({
+        negativeExamples: [
+          ...criterion.negativeExamples,
+          `Negative calibration example ${criterion.negativeExamples.length + 1}`,
+        ],
+      });
+    }
+    if (issue.quickFix === 'Add observable wording') {
+      props.onUpdate({
+        description: `${criterion.description.trim()} Reviewers should score only observable behavior supported by evidence in the response.`,
+      });
+    }
+    if (issue.quickFix === 'Remove invalid references') {
+      props.onUpdate({ references: criterion.references.filter(isUrlOrDoi) });
+    }
+    if (issue.quickFix === 'Remove missing sibling links') {
+      const validIds = new Set(project.criteria.map((item) => item.id));
+      props.onUpdate({ siblingLinks: criterion.siblingLinks.filter((link) => validIds.has(link)) });
+    }
   }
 
   return (
@@ -287,10 +359,10 @@ export function AuthoringPanel(props: {
           </section>
         ) : null}
         <div className="form-grid">
-          <Field label="Label" issueCount={issues.filter((issue) => issue.field === 'label').length}>
+          <Field label="Label" issues={issuesForField('label')}>
             <input value={criterion.label} onChange={(event) => props.onUpdate({ label: event.target.value })} />
           </Field>
-          <Field label="ID" issueCount={issues.filter((issue) => issue.field === 'id').length}>
+          <Field label="ID" issues={issuesForField('id')}>
             <div className="with-button">
               <input value={criterion.id} onChange={(event) => props.onUpdate({ id: slugify(event.target.value) })} />
               <button className="ghost-button" type="button" onClick={() => props.onUpdate({ id: slugify(criterion.label) })}>
@@ -299,7 +371,7 @@ export function AuthoringPanel(props: {
               </button>
             </div>
           </Field>
-          <Field label="Weight">
+          <Field label="Weight" issues={issuesForField('weight')}>
             <input
               type="number"
               min="0"
@@ -334,16 +406,16 @@ export function AuthoringPanel(props: {
             </select>
           </Field>
         </div>
-        <Field label="Description" issueCount={issues.filter((issue) => issue.field === 'description').length}>
+        <Field label="Description" issues={issuesForField('description')}>
           <textarea value={criterion.description} onChange={(event) => props.onUpdate({ description: event.target.value })} />
         </Field>
-        <Field label="Positive examples" issueCount={issues.filter((issue) => issue.field === 'positiveExamples').length}>
+        <Field label="Positive examples" issues={issuesForField('positiveExamples')}>
           <textarea
             value={criterion.positiveExamples.join('\n')}
             onChange={(event) => props.onUpdate({ positiveExamples: event.target.value.split('\n').filter(Boolean) })}
           />
         </Field>
-        <Field label="Negative examples" issueCount={issues.filter((issue) => issue.field === 'negativeExamples').length}>
+        <Field label="Negative examples" issues={issuesForField('negativeExamples')}>
           <textarea
             value={criterion.negativeExamples.join('\n')}
             onChange={(event) => props.onUpdate({ negativeExamples: event.target.value.split('\n').filter(Boolean) })}
@@ -366,10 +438,10 @@ export function AuthoringPanel(props: {
               {tagOptions.map((tag) => <option key={tag} value={tag} />)}
             </datalist>
           </Field>
-          <Field label="References">
+          <Field label="References" issues={issuesForField('references')}>
             <textarea value={criterion.references.join('\n')} onChange={(event) => props.onUpdate({ references: event.target.value.split('\n').filter(Boolean) })} />
           </Field>
-          <Field label="Sibling links">
+          <Field label="Sibling links" issues={issuesForField('siblingLinks')}>
             <input list="criterion-ref-options" value={criterion.siblingLinks.join(', ')} onChange={(event) => props.onUpdate({ siblingLinks: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
             <datalist id="criterion-ref-options">
               {project.criteria.filter((item) => item.id !== criterion.id).map((item) => <option key={item.id} value={item.id} />)}
@@ -381,7 +453,7 @@ export function AuthoringPanel(props: {
         <div className="panel-title">
           <div>
             <p>Inline validation</p>
-            <h2>{issues.length} signals</h2>
+            <h2>{visibleIssues.length} signals</h2>
           </div>
         </div>
         <div className="search-box">
@@ -411,13 +483,13 @@ export function AuthoringPanel(props: {
           </div>
         </div>
         <div className="issue-list">
-          {issues.length === 0 ? <SuccessState title="No criterion issues" body="rubric-spec and style checks pass for this criterion." /> : null}
-          {issues.map((issue) => (
+          {visibleIssues.length === 0 ? <SuccessState title="No criterion issues" body="rubric-spec and style checks pass for this criterion." /> : null}
+          {visibleIssues.map((issue) => (
             <div key={issue.id} className={`issue ${issue.severity}`}>
               <strong>{issue.field}</strong>
               <span>{issue.message}</span>
               {issue.quickFix ? (
-                <button className="ghost-button" type="button">
+                <button className="ghost-button" type="button" onClick={() => applyQuickFix(issue)}>
                   <Wrench className="button-icon" aria-hidden="true" />
                   {issue.quickFix}
                 </button>
@@ -452,15 +524,83 @@ export function AuthoringPanel(props: {
           </div>
         </div>
       </aside>
+      {pendingBulkDeleteIds ? (
+        <BulkDeleteDialog
+          count={pendingBulkDeleteIds.length}
+          onCancel={() => setPendingBulkDeleteIds(null)}
+          onDelete={confirmBulkDelete}
+        />
+      ) : null}
     </div>
   );
 }
 
-function Field({ label, issueCount = 0, children }: { label: string; issueCount?: number; children: ReactNode }) {
+function BulkDeleteDialog({
+  count,
+  onCancel,
+  onDelete,
+}: {
+  count: number;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const criterionNoun = count === 1 ? 'criterion' : 'criteria';
+  useDialogFocusTrap(dialogRef);
+
   return (
-    <label className={issueCount > 0 ? 'field has-issue' : 'field'}>
-      <span>{label}{issueCount > 0 ? <em>{issueCount}</em> : null}</span>
+    <div className="modal-backdrop" role="presentation" onClick={onCancel}>
+      <section
+        ref={dialogRef}
+        className="studio-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bulk-delete-dialog-title"
+        aria-describedby="bulk-delete-dialog-body"
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onCancel();
+          }
+        }}
+      >
+        <p className="eyebrow">Confirm bulk deletion</p>
+        <h2 id="bulk-delete-dialog-title">
+          Delete {count} selected {criterionNoun}?
+        </h2>
+        <p id="bulk-delete-dialog-body">
+          This removes the selected criteria from the local project. Commit or export a project bundle first if reviewers depend on these criteria.
+        </p>
+        <div className="inline-actions">
+          <button className="ghost-button" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="danger-button" type="button" onClick={onDelete}>
+            Delete selected criteria
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Field({ label, issues = [], children }: { label: string; issues?: ValidationIssue[]; children: ReactNode }) {
+  const issueCount = issues.length;
+  const explanation = issues.map((issue) => issue.message).join(' ');
+  return (
+    <label className={issueCount > 0 ? 'field has-issue' : 'field'} title={explanation || undefined}>
+      <span>
+        {label}
+        {issueCount > 0 ? <em aria-label={`${issueCount} validation issue${issueCount === 1 ? '' : 's'}`}>{issueCount}</em> : null}
+      </span>
       {children}
+      {issueCount > 0 ? (
+        <small className="field-explanation" role="note">
+          {issues[0].message}
+        </small>
+      ) : null}
     </label>
   );
 }
@@ -510,4 +650,8 @@ function excerptAround(value: string, index: number, length: number): string {
   const prefix = start > 0 ? '...' : '';
   const suffix = end < value.length ? '...' : '';
   return `${prefix}${value.slice(start, end)}${suffix}`;
+}
+
+function isUrlOrDoi(value: string): boolean {
+  return /^https?:\/\/\S+$/i.test(value) || /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i.test(value);
 }

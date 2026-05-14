@@ -22,6 +22,8 @@ Docs: [Rubric Studio Open docs](docs/README.md)
 
 Privacy: [local-first privacy and telemetry policy](PRIVACY.md)
 
+Roadmap and RFC process: [public roadmap and maintainer-gated RFCs](docs/roadmap-rfc.md)
+
 ## Current surfaces
 
 - Desktop shell: Tauri 2 scaffold with a Rust core in `src-tauri/`.

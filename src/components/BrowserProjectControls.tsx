@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { browserFolderArtifacts, projectFromBrowserFolder } from '../domain/browserFolder';
-import type { RubricProject, SurfaceMode } from '../domain/rubric';
+import type { RubricProject, SurfaceMode, ValidationIssue } from '../domain/rubric';
 import { validateProject } from '../domain/validation';
+
+interface ImportErrorState {
+  message: string;
+  recovery: boolean;
+}
 
 export function BrowserProjectControls({
   project,
@@ -12,10 +17,10 @@ export function BrowserProjectControls({
   surface: SurfaceMode;
   onImport: (project: RubricProject) => void;
 }) {
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ImportErrorState | null>(null);
   const [status, setStatus] = useState('');
 
-  function exportProject() {
+  function exportProject(filename = `${project.id}.rubric-project.json`) {
     const payload = JSON.stringify(
       {
         schema: 'https://spec.auraone.ai/rubric-studio-open/project-bundle/v1',
@@ -28,7 +33,7 @@ export function BrowserProjectControls({
     const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${project.id}.rubric-project.json`;
+    anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -37,85 +42,127 @@ export function BrowserProjectControls({
     if (!file) {
       return;
     }
+    const fileName = file.name || 'project-bundle.json';
     try {
       const text = await file.text();
       const parsed = JSON.parse(text) as { project?: RubricProject };
       if (!parsed.project?.id || !Array.isArray(parsed.project.criteria)) {
-        setError('Invalid project bundle. Choose a Rubric Studio Open JSON export with a project and criteria.');
+        setError({
+          message: `Invalid project bundle. Choose a Rubric Studio Open JSON export with a project and criteria. First check ${fileName}: line ${lineForText(text, '"project"')}.`,
+          recovery: true,
+        });
         return;
       }
       const issues = validateProject(parsed.project);
-      if (issues.some((issue) => issue.severity === 'error')) {
-        setError(`Project bundle has ${issues.filter((issue) => issue.severity === 'error').length} schema errors. Fix the bundle and import again.`);
+      const errors = issues.filter((issue) => issue.severity === 'error');
+      if (errors.length > 0) {
+        setError({
+          message: `Project bundle has ${errors.length} schema errors. Fix the bundle and import again. ${schemaPointer(errors[0], text, fileName)}`,
+          recovery: true,
+        });
         return;
       }
-      setError('');
+      setError(null);
       onImport(parsed.project);
-    } catch {
-      setError('Project import failed. Check that the file is valid JSON and try again.');
+    } catch (importError) {
+      setError({
+        message: `Project import failed. Check that the file is valid JSON and try again. ${jsonParsePointer(importError, fileName)}`,
+        recovery: true,
+      });
     }
   }
 
   async function exportFolder() {
     if (!supportsDirectoryPicker('readwrite')) {
-      setError('Browser folder export requires a File System Access capable browser. Use Export bundle as a fallback.');
+      setError({
+        message: 'Browser folder export requires a File System Access capable browser. Use Export bundle as a fallback.',
+        recovery: false,
+      });
       return;
     }
     try {
       const directory = await window.showDirectoryPicker?.({ mode: 'readwrite' });
       if (!directory) {
-        setError('Browser folder export requires a File System Access capable browser. Use Export bundle as a fallback.');
+        setError({
+          message: 'Browser folder export requires a File System Access capable browser. Use Export bundle as a fallback.',
+          recovery: false,
+        });
         return;
       }
       await Promise.all(browserFolderArtifacts(project).map((artifact) => writeArtifact(directory, artifact.path, artifact.content)));
-      setError('');
+      setError(null);
       setStatus(`Exported ${browserFolderArtifacts(project).length} files to the selected browser folder.`);
     } catch (exportError) {
       if (isAbortError(exportError)) {
         setStatus('Folder export canceled.');
       } else {
-        setError(exportError instanceof Error ? exportError.message : 'Browser folder export failed.');
+        setError({
+          message: exportError instanceof Error ? exportError.message : 'Browser folder export failed.',
+          recovery: false,
+        });
       }
     }
   }
 
   async function importFolder() {
     if (!supportsDirectoryPicker('read')) {
-      setError('Browser folder import requires a File System Access capable browser. Use Import bundle as a fallback.');
+      setError({
+        message: 'Browser folder import requires a File System Access capable browser. Use Import bundle as a fallback.',
+        recovery: false,
+      });
       return;
     }
     try {
       const directory = await window.showDirectoryPicker?.({ mode: 'read' });
       if (!directory) {
-        setError('Browser folder import requires a File System Access capable browser. Use Import bundle as a fallback.');
+        setError({
+          message: 'Browser folder import requires a File System Access capable browser. Use Import bundle as a fallback.',
+          recovery: false,
+        });
         return;
       }
       const files = await readProjectFiles(directory);
       const projectFromFolder = projectFromBrowserFolder(files);
       if (!projectFromFolder?.id || !Array.isArray(projectFromFolder.criteria)) {
-        setError('Browser folder is missing project-bundle.json or rubric.json with criteria.');
+        setError({
+          message: 'Browser folder is missing project-bundle.json or rubric.json with criteria. First check project-bundle.json: line 1.',
+          recovery: true,
+        });
         return;
       }
       const issues = validateProject(projectFromFolder);
-      if (issues.some((issue) => issue.severity === 'error')) {
-        setError(`Browser folder has ${issues.filter((issue) => issue.severity === 'error').length} schema errors. Fix the folder and import again.`);
+      const errors = issues.filter((issue) => issue.severity === 'error');
+      if (errors.length > 0) {
+        const sourcePath = files['project-bundle.json'] ? 'project-bundle.json' : 'rubric.json';
+        const sourceText = files[sourcePath] ?? '';
+        setError({
+          message: `Browser folder has ${errors.length} schema errors. Fix the folder and import again. ${schemaPointer(errors[0], sourceText, sourcePath)}`,
+          recovery: true,
+        });
         return;
       }
-      setError('');
+      setError(null);
       setStatus(`Imported ${projectFromFolder.name} from browser folder.`);
       onImport(projectFromFolder);
     } catch (importError) {
       if (isAbortError(importError)) {
         setStatus('Folder import canceled.');
       } else {
-        setError(importError instanceof Error ? importError.message : 'Browser folder import failed.');
+        setError({
+          message: importError instanceof Error ? importError.message : 'Browser folder import failed.',
+          recovery: true,
+        });
       }
     }
   }
 
+  function downloadRepairTemplate() {
+    exportProject(`${project.id}.repair-template.rubric-project.json`);
+  }
+
   return (
     <div className="browser-controls" aria-label="Browser project import and export">
-      <button className="ghost-button" type="button" onClick={exportProject}>
+      <button className="ghost-button" type="button" onClick={() => exportProject()}>
         Export bundle
       </button>
       {surface === 'browser' ? (
@@ -139,11 +186,60 @@ export function BrowserProjectControls({
           Import folder
         </button>
       ) : null}
-      {error ? <span className="inline-error" role="alert">{error}</span> : null}
+      {error ? (
+        <span className="inline-error import-error" role="alert">
+          {error.message}
+          {error.recovery ? (
+            <button className="ghost-button" type="button" onClick={downloadRepairTemplate}>
+              Download valid template
+            </button>
+          ) : null}
+        </span>
+      ) : null}
       {status ? <span className="success-chip" role="status">{status}</span> : null}
       {surface === 'browser' ? <small>Local browser storage only</small> : null}
     </div>
   );
+}
+
+function schemaPointer(issue: ValidationIssue, sourceText: string, sourcePath: string): string {
+  const line = lineForIssue(sourceText, issue);
+  const criterion = issue.criterionId !== undefined ? ` on criterion ${issue.criterionId || '<missing id>'}` : '';
+  const quickFix = issue.quickFix ? ` Quick action: ${issue.quickFix}.` : ' Quick action: compare against a valid template.';
+  return `First error at ${sourcePath}: line ${line}, field ${issue.field}${criterion}: ${issue.message}${quickFix}`;
+}
+
+function lineForIssue(sourceText: string, issue: ValidationIssue): number {
+  if (issue.criterionId) {
+    const criterionLine = lineForText(sourceText, `"id": "${issue.criterionId}"`);
+    if (criterionLine > 1) {
+      return criterionLine;
+    }
+  }
+  return lineForText(sourceText, `"${issue.field}"`);
+}
+
+function lineForText(sourceText: string, needle: string): number {
+  const index = sourceText.indexOf(needle);
+  if (index < 0) {
+    return 1;
+  }
+  return sourceText.slice(0, index).split('\n').length;
+}
+
+function jsonParsePointer(error: unknown, sourcePath: string): string {
+  if (!(error instanceof SyntaxError) || !('message' in error)) {
+    return `First check ${sourcePath}: line 1.`;
+  }
+  const match = String(error.message).match(/position (\d+)/);
+  if (!match) {
+    return `First check ${sourcePath}: line 1.`;
+  }
+  const position = Number(match[1]);
+  if (!Number.isFinite(position)) {
+    return `First check ${sourcePath}: line 1.`;
+  }
+  return `Parser stopped in ${sourcePath} near character ${position}.`;
 }
 
 async function writeArtifact(directory: FileSystemDirectoryHandle, path: string, content: string) {

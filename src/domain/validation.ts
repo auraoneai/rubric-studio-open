@@ -41,6 +41,7 @@ export function validateProject(project: RubricProject): ValidationIssue[] {
     if (themeCriteria.length > 0 && Math.abs(totalWeight - 1) > 0.05) {
       issues.push({
         id: `theme-weight-${theme.id}`,
+        criterionId: themeCriteria[0]?.id,
         field: 'weight',
         severity: 'warning',
         message: `${theme.label} weights sum to ${totalWeight.toFixed(2)}; target 1.00.`,
@@ -74,6 +75,7 @@ export function validateCriterion(
       field: 'label',
       severity: 'error',
       message: 'Label is required.',
+      quickFix: 'Use draft label',
     });
   }
 
@@ -84,6 +86,7 @@ export function validateCriterion(
       field: 'label',
       severity: 'warning',
       message: 'Label should be 80 characters or fewer.',
+      quickFix: 'Shorten label',
     });
   }
 
@@ -105,6 +108,7 @@ export function validateCriterion(
       field: 'description',
       severity: 'error',
       message: 'Description is required.',
+      quickFix: 'Add description starter',
     });
   } else if (criterion.description.length > 2000) {
     issues.push({
@@ -113,6 +117,7 @@ export function validateCriterion(
       field: 'description',
       severity: 'warning',
       message: 'Description is over the 2,000 character guideline.',
+      quickFix: 'Trim description',
     });
   }
 
@@ -123,6 +128,7 @@ export function validateCriterion(
       field: 'weight',
       severity: 'error',
       message: 'Weight must be between 0 and 1 for this project.',
+      quickFix: 'Clamp weight',
     });
   }
 
@@ -157,6 +163,7 @@ export function validateCriterion(
       field: 'description',
       severity: 'suggestion',
       message: `Consider replacing vague word "${foundNoisyWord}" with observable behavior.`,
+      quickFix: 'Add observable wording',
     });
   }
 
@@ -168,6 +175,7 @@ export function validateCriterion(
         field: 'references',
         severity: 'warning',
         message: `"${reference}" should be a URL or DOI.`,
+        quickFix: 'Remove invalid references',
       });
     }
   });
@@ -180,6 +188,7 @@ export function validateCriterion(
         field: 'siblingLinks',
         severity: 'warning',
         message: `Sibling link "${link}" does not match a criterion id.`,
+        quickFix: 'Remove missing sibling links',
       });
     }
   });

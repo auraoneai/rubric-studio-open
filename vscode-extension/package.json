@@ -5,6 +5,16 @@
   "version": "0.1.0",
   "license": "MIT",
   "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/auraoneai/rubric-studio-open.git"
+  },
+  "files": [
+    "dist/extension.js",
+    "dist/validator.js",
+    "media/**",
+    "LICENSE"
+  ],
   "engines": {
     "vscode": "^1.92.0"
   },
@@ -48,7 +58,8 @@
     ]
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "vscode:prepublish": "npm run build",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

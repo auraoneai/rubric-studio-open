@@ -1,25 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RubricProject, SurfaceMode } from '../domain/rubric';
 import { isVendorProgramExport } from '../domain/scaleWalls';
+import { useDialogFocusTrap } from './useDialogFocusTrap';
 
 export function ExportPanel({
   project,
   exports,
   intakeManifest,
   surface,
+  activeArtifact,
 }: {
   project: RubricProject;
   exports: Record<string, string>;
   intakeManifest: string;
   surface: SurfaceMode;
+  activeArtifact: string | null;
 }) {
   const [reviewers, setReviewers] = useState(3);
   const [turnaround, setTurnaround] = useState('5 business days');
   const [destination, setDestination] = useState('local-download');
   const [vendorExport, setVendorExport] = useState<{ name: string; content: string } | null>(null);
+  const [openArtifacts, setOpenArtifacts] = useState<Set<string>>(() => new Set());
   const exportEntries = Object.entries(exports);
   const browserLocalOnly = surface === 'browser';
   const effectiveDestination = browserLocalOnly ? 'local-download' : destination;
+
+  useEffect(() => {
+    if (!activeArtifact || activeArtifact === 'auraonepkg') {
+      return;
+    }
+    setOpenArtifacts((current) => new Set(current).add(activeArtifact));
+  }, [activeArtifact]);
 
   function downloadArtifact(name: string, content: string) {
     const url = URL.createObjectURL(new Blob([content], { type: contentType(name) }));
@@ -73,6 +84,9 @@ export function ExportPanel({
             {browserLocalOnly ? 'Download AuraOne intake package' : 'Send to AuraOne for expert review'}
           </button>
         </div>
+        {activeArtifact === 'auraonepkg' ? (
+          <p className="success-chip export-command-status" role="status">Command selected AuraOne intake package export.</p>
+        ) : null}
         <div className="intake-flow">
           <label><strong>1. Confirm scope</strong><span>{project.samples.length} samples · {project.criteria.length} criteria</span><input type="number" min={1} max={50} value={reviewers} onChange={(event) => setReviewers(Number(event.target.value))} /></label>
           <label><strong>2. Package</strong><span>rubric + calibration set + judge card + manifest</span><select value={turnaround} onChange={(event) => setTurnaround(event.target.value)}><option>3 business days</option><option>5 business days</option><option>10 business days</option></select></label>
@@ -95,8 +109,25 @@ export function ExportPanel({
       <aside className="glass-panel">
         <div className="panel-title"><div><p>Adapters</p><h2>{exportEntries.length} outputs</h2></div></div>
         {exportEntries.map(([name, content]) => (
-          <details key={name} className="export-item">
+          <details
+            key={name}
+            className={activeArtifact === name ? 'export-item active-export' : 'export-item'}
+            open={openArtifacts.has(name) || activeArtifact === name}
+            onToggle={(event) => {
+              const isOpen = event.currentTarget.open;
+              setOpenArtifacts((current) => {
+                const next = new Set(current);
+                if (isOpen) {
+                  next.add(name);
+                } else {
+                  next.delete(name);
+                }
+                return next;
+              });
+            }}
+          >
             <summary>{name}</summary>
+            {activeArtifact === name ? <p className="success-chip export-command-status" role="status">Command selected {name}.</p> : null}
             <button className="ghost-button" type="button" onClick={() => requestArtifactDownload(name, content)}>Download</button>
             <pre>{content}</pre>
           </details>
@@ -135,9 +166,13 @@ function VendorProgramDialog({
   onDownload: () => void;
   onIntake: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  useDialogFocusTrap(dialogRef);
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onCancel}>
       <section
+        ref={dialogRef}
         className="studio-dialog"
         role="dialog"
         aria-modal="true"

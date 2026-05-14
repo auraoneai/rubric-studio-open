@@ -15,4 +15,5 @@ Rubric Studio Open is maintained by the AuraOne Open source maintainers.
 
 Small implementation decisions are handled in pull requests. Format changes,
 new engine integrations, and distribution/security changes require an RFC or a
-tracked maintainer decision before merge.
+tracked maintainer decision before merge. The roadmap lanes, RFC triggers,
+lifecycle, and issue template are documented in `docs/roadmap-rfc.md`.

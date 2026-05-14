@@ -1,4 +1,4 @@
-import { Fragment, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { RubricProject } from '../domain/rubric';
 
 type ContextTarget =
@@ -35,11 +35,54 @@ export function ProjectSidebar({
   onRevealInFileManager: (path: string | null, label: string) => void;
 }) {
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!contextTarget) {
+      return;
+    }
+    contextMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+  }, [contextTarget]);
 
   function openContextMenu(event: MouseEvent, target: ContextTarget) {
     event.preventDefault();
     event.stopPropagation();
     setContextTarget(target);
+  }
+
+  function openKeyboardContextMenu(event: KeyboardEvent, target: ContextTarget) {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    setContextTarget(target);
+  }
+
+  function navigateContextMenu(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setContextTarget(null);
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') {
+      return;
+    }
+    const items = Array.from(contextMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+    if (items.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    const currentIndex = Math.max(0, items.findIndex((item) => item === document.activeElement));
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? items.length - 1
+          : event.key === 'ArrowDown'
+            ? (currentIndex + 1) % items.length
+            : (currentIndex - 1 + items.length) % items.length;
+    items[nextIndex].focus();
   }
 
   function projectFilePath(...segments: string[]): string | null {
@@ -63,6 +106,10 @@ export function ProjectSidebar({
           role="treeitem"
           aria-expanded="true"
           aria-level={1}
+          aria-haspopup="menu"
+          onKeyDown={(event) =>
+            openKeyboardContextMenu(event, { kind: 'root', label: 'rubric/', path: projectPath, canCreateCriterion: true })
+          }
           onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'rubric/', path: projectPath, canCreateCriterion: true })}
         >
           rubric/
@@ -75,6 +122,15 @@ export function ProjectSidebar({
               role="treeitem"
               aria-expanded="true"
               aria-level={2}
+              aria-haspopup="menu"
+              onKeyDown={(event) =>
+                openKeyboardContextMenu(event, {
+                  kind: 'theme',
+                  label: theme.label,
+                  themeId: theme.id,
+                  path: projectFilePath('themes', `${theme.id}.md`),
+                })
+              }
               onContextMenu={(event) =>
                 openContextMenu(event, {
                   kind: 'theme',
@@ -96,7 +152,16 @@ export function ProjectSidebar({
                   role="treeitem"
                   aria-level={3}
                   aria-current={criterion.id === selectedCriterionId ? 'true' : undefined}
+                  aria-haspopup="menu"
                   onClick={() => onSelect(criterion.id)}
+                  onKeyDown={(event) =>
+                    openKeyboardContextMenu(event, {
+                      kind: 'criterion',
+                      label: criterion.label,
+                      criterionId: criterion.id,
+                      path: projectFilePath('criteria', criterion.themeId, `${criterion.id}.toml`),
+                    })
+                  }
                   onContextMenu={(event) =>
                     openContextMenu(event, {
                       kind: 'criterion',
@@ -117,6 +182,8 @@ export function ProjectSidebar({
           className="tree-root"
           type="button"
           aria-expanded="true"
+          aria-haspopup="menu"
+          onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'root', label: 'samples/', path: projectFilePath('samples'), canCreateCriterion: false })}
           onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'samples/', path: projectFilePath('samples'), canCreateCriterion: false })}
         >
           samples/
@@ -127,6 +194,14 @@ export function ProjectSidebar({
             className="tree-file"
             type="button"
             aria-label={`Sample file ${sample.id}`}
+            aria-haspopup="menu"
+            onKeyDown={(event) =>
+              openKeyboardContextMenu(event, {
+                kind: 'sample',
+                label: `${sample.id}.jsonl`,
+                path: projectFilePath('samples', `${sample.id}.jsonl`),
+              })
+            }
             onContextMenu={(event) =>
               openContextMenu(event, {
                 kind: 'sample',
@@ -144,6 +219,8 @@ export function ProjectSidebar({
           className="tree-root"
           type="button"
           aria-expanded="true"
+          aria-haspopup="menu"
+          onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'root', label: 'judges/', path: projectFilePath('judges'), canCreateCriterion: false })}
           onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'judges/', path: projectFilePath('judges'), canCreateCriterion: false })}
         >
           judges/
@@ -154,6 +231,14 @@ export function ProjectSidebar({
             className="tree-file"
             type="button"
             aria-label={`${judge.enabled ? 'Enabled' : 'Disabled'} judge ${judge.label}`}
+            aria-haspopup="menu"
+            onKeyDown={(event) =>
+              openKeyboardContextMenu(event, {
+                kind: 'judge',
+                label: `${judge.id}.toml`,
+                path: projectFilePath('judges', `${judge.id}.toml`),
+              })
+            }
             onContextMenu={(event) =>
               openContextMenu(event, {
                 kind: 'judge',
@@ -168,7 +253,11 @@ export function ProjectSidebar({
       </div>
       <div
         className="git-card"
+        role="button"
+        tabIndex={0}
+        aria-haspopup="menu"
         aria-label="Git status"
+        onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'git', label: '.git/', path: projectFilePath('.git') })}
         onContextMenu={(event) => openContextMenu(event, { kind: 'git', label: '.git/', path: projectFilePath('.git') })}
       >
         <span>.git/</span>
@@ -176,7 +265,14 @@ export function ProjectSidebar({
         <small>{issues} changed validation signals</small>
       </div>
       {contextTarget ? (
-        <div className="context-menu" role="menu" aria-label={`Actions for ${contextTarget.label}`} onClick={(event) => event.stopPropagation()}>
+        <div
+          ref={contextMenuRef}
+          className="context-menu"
+          role="menu"
+          aria-label={`Actions for ${contextTarget.label}`}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={navigateContextMenu}
+        >
           <strong>{contextTarget.label}</strong>
           {contextTarget.kind === 'criterion' ? (
             <button type="button" role="menuitem" onClick={() => { onSelect(contextTarget.criterionId); setContextTarget(null); }}>

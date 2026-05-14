@@ -104,7 +104,13 @@ vm.runInNewContext(script, context);
 dispatchMessage({
   type: 'hydrate',
   projectRoot: '/workspace/rubric',
-  commands: ['Open first criterion', 'Save current criterion', 'Show browser constraints', 'Prepare intake export'],
+  commands: [
+    'Open first criterion',
+    'Save current criterion',
+    'Show browser constraints',
+    'Open desktop-only sidecar note',
+    'Prepare intake export',
+  ],
   files: [
     criterionFile('/workspace/rubric/criteria/safety/safe-refusal.toml', 'safe-refusal', 'Safe refusal', 'Live', 1),
     criterionFile('/workspace/rubric/criteria/helpfulness/specificity.toml', 'specificity', 'Specificity', 'Draft', 0),
@@ -132,10 +138,28 @@ assertPost({
   content: 'id = "specificity"\nlabel = "Specificity"\n',
 });
 
+buttonIn('commands', 'Open first criterion').click();
+assert.equal(text('editor-title'), 'Safe refusal');
+assert.match(textareaValue('editor'), /id = "safe-refusal"/);
+assert.notDeepEqual(lastPost(), { type: 'executeCommand', command: 'Open first criterion' });
+
+editor.value = 'id = "safe-refusal"\nlabel = "Safe refusal updated"\n';
+buttonIn('commands', 'Save current criterion').click();
+assertPost({
+  type: 'save',
+  file: '/workspace/rubric/criteria/safety/safe-refusal.toml',
+  content: 'id = "safe-refusal"\nlabel = "Safe refusal updated"\n',
+});
+
 buttonIn('commands', 'Show browser constraints').click();
 assert.match(text('diagnostics'), /Browser constraints/);
 assert.match(text('diagnostics'), /cannot run Python sidecars/);
 assert.notDeepEqual(lastPost(), { type: 'executeCommand', command: 'Show browser constraints' });
+
+buttonIn('commands', 'Open desktop-only sidecar note').click();
+assert.match(text('diagnostics'), /Desktop sidecars/);
+assert.match(text('diagnostics'), /signed \.auraonepkg upload/);
+assert.notDeepEqual(lastPost(), { type: 'executeCommand', command: 'Open desktop-only sidecar note' });
 
 button('validate').click();
 assertPost({ type: 'validate' });

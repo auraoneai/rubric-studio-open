@@ -6,6 +6,7 @@ import {
   FolderOpen,
   GitCompare,
   Play,
+  Search,
   Settings,
   SlidersHorizontal,
   SquarePen,
@@ -63,6 +64,7 @@ import { FirstRunWizard } from './components/FirstRunWizard';
 import { AuthoringPanel } from './components/AuthoringPanel';
 import { DeleteCriterionDialog, TemplateProjectDialog } from './components/StudioDialogs';
 import { ApplicationMenu } from './components/ApplicationMenu';
+import { RubricStudioMark } from './components/RubricStudioMark';
 import type { SampleActionRequest } from './components/SampleControls';
 import { useDialogFocusTrap } from './components/useDialogFocusTrap';
 
@@ -378,10 +380,14 @@ export function App() {
   const browserSurfaceLocked = initialSurface === 'browser';
   const [initialProject] = useState(readSavedProject);
   const [initialPreferences] = useState(readSavedPreferences);
+  const initialCriterionId =
+    initialProject.criteria.find((criterion) => criterion.id === 'cites-uncertainty')?.id ??
+    initialProject.criteria[0]?.id ??
+    '';
   const [baselineProject, setBaselineProject] = useState(initialProject);
   const [state, dispatch] = useReducer(reducer, {
     project: initialProject,
-    selectedCriterionId: initialProject.criteria[0]?.id ?? '',
+    selectedCriterionId: initialCriterionId,
     selectedSampleId: initialProject.samples[0]?.id ?? '',
     undoStack: [],
     redoStack: [],
@@ -392,7 +398,7 @@ export function App() {
   const [paletteQuery, setPaletteQuery] = useState('');
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickOpenQuery, setQuickOpenQuery] = useState('');
-  const [wizardOpen, setWizardOpen] = useState(() => localStorage.getItem('rso:onboarded') !== 'yes');
+  const [wizardOpen, setWizardOpen] = useState(() => new URLSearchParams(window.location.search).get('tour') === '1');
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('safety');
   const [regex, setRegex] = useState(false);
@@ -986,31 +992,47 @@ export function App() {
   }
 
   return (
-    <main className="app-shell" data-surface={surface} data-theme={visualMode} data-locale={locale}>
+    <main className="app-shell studio-shell" data-surface={surface} data-theme={visualMode} data-locale={locale}>
       <a className="skip-link" href="#main-panel">
         {messages.skipToEditor}
       </a>
       <header className="topbar" role="banner">
         <div className="brand">
           <span className="app-icon" aria-hidden="true">
-            RS
+            <RubricStudioMark size={22} />
           </span>
           <div>
-            <h1>Rubric Studio Open</h1>
-            <p>{surface === 'browser' ? messages.browserEdition : messages.desktopEdition} · {messages.localFirstRubricIde}</p>
+            <h1>AuraOne <span>· Rubric Studio</span></h1>
+            <p>{surface === 'browser' ? 'Browser edition' : 'Desktop edition'} · local-first rubric IDE</p>
           </div>
         </div>
+        <div className="project-crumb" aria-label="Current project">
+          <span>local</span>
+          <span aria-hidden="true">/</span>
+          <strong>{state.project.name}</strong>
+          <em>{state.project.branch}</em>
+        </div>
+        <button className="studio-search" type="button" onClick={() => setPaletteOpen(true)}>
+          <Search className="button-icon" aria-hidden="true" />
+          <span>Search criteria, samples, commands...</span>
+          <kbd>⌘K</kbd>
+        </button>
         <ApplicationMenu shortcuts={shortcuts} onExecute={executeCommand} />
         <div className="top-actions">
-          <button className="glass-button" type="button" onClick={() => setTemplateDialogOpen(true)}>
-            <FilePlus2 className="button-icon" aria-hidden="true" />
-            {messages.newFromTemplate}
-          </button>
+          <div className="readiness-pill" aria-label={`Project readiness ${health.readiness}%`}>
+            <span aria-hidden="true" style={{ background: `conic-gradient(var(--rs-accent) ${health.readiness}%, var(--rs-line) 0)` }} />
+            <strong>{health.readiness}%</strong>
+            <small>Readiness</small>
+          </div>
           {surface === 'desktop' ? (
             <>
-              <button className="glass-button" type="button" onClick={() => void openProjectPicker()}>
+              <button className="glass-button" type="button" aria-label={messages.openFolder} onClick={() => void openProjectPicker()}>
                 <FolderOpen className="button-icon" aria-hidden="true" />
-                {messages.openFolder}
+                Open
+              </button>
+              <button className="glass-button" type="button" aria-label={messages.newFromTemplate} onClick={() => setTemplateDialogOpen(true)}>
+                <FilePlus2 className="button-icon" aria-hidden="true" />
+                New
               </button>
               <label className="recent-picker">
                 <span>{messages.recent}</span>
@@ -1032,7 +1054,14 @@ export function App() {
                 </select>
               </label>
             </>
-          ) : null}
+          ) : (
+            <button className="glass-button" type="button" aria-label={messages.newFromTemplate} onClick={() => setTemplateDialogOpen(true)}>
+              <FilePlus2 className="button-icon" aria-hidden="true" />
+              New
+            </button>
+          )}
+          <span className="sync-readout"><i /> Synced · local</span>
+          <span className="user-token" aria-hidden="true">e</span>
           <BrowserProjectControls
             project={state.project}
             surface={surface}
@@ -1043,10 +1072,6 @@ export function App() {
               setToast('Imported local project bundle');
             }}
           />
-          <button className="glass-button" type="button" onClick={() => setPaletteOpen(true)}>
-            <Command className="button-icon" aria-hidden="true" />
-            {messages.commandShortcut}
-          </button>
           <label className="switch">
             <span>{messages.browserConstraints}</span>
             <input
@@ -1066,6 +1091,35 @@ export function App() {
         </div>
       </header>
 
+      <nav className="tabbar" role="tablist" aria-label={messages.tabsLabel}>
+        {tabs.map((tab) => {
+          const TabIcon = tabIcons[tab.id];
+          return (
+            <button
+              ref={(button) => {
+                tabRefs.current[tab.id] = button;
+              }}
+              key={tab.id}
+              className={tab.id === activeTab ? 'tab active' : 'tab'}
+              type="button"
+              role="tab"
+              aria-selected={tab.id === activeTab}
+              aria-controls="main-panel"
+              tabIndex={tab.id === activeTab ? 0 : -1}
+              onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                emit('tab.opened', { tab: tab.id });
+              }}
+            >
+              <TabIcon className="button-icon" aria-hidden="true" />
+              {messages.tabs[tab.id]}
+              <span>{shortcutForAction(shortcuts, tab.action).replace('Cmd/Ctrl-', '')}</span>
+            </button>
+          );
+        })}
+      </nav>
+
       <div className="workspace">
         <ProjectSidebar
           project={state.project}
@@ -1077,12 +1131,13 @@ export function App() {
           onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
           onDeleteCriterion={(criterionId) => setDeleteCriterionId(criterionId)}
           onNewCriterion={(themeId) => dispatch({ type: 'addCriterion', themeId })}
+          onReorderCriterion={(draggedId, targetId) => dispatch({ type: 'reorderCriterion', draggedId, targetId })}
           onOpenContainingFolder={(path, label) => void openSidebarPath(path, label, 'containing')}
           onRevealInFileManager={(path, label) => void openSidebarPath(path, label, 'reveal')}
         />
         <section
           id="main-panel"
-          className="main-panel"
+          className="main-panel workbench"
           role="tabpanel"
           tabIndex={-1}
           aria-label={messages.panelLabel(messages.tabs[activeTab])}
@@ -1108,6 +1163,8 @@ export function App() {
               onBulkUpdate={(criterionIds, patch) => dispatch({ type: 'bulkUpdateCriteria', criterionIds, patch })}
               onBulkDelete={(criterionIds) => dispatch({ type: 'bulkDeleteCriteria', criterionIds })}
               onAdd={(themeId) => dispatch({ type: 'addCriterion', themeId })}
+              onDuplicate={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
+              onCompare={() => setActiveTab('diff')}
               onMove={(direction) => dispatch({ type: 'moveCriterion', criterionId: selectedCriterion.id, direction })}
               onReorder={(draggedId, targetId) => dispatch({ type: 'reorderCriterion', draggedId, targetId })}
               onToggleTheme={(themeId) => dispatch({ type: 'toggleTheme', themeId })}
@@ -1207,35 +1264,6 @@ export function App() {
         </div>
         <div>{messages.status.git}: {state.project.branch} · {openedProjectPath ? `folder ${openedProjectPath}` : messages.status.syncLocal} · {toast}</div>
       </footer>
-
-      <nav className="tabbar" role="tablist" aria-label={messages.tabsLabel}>
-        {tabs.map((tab) => {
-          const TabIcon = tabIcons[tab.id];
-          return (
-            <button
-              ref={(button) => {
-                tabRefs.current[tab.id] = button;
-              }}
-              key={tab.id}
-              className={tab.id === activeTab ? 'tab active' : 'tab'}
-              type="button"
-              role="tab"
-              aria-selected={tab.id === activeTab}
-              aria-controls="main-panel"
-              tabIndex={tab.id === activeTab ? 0 : -1}
-              onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
-              onClick={() => {
-                setActiveTab(tab.id);
-                emit('tab.opened', { tab: tab.id });
-              }}
-            >
-              <TabIcon className="button-icon" aria-hidden="true" />
-              {messages.tabs[tab.id]}
-              <span>{shortcutForAction(shortcuts, tab.action).replace('Cmd/Ctrl-', '')}</span>
-            </button>
-          );
-        })}
-      </nav>
 
       {paletteOpen ? (
         <CommandPalette
@@ -1583,7 +1611,7 @@ function readSavedPreferences(): StudioPreferences {
     telemetryEnabled: false,
     crashReportingEnabled: false,
     updateChannel: 'stable',
-    visualMode: 'dark',
+    visualMode: 'light',
     noNetworkMode: false,
     locale: 'en',
   };
@@ -1597,7 +1625,7 @@ function readSavedPreferences(): StudioPreferences {
       telemetryEnabled: parsed.telemetryEnabled === true,
       crashReportingEnabled: parsed.crashReportingEnabled === true,
       updateChannel: parsed.updateChannel === 'beta' ? 'beta' : 'stable',
-      visualMode: parsed.visualMode === 'light' || parsed.visualMode === 'high-contrast' ? parsed.visualMode : 'dark',
+      visualMode: parsed.visualMode === 'high-contrast' ? 'high-contrast' : 'light',
       noNetworkMode: parsed.noNetworkMode === true,
       locale: normalizeLocale(parsed.locale),
     };

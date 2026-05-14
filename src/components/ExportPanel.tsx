@@ -104,7 +104,7 @@ export function ExportPanel({
             </select>
           </label>
         </div>
-        <pre className="export-preview">{intakeManifest}</pre>
+        <pre className="export-preview" tabIndex={0} aria-label="Intake package manifest JSON">{intakeManifest}</pre>
       </section>
       <aside className="glass-panel">
         <div className="panel-title"><div><p>Adapters</p><h2>{exportEntries.length} outputs</h2></div></div>

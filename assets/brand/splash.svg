@@ -1,22 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
   <title id="title">Rubric Studio Open splash screen</title>
-  <desc id="desc">A launch splash for Rubric Studio Open with the product logo and local-first rubric IDE tagline.</desc>
-  <defs>
-    <linearGradient id="splash-bg" x1="0" y1="0" x2="1920" y2="1080" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#061113"/>
-      <stop offset="0.58" stop-color="#0a1f25"/>
-      <stop offset="1" stop-color="#101526"/>
-    </linearGradient>
-    <linearGradient id="mark" x1="760" y1="280" x2="1160" y2="680" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#34d9ff"/>
-      <stop offset="0.55" stop-color="#18d6a3"/>
-      <stop offset="1" stop-color="#a78bfa"/>
-    </linearGradient>
-  </defs>
-  <rect width="1920" height="1080" fill="url(#splash-bg)"/>
-  <rect x="780" y="250" width="360" height="360" rx="96" fill="url(#mark)"/>
-  <rect x="822" y="292" width="276" height="276" rx="72" fill="#071417"/>
-  <text x="960" y="466" fill="#e8fbff" font-family="Inter, Arial, sans-serif" font-size="94" font-weight="800" text-anchor="middle">RS</text>
-  <text x="960" y="720" fill="#e8fbff" font-family="Inter, Arial, sans-serif" font-size="56" font-weight="800" text-anchor="middle">Rubric Studio Open</text>
-  <text x="960" y="784" fill="#8daeb6" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="500" text-anchor="middle">Local-first rubric IDE</text>
+  <desc id="desc">A light launch splash for Rubric Studio Open with the AuraOne mark.</desc>
+  <rect width="1920" height="1080" fill="#f7f7f4"/>
+  <rect x="860" y="314" width="200" height="200" rx="44" fill="#17110f"/>
+  <text
+    x="960"
+    y="450"
+    fill="#fff9ef"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="118"
+    font-style="italic"
+    font-weight="400"
+    text-anchor="middle"
+  >a</text>
+  <text x="960" y="622" fill="#191512" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="400" text-anchor="middle">AuraOne · Rubric Studio</text>
+  <text x="960" y="674" fill="#5f5a55" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="400" text-anchor="middle">Local-first rubric IDE</text>
 </svg>

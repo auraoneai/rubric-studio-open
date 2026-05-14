@@ -1,5 +1,6 @@
 :root {
   color-scheme: dark;
+  --rso-sidebar-width: 300px;
   --bg: #061113;
   --bg-2: #09191d;
   --panel: rgba(12, 31, 36, 0.78);
@@ -24,12 +25,29 @@
 body {
   margin: 0;
   min-width: 1024px;
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
   background:
     radial-gradient(circle at 16% 0%, rgba(52, 217, 255, 0.18), transparent 28%),
     radial-gradient(circle at 92% 12%, rgba(24, 214, 163, 0.16), transparent 24%),
     linear-gradient(145deg, var(--bg), #08171b 48%, #101526);
   color: var(--text);
+}
+
+html {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 button,
@@ -86,9 +104,12 @@ pre {
 }
 
 .app-shell {
-  min-height: 100vh;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
 }
 
 .app-shell[data-theme="light"] {
@@ -162,6 +183,7 @@ pre {
 
 .topbar {
   min-height: 72px;
+  margin-left: var(--rso-sidebar-width);
   padding: 10px 16px;
 }
 
@@ -195,12 +217,10 @@ small {
   place-items: center;
   width: 38px;
   height: 38px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--cyan), var(--emerald) 54%, var(--violet));
-  color: #041315;
-  font-weight: 800;
-  letter-spacing: 0;
-  box-shadow: 0 12px 32px rgba(24, 214, 163, 0.24);
+  overflow: hidden;
+  border-radius: 9px;
+  background: #071519;
+  box-shadow: 0 12px 32px rgba(24, 214, 163, 0.18);
 }
 
 .app-icon.large {
@@ -367,16 +387,74 @@ small {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  display: block;
   min-height: 0;
+  margin-left: var(--rso-sidebar-width);
+  overflow: hidden;
 }
 
 .sidebar {
-  padding: 16px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: var(--rso-sidebar-width);
+  min-width: var(--rso-sidebar-width);
+  height: 100dvh;
+  min-height: 0;
   border-right: 1px solid var(--border);
   background: rgba(5, 18, 21, 0.7);
-  overflow: auto;
+  overflow: hidden;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 17px 18px 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-brand-mark {
+  flex: 0 0 auto;
+  display: block;
+}
+
+.sidebar-brand div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.sidebar-brand strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-brand span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sidebar-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
 }
 
 .sidebar-header {
@@ -649,8 +727,10 @@ small {
 }
 
 .context-menu {
-  position: sticky;
+  position: absolute;
+  right: 12px;
   bottom: 12px;
+  left: 12px;
   z-index: 4;
   display: grid;
   gap: 4px;
@@ -676,8 +756,10 @@ small {
 
 .main-panel {
   min-width: 0;
+  height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 14px;
 }
 
@@ -1755,6 +1837,7 @@ small {
 
 .statusbar {
   justify-content: space-between;
+  margin-left: var(--rso-sidebar-width);
   padding: 8px 16px;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -1764,6 +1847,7 @@ small {
 
 .tabbar {
   gap: 6px;
+  margin-left: var(--rso-sidebar-width);
   padding: 8px 16px;
   border-bottom: 0;
 }
@@ -1992,7 +2076,64 @@ small {
   }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1020px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body {
+    min-width: 0;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .topbar,
+  .workspace,
+  .statusbar,
+  .tabbar {
+    margin-left: 0;
+  }
+
+  .sidebar {
+    position: static;
+    z-index: auto;
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+  }
+
+  .sidebar-nav {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .main-panel {
+    width: 100%;
+    max-width: 100vw;
+    height: auto;
+    min-height: 0;
+    overflow-x: hidden;
+  }
+
+  .context-menu {
+    position: static;
+    margin: 0 12px 12px;
+  }
+}
+
+@media (min-width: 1021px) and (max-width: 1180px) {
   body {
     min-width: 1024px;
   }
@@ -2008,9 +2149,9 @@ small {
   }
 }
 
-@media (max-width: 1100px) {
+@media (min-width: 1021px) and (max-width: 1100px) {
   .workspace {
-    grid-template-columns: 232px minmax(0, 1fr);
+    margin-left: var(--rso-sidebar-width);
   }
 
   .top-actions,

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { configureProviderKey } from '../domain/keychain';
 import { detectOllama } from '../domain/ollama';
 import type { JudgeConfig, SurfaceMode } from '../domain/rubric';
+import { RubricStudioMark } from './RubricStudioMark';
 import { useDialogFocusTrap } from './useDialogFocusTrap';
 
 export function FirstRunWizard({
@@ -88,7 +89,9 @@ export function FirstRunWizard({
           }
         }}
       >
-        <div className="app-icon large">RS</div>
+        <div className="app-icon large" aria-hidden="true">
+          <RubricStudioMark size={58} />
+        </div>
         <h2>Sixty seconds to first value</h2>
         <div className="wizard-steps">
           <div><strong>1. Look at the rubric</strong><span>A 12-criterion helpful-response project is preloaded with themes, samples, and judges.</span></div>

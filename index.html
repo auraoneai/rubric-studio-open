@@ -9,6 +9,8 @@
     />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>Rubric Studio Open</title>
     <style>
       .boot-splash {
@@ -24,12 +26,11 @@
         width: 76px;
         height: 76px;
         margin: 0 auto 18px;
+        overflow: hidden;
         border-radius: 18px;
-        background: linear-gradient(135deg, #34d9ff, #18d6a3 56%, #a78bfa);
+        background: #071519;
         display: grid;
         place-items: center;
-        color: #041315;
-        font-weight: 800;
       }
 
       .boot-splash p {
@@ -42,7 +43,9 @@
     <div id="root">
       <div class="boot-splash" role="status" aria-live="polite">
         <div>
-          <div class="boot-splash__mark" aria-hidden="true">RS</div>
+          <div class="boot-splash__mark" aria-hidden="true">
+            <img src="/icon-192.png" alt="" width="76" height="76" />
+          </div>
           <p>Loading Rubric Studio Open...</p>
         </div>
       </div>

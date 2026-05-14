@@ -63,6 +63,7 @@ import { FirstRunWizard } from './components/FirstRunWizard';
 import { AuthoringPanel } from './components/AuthoringPanel';
 import { DeleteCriterionDialog, TemplateProjectDialog } from './components/StudioDialogs';
 import { ApplicationMenu } from './components/ApplicationMenu';
+import { RubricStudioMark } from './components/RubricStudioMark';
 import type { SampleActionRequest } from './components/SampleControls';
 import { useDialogFocusTrap } from './components/useDialogFocusTrap';
 
@@ -986,18 +987,18 @@ export function App() {
   }
 
   return (
-    <main className="app-shell" data-surface={surface} data-theme={visualMode} data-locale={locale}>
+    <main className="app-shell studio-shell" data-surface={surface} data-theme={visualMode} data-locale={locale}>
       <a className="skip-link" href="#main-panel">
         {messages.skipToEditor}
       </a>
       <header className="topbar" role="banner">
         <div className="brand">
           <span className="app-icon" aria-hidden="true">
-            RS
+            <RubricStudioMark size={38} />
           </span>
           <div>
             <h1>Rubric Studio Open</h1>
-            <p>{surface === 'browser' ? messages.browserEdition : messages.desktopEdition} · {messages.localFirstRubricIde}</p>
+            <p>{surface === 'browser' ? 'Browser preview' : 'Desktop IDE'}</p>
           </div>
         </div>
         <ApplicationMenu shortcuts={shortcuts} onExecute={executeCommand} />
@@ -1082,7 +1083,7 @@ export function App() {
         />
         <section
           id="main-panel"
-          className="main-panel"
+          className="main-panel workbench"
           role="tabpanel"
           tabIndex={-1}
           aria-label={messages.panelLabel(messages.tabs[activeTab])}

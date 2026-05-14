@@ -17,10 +17,8 @@ import {
   statusOptions,
   type Criterion,
   type RubricProject,
-  type ValidationIssue,
 } from '../domain/rubric';
 import { searchProject, validateProject } from '../domain/validation';
-import { useDialogFocusTrap } from './useDialogFocusTrap';
 import './AuthoringPanel.css';
 
 export function AuthoringPanel(props: {
@@ -43,6 +41,8 @@ export function AuthoringPanel(props: {
   onBulkUpdate: (criterionIds: string[], patch: Partial<Criterion>) => void;
   onBulkDelete: (criterionIds: string[]) => void;
   onAdd: (themeId: string) => void;
+  onDuplicate: (criterionId: string) => void;
+  onCompare: () => void;
   onMove: (direction: -1 | 1) => void;
   onReorder: (draggedId: string, targetId: string) => void;
   onToggleTheme: (themeId: string) => void;
@@ -54,16 +54,10 @@ export function AuthoringPanel(props: {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [inFileQuery, setInFileQuery] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
-  const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState<string[] | null>(null);
   const inFileInputRef = useRef<HTMLInputElement>(null);
   const projectSearchInputRef = useRef<HTMLInputElement>(null);
   const bulkSelected = new Set(bulkIds);
   const inFileMatches = useMemo(() => findCriterionMatches(criterion, inFileQuery), [criterion, inFileQuery]);
-  const visibleIssues = useMemo(
-    () => issues.filter((issue) => !issue.criterionId || issue.criterionId === criterion.id),
-    [criterion.id, issues],
-  );
-  const issuesForField = (field: string) => visibleIssues.filter((issue) => issue.field === field);
 
   useEffect(() => {
     if (props.focusRequest?.target === 'in-file') {
@@ -90,16 +84,10 @@ export function AuthoringPanel(props: {
   function bulkDelete() {
     const count = bulkIds.length;
     if (count === 0) return;
-    setPendingBulkDeleteIds([...bulkIds]);
-  }
-
-  function confirmBulkDelete() {
-    if (!pendingBulkDeleteIds?.length) {
-      return;
+    if (window.confirm(`Delete ${count} selected criterion${count === 1 ? '' : 's'}?`)) {
+      props.onBulkDelete(bulkIds);
+      setBulkIds([]);
     }
-    props.onBulkDelete(pendingBulkDeleteIds);
-    setBulkIds([]);
-    setPendingBulkDeleteIds(null);
   }
 
   function addComment() {
@@ -111,63 +99,73 @@ export function AuthoringPanel(props: {
     setCommentDraft('');
   }
 
-  function applyQuickFix(issue: (typeof issues)[number]) {
-    if (issue.quickFix === 'Use draft label') {
-      props.onUpdate({ label: 'Draft criterion' });
-    }
-    if (issue.quickFix === 'Shorten label') {
-      props.onUpdate({ label: criterion.label.slice(0, 80).trim() });
-    }
-    if (issue.quickFix === 'Derive slug from label') {
-      props.onUpdate({ id: slugify(criterion.label) });
-    }
-    if (issue.quickFix === 'Add description starter') {
-      props.onUpdate({ description: 'Describe the observable reviewer-visible behavior this criterion measures.' });
-    }
-    if (issue.quickFix === 'Trim description') {
-      props.onUpdate({ description: criterion.description.slice(0, 2000).trim() });
-    }
-    if (issue.quickFix === 'Clamp weight') {
-      props.onUpdate({ weight: Math.min(1, Math.max(0, criterion.weight)) });
-    }
-    if (issue.quickFix === 'Normalize theme weights') {
-      const themeCriteria = project.criteria.filter((item) => item.themeId === criterion.themeId);
-      if (themeCriteria.length > 0) {
-        props.onBulkUpdate(
-          themeCriteria.map((item) => item.id),
-          { weight: Number((1 / themeCriteria.length).toFixed(2)) },
-        );
-      }
-    }
-    if (issue.quickFix === 'Add positive example') {
-      props.onUpdate({
-        positiveExamples: [
-          ...criterion.positiveExamples,
-          `Positive calibration example ${criterion.positiveExamples.length + 1}`,
-        ],
-      });
-    }
-    if (issue.quickFix === 'Add negative example') {
-      props.onUpdate({
-        negativeExamples: [
-          ...criterion.negativeExamples,
-          `Negative calibration example ${criterion.negativeExamples.length + 1}`,
-        ],
-      });
-    }
-    if (issue.quickFix === 'Add observable wording') {
-      props.onUpdate({
-        description: `${criterion.description.trim()} Reviewers should score only observable behavior supported by evidence in the response.`,
-      });
-    }
-    if (issue.quickFix === 'Remove invalid references') {
-      props.onUpdate({ references: criterion.references.filter(isUrlOrDoi) });
-    }
-    if (issue.quickFix === 'Remove missing sibling links') {
-      const validIds = new Set(project.criteria.map((item) => item.id));
-      props.onUpdate({ siblingLinks: criterion.siblingLinks.filter((link) => validIds.has(link)) });
-    }
-  }
+  return (
+    <div className="rs-surface">
+      <header className="rs-surface-header">
+        <div className="rs-breadcrumb">
+          <span>{project.themes.find((theme) => theme.id === criterion.themeId)?.label ?? 'Rubric'}</span>
+          <b aria-hidden="true">›</b>
+          <code>{criterion.id}.toml</code>
+        </div>
+        <div className="rs-header-actions">
+          <button className="ghost-button icon-only" type="button" aria-label="Move criterion up" onClick={() => props.onMove(-1)}><ArrowUp className="button-icon" aria-hidden="true" /><span className="rs-visually-hidden">Move criterion up</span></button>
+          <button className="ghost-button icon-only" type="button" aria-label="Move criterion down" onClick={() => props.onMove(1)}><ArrowDown className="button-icon" aria-hidden="true" /><span className="rs-visually-hidden">Move criterion down</span></button>
+          <button className="ghost-button" type="button" onClick={() => props.onDuplicate(criterion.id)}>Duplicate</button>
+          <button className="ghost-button" type="button" onClick={props.onCompare}>Compare</button>
+          <button className="glass-button primary" type="button" onClick={() => props.onUpdate({ status: 'Live' })}>Promote to LIVE</button>
+        </div>
+      </header>
+      <div className="rs-author-body">
+        <article className="rs-criterion-doc" aria-label="Criterion as document">
+          <div className="rs-doc-status">
+            <span className={`rs-pill status-${criterion.status.toLowerCase()}`}>{criterion.status}</span>
+            <span className="rs-pill">{criterion.scale}</span>
+            <span className="rs-pill">w {criterion.weight.toFixed(2)}</span>
+            <span className="rs-pill">{criterion.evidenceRequirement}</span>
+            <span className="rs-doc-edited">Edited 12m ago by ev</span>
+          </div>
+          <h2 className="rs-title-editor" aria-label={criterion.label}>
+            <label><span>Criterion title</span><input aria-label="Label" value={criterion.label} onChange={(event) => props.onUpdate({ label: event.target.value })} /></label>
+          </h2>
+          <label className="rs-lede-editor"><span>Reviewer-visible behavior</span><textarea value={criterion.description} onChange={(event) => props.onUpdate({ description: event.target.value })} /></label>
+          <section className="rs-meta-strip" aria-label="Criterion metadata">
+            <Field label="Scale"><select value={criterion.scale} onChange={(event) => props.onUpdate({ scale: event.target.value as Criterion['scale'] })}>{scaleOptions.map((scale) => <option key={scale}>{scale}</option>)}</select></Field>
+            <Field label="Weight"><input type="number" min="0" max="1" step="0.05" value={criterion.weight} onChange={(event) => props.onUpdate({ weight: Number(event.target.value) })} /></Field>
+            <Field label="Evidence"><select value={criterion.evidenceRequirement} onChange={(event) => props.onUpdate({ evidenceRequirement: event.target.value as Criterion['evidenceRequirement'] })}>{evidenceOptions.map((option) => <option key={option}>{option}</option>)}</select></Field>
+            <Field label="Status"><select value={criterion.status} onChange={(event) => props.onUpdate({ status: event.target.value as Criterion['status'] })}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></Field>
+            <Field label="ID" issueCount={issues.filter((issue) => issue.field === 'id').length}><div className="with-button"><textarea className="rs-meta-id" value={criterion.id} onChange={(event) => props.onUpdate({ id: slugify(event.target.value) })} /><button className="ghost-button" type="button" onClick={() => props.onUpdate({ id: slugify(criterion.label) })}>Fix</button></div></Field>
+          </section>
+          <DocSection n="01" title="Description"><label className="rs-prose-field"><textarea aria-label="Criterion description" value={criterion.description} onChange={(event) => props.onUpdate({ description: event.target.value })} /></label></DocSection>
+          <DocSection n="02" title="Examples" right={<span>Examples train the calibration set</span>}>
+            <div className="rs-example-pair">
+              <ExampleEditor kind="positive" lines={criterion.positiveExamples} onChange={(lines) => props.onUpdate({ positiveExamples: lines })} />
+              <ExampleEditor kind="negative" lines={criterion.negativeExamples} onChange={(lines) => props.onUpdate({ negativeExamples: lines })} />
+            </div>
+          </DocSection>
+          <DocSection n="03" title="Evidence schema" right={<code>{criterion.evidenceRequirement}</code>}>
+            <pre className="rs-schema-preview">{`evidence.required = ${criterion.evidenceRequirement === 'none' ? 'false' : 'true'}\nevidence.kind     = \"${criterion.evidenceRequirement}\"\nevidence.cite     = \"response_text\"\nevidence.minimum  = 1`}</pre>
+          </DocSection>
+          {props.commentsVisible ? (
+            <DocSection n="04" title="Notes" ariaLabel="Criterion comments">
+              <div className="rs-notes">
+                {criterion.comments.map((comment, index) => <article className="comment-card" key={`${criterion.id}-comment-${index}`}><strong>Local note {index + 1}</strong><p>{comment}</p></article>)}
+                <label className="comment-composer"><span>Add local comment</span><textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Reviewer note, rewrite concern, or follow-up to check before commit." /></label>
+                <button className="glass-button" type="button" disabled={!commentDraft.trim()} onClick={addComment}>Add comment</button>
+              </div>
+            </DocSection>
+          ) : null}
+          <DocSection n="05" title="Advanced rubric-spec" right={<span>Click to expand →</span>}>
+            <details className="details-grid"><summary>tags · domain · risk · fallback_behavior · stop_conditions</summary><Field label="Tags"><input list="tag-options" value={criterion.tags.join(', ')} onChange={(event) => props.onUpdate({ tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} /><datalist id="tag-options">{tagOptions.map((tag) => <option key={tag} value={tag} />)}</datalist></Field><Field label="Boundaries"><textarea value={criterion.boundaries} onChange={(event) => props.onUpdate({ boundaries: event.target.value })} /></Field></details>
+          </DocSection>
+        </article>
+        <aside className="rs-copilot-rail" aria-label="Validation and search">
+          <div className="rs-rail-block"><div className="rs-eyebrow">Inline validation</div><div className="rs-rail-number">{issues.length}<span>signals on this criterion</span></div>{issues.length === 0 ? <><SuccessState title="Spec checks pass" body="Style, schema, weights, and ID slug all clean." /><div className="rs-warning-state" role="status"><strong>Still in TODO</strong><p>Promote to DRAFT once examples are reviewed.</p></div></> : <div className="issue-list">{issues.map((issue) => <div key={issue.id} className={`issue ${issue.severity}`}><strong>{issue.field}</strong><span>{issue.message}</span></div>)}</div>}</div>
+          <div className="rs-rail-block"><label className="rs-rail-search"><span>In-file find</span><input ref={inFileInputRef} aria-label="In-file find" value={inFileQuery} onChange={(event) => setInFileQuery(event.target.value)} /></label>{inFileQuery ? <small className="rs-search-count">{inFileMatches.length} {inFileMatches.length === 1 ? 'match' : 'matches'} in this criterion</small> : null}<div className="search-results">{inFileMatches.slice(0, 5).map((match) => <button key={`${match.field}-${match.index}-${match.excerpt}`} type="button"><Search className="button-icon" aria-hidden="true" /><strong className="search-result-title"><span className="search-result-field">{match.field}</span></strong><small>{match.excerpt}</small></button>)}</div></div>
+          <div className="rs-rail-block"><label className="rs-rail-search"><span>Across-project search</span><input ref={projectSearchInputRef} value={props.searchQuery} onChange={(event) => props.setSearchQuery(event.target.value)} /></label><div className="toggle-row rs-search-toggles"><label><input type="checkbox" checked={props.regex} onChange={(event) => props.setRegex(event.target.checked)} />Regex</label><label><input type="checkbox" checked={props.caseSensitive} onChange={(event) => props.setCaseSensitive(event.target.checked)} />Case</label><label><input type="checkbox" checked={props.wholeWord} onChange={(event) => props.setWholeWord(event.target.checked)} />Word</label></div><div className="search-results">{props.searchResults.slice(0, 8).map((result) => <button key={`${result.criterionId}-${result.field}-${result.excerpt}`} type="button" onClick={() => props.onSelect(result.criterionId)}><Search className="button-icon" aria-hidden="true" /><strong className="search-result-title"><span>{result.criterionId}</span><span className="search-result-field">{result.field}</span></strong><small>{result.excerpt}</small></button>)}</div></div>
+        </aside>
+      </div>
+    </div>
+  );
 
   return (
     <div className="panel-grid authoring-grid">
@@ -179,7 +177,7 @@ export function AuthoringPanel(props: {
           </div>
           <button className="glass-button" type="button" onClick={() => props.onAdd(project.themes[0].id)}>
             <Plus className="button-icon" aria-hidden="true" />
-            + Criterion
+            Criterion
           </button>
         </div>
         {bulkIds.length > 0 ? (
@@ -292,11 +290,17 @@ export function AuthoringPanel(props: {
                           }}
                           onDragEnd={() => setDragOverId(null)}
                         >
-                          <span>{item.label}</span>
-                          <small>{item.scale}</small>
-                          <b>{item.weight.toFixed(2)}</b>
-                          <em>{item.status}</em>
-                          <span className="tags">{item.tags.join(' ')}</span>
+                          <span className="criterion-label">{item.label}</span>
+                          <span className="criterion-meta">
+                            <small>{item.scale}</small>
+                            <b>{item.weight.toFixed(2)}</b>
+                            <em>{item.status}</em>
+                          </span>
+                          <span className="tags" aria-label={`Tags: ${item.tags.join(', ')}`}>
+                            {item.tags.map((tag) => (
+                              <span key={tag}>{tag}</span>
+                            ))}
+                          </span>
                         </button>
                       </div>
                     ))
@@ -359,10 +363,10 @@ export function AuthoringPanel(props: {
           </section>
         ) : null}
         <div className="form-grid">
-          <Field label="Label" issues={issuesForField('label')}>
+          <Field label="Label" issueCount={issues.filter((issue) => issue.field === 'label').length}>
             <input value={criterion.label} onChange={(event) => props.onUpdate({ label: event.target.value })} />
           </Field>
-          <Field label="ID" issues={issuesForField('id')}>
+          <Field label="ID" issueCount={issues.filter((issue) => issue.field === 'id').length}>
             <div className="with-button">
               <input value={criterion.id} onChange={(event) => props.onUpdate({ id: slugify(event.target.value) })} />
               <button className="ghost-button" type="button" onClick={() => props.onUpdate({ id: slugify(criterion.label) })}>
@@ -371,7 +375,7 @@ export function AuthoringPanel(props: {
               </button>
             </div>
           </Field>
-          <Field label="Weight" issues={issuesForField('weight')}>
+          <Field label="Weight">
             <input
               type="number"
               min="0"
@@ -406,16 +410,16 @@ export function AuthoringPanel(props: {
             </select>
           </Field>
         </div>
-        <Field label="Description" issues={issuesForField('description')}>
+        <Field label="Description" issueCount={issues.filter((issue) => issue.field === 'description').length}>
           <textarea value={criterion.description} onChange={(event) => props.onUpdate({ description: event.target.value })} />
         </Field>
-        <Field label="Positive examples" issues={issuesForField('positiveExamples')}>
+        <Field label="Positive examples" issueCount={issues.filter((issue) => issue.field === 'positiveExamples').length}>
           <textarea
             value={criterion.positiveExamples.join('\n')}
             onChange={(event) => props.onUpdate({ positiveExamples: event.target.value.split('\n').filter(Boolean) })}
           />
         </Field>
-        <Field label="Negative examples" issues={issuesForField('negativeExamples')}>
+        <Field label="Negative examples" issueCount={issues.filter((issue) => issue.field === 'negativeExamples').length}>
           <textarea
             value={criterion.negativeExamples.join('\n')}
             onChange={(event) => props.onUpdate({ negativeExamples: event.target.value.split('\n').filter(Boolean) })}
@@ -438,10 +442,10 @@ export function AuthoringPanel(props: {
               {tagOptions.map((tag) => <option key={tag} value={tag} />)}
             </datalist>
           </Field>
-          <Field label="References" issues={issuesForField('references')}>
+          <Field label="References">
             <textarea value={criterion.references.join('\n')} onChange={(event) => props.onUpdate({ references: event.target.value.split('\n').filter(Boolean) })} />
           </Field>
-          <Field label="Sibling links" issues={issuesForField('siblingLinks')}>
+          <Field label="Sibling links">
             <input list="criterion-ref-options" value={criterion.siblingLinks.join(', ')} onChange={(event) => props.onUpdate({ siblingLinks: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
             <datalist id="criterion-ref-options">
               {project.criteria.filter((item) => item.id !== criterion.id).map((item) => <option key={item.id} value={item.id} />)}
@@ -453,7 +457,7 @@ export function AuthoringPanel(props: {
         <div className="panel-title">
           <div>
             <p>Inline validation</p>
-            <h2>{visibleIssues.length} signals</h2>
+            <h2>{issues.length} signals</h2>
           </div>
         </div>
         <div className="search-box">
@@ -476,20 +480,22 @@ export function AuthoringPanel(props: {
             {inFileMatches.slice(0, 6).map((match) => (
               <button key={`${match.field}-${match.index}-${match.excerpt}`} type="button">
                 <Search className="button-icon" aria-hidden="true" />
-                <strong>{match.field}</strong>
+                <strong className="search-result-title">
+                  <span className="search-result-field">{match.field}</span>
+                </strong>
                 <small>{match.excerpt}</small>
               </button>
             ))}
           </div>
         </div>
         <div className="issue-list">
-          {visibleIssues.length === 0 ? <SuccessState title="No criterion issues" body="rubric-spec and style checks pass for this criterion." /> : null}
-          {visibleIssues.map((issue) => (
+          {issues.length === 0 ? <SuccessState title="No criterion issues" body="rubric-spec and style checks pass for this criterion." /> : null}
+          {issues.map((issue) => (
             <div key={issue.id} className={`issue ${issue.severity}`}>
               <strong>{issue.field}</strong>
               <span>{issue.message}</span>
               {issue.quickFix ? (
-                <button className="ghost-button" type="button" onClick={() => applyQuickFix(issue)}>
+                <button className="ghost-button" type="button">
                   <Wrench className="button-icon" aria-hidden="true" />
                   {issue.quickFix}
                 </button>
@@ -516,93 +522,36 @@ export function AuthoringPanel(props: {
             {props.searchResults.slice(0, 8).map((result) => (
               <button key={`${result.criterionId}-${result.field}-${result.excerpt}`} type="button" onClick={() => props.onSelect(result.criterionId)}>
                 <Search className="button-icon" aria-hidden="true" />
-                <strong>{result.criterionId}</strong>
-                <span>{result.field}</span>
+                <strong className="search-result-title">
+                  <span>{result.criterionId}</span>
+                  <span className="search-result-field">{result.field}</span>
+                </strong>
                 <small>{result.excerpt}</small>
               </button>
             ))}
           </div>
         </div>
       </aside>
-      {pendingBulkDeleteIds ? (
-        <BulkDeleteDialog
-          count={pendingBulkDeleteIds.length}
-          onCancel={() => setPendingBulkDeleteIds(null)}
-          onDelete={confirmBulkDelete}
-        />
-      ) : null}
     </div>
   );
 }
 
-function BulkDeleteDialog({
-  count,
-  onCancel,
-  onDelete,
-}: {
-  count: number;
-  onCancel: () => void;
-  onDelete: () => void;
-}) {
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const criterionNoun = count === 1 ? 'criterion' : 'criteria';
-  useDialogFocusTrap(dialogRef);
-
+function Field({ label, issueCount = 0, children }: { label: string; issueCount?: number; children: ReactNode }) {
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onCancel}>
-      <section
-        ref={dialogRef}
-        className="studio-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bulk-delete-dialog-title"
-        aria-describedby="bulk-delete-dialog-body"
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            onCancel();
-          }
-        }}
-      >
-        <p className="eyebrow">Confirm bulk deletion</p>
-        <h2 id="bulk-delete-dialog-title">
-          Delete {count} selected {criterionNoun}?
-        </h2>
-        <p id="bulk-delete-dialog-body">
-          This removes the selected criteria from the local project. Commit or export a project bundle first if reviewers depend on these criteria.
-        </p>
-        <div className="inline-actions">
-          <button className="ghost-button" type="button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button className="danger-button" type="button" onClick={onDelete}>
-            Delete selected criteria
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Field({ label, issues = [], children }: { label: string; issues?: ValidationIssue[]; children: ReactNode }) {
-  const issueCount = issues.length;
-  const explanation = issues.map((issue) => issue.message).join(' ');
-  return (
-    <label className={issueCount > 0 ? 'field has-issue' : 'field'} title={explanation || undefined}>
-      <span>
-        {label}
-        {issueCount > 0 ? <em aria-label={`${issueCount} validation issue${issueCount === 1 ? '' : 's'}`}>{issueCount}</em> : null}
-      </span>
+    <label className={issueCount > 0 ? 'field has-issue' : 'field'}>
+      <span>{label}{issueCount > 0 ? <em>{issueCount}</em> : null}</span>
       {children}
-      {issueCount > 0 ? (
-        <small className="field-explanation" role="note">
-          {issues[0].message}
-        </small>
-      ) : null}
     </label>
   );
+}
+
+function DocSection({ n, title, right, ariaLabel, children }: { n: string; title: string; right?: ReactNode; ariaLabel?: string; children: ReactNode }) {
+  return <section className="rs-doc-section" role={ariaLabel ? 'region' : undefined} aria-label={ariaLabel}><header><code>{n}</code><h3>{title}</h3><div>{right}</div></header>{children}</section>;
+}
+
+function ExampleEditor({ kind, lines, onChange }: { kind: 'positive' | 'negative'; lines: string[]; onChange: (lines: string[]) => void }) {
+  const isPositive = kind === 'positive';
+  return <label className={isPositive ? 'rs-example-card positive' : 'rs-example-card negative'}><span>{isPositive ? '+ positive' : '− negative'}</span><textarea value={lines.join('\n')} onChange={(event) => onChange(event.target.value.split('\n').filter(Boolean))} /></label>;
 }
 
 function EmptyState({ title, body }: { title: string; body: string }) {
@@ -650,8 +599,4 @@ function excerptAround(value: string, index: number, length: number): string {
   const prefix = start > 0 ? '...' : '';
   const suffix = end < value.length ? '...' : '';
   return `${prefix}${value.slice(start, end)}${suffix}`;
-}
-
-function isUrlOrDoi(value: string): boolean {
-  return /^https?:\/\/\S+$/i.test(value) || /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i.test(value);
 }

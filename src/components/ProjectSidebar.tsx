@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { RubricProject } from '../domain/rubric';
-import { RubricStudioMark } from './RubricStudioMark';
 
 type ContextTarget =
   | { kind: 'root'; label: string; path: string | null; canCreateCriterion: boolean }
@@ -96,17 +95,12 @@ export function ProjectSidebar({
 
   return (
     <aside className="sidebar" aria-label="Project sidebar" onClick={() => setContextTarget(null)}>
-      <div className="sidebar-brand">
-        <RubricStudioMark size={34} className="sidebar-brand-mark" />
-        <div>
-          <strong>Rubric Studio</strong>
-          <span>Desktop IDE</span>
-        </div>
-      </div>
       <nav className="sidebar-nav" aria-label="Project files and actions">
         <div className="sidebar-header">
+          <h2 className="rs-product-heading">Rubric Studio Open</h2>
           <p>Project</p>
           <strong>{project.name}</strong>
+          <small>v{project.version} · {project.criteria.length} criteria · {project.samples.length} samples</small>
         </div>
         <div className="tree-group" role="tree" aria-label="Rubric criteria files">
           <button
@@ -121,7 +115,7 @@ export function ProjectSidebar({
             }
             onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'rubric/', path: projectPath, canCreateCriterion: true })}
           >
-            rubric/
+            Rubric
           </button>
           {project.themes.map((theme) => (
             <Fragment key={theme.id}>
@@ -180,7 +174,9 @@ export function ProjectSidebar({
                       })
                     }
                   >
-                    {criterion.status === 'Live' ? '●' : '○'} {criterion.id}.toml
+                    <span className={criterion.status === 'Live' ? 'tree-status live' : 'tree-status draft'} />
+                    <span className="tree-file-main">{criterion.label}</span>
+                    <small>{criterion.scale} · w{criterion.weight.toFixed(2)}</small>
                   </button>
                 ))}
             </Fragment>
@@ -195,7 +191,7 @@ export function ProjectSidebar({
               onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'root', label: 'samples/', path: projectFilePath('samples'), canCreateCriterion: false })}
               onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'samples/', path: projectFilePath('samples'), canCreateCriterion: false })}
             >
-              samples/
+              Samples
             </button>
           {project.samples.map((sample) => (
             <button
@@ -219,7 +215,8 @@ export function ProjectSidebar({
                 })
               }
             >
-              {sample.id}.jsonl
+              <span className="tree-status" />
+              <span className="tree-file-main">{sample.id}</span>
             </button>
           ))}
         </div>
@@ -232,7 +229,7 @@ export function ProjectSidebar({
             onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'root', label: 'judges/', path: projectFilePath('judges'), canCreateCriterion: false })}
             onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'judges/', path: projectFilePath('judges'), canCreateCriterion: false })}
           >
-            judges/
+            Judges
           </button>
           {project.judges.map((judge) => (
             <button
@@ -256,7 +253,8 @@ export function ProjectSidebar({
                 })
               }
             >
-              {judge.enabled ? '●' : '○'} {judge.id}.toml
+              <span className={judge.enabled ? 'tree-status live' : 'tree-status'} />
+              <span className="tree-file-main">{judge.id}</span>
             </button>
           ))}
         </div>

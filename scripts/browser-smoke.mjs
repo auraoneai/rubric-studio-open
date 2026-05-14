@@ -816,6 +816,15 @@ try {
   await expect(pluginCatalog).toContainText('"available": 1');
   await expect(pluginCatalog).toContainText('"blocked": 3');
   await expect(pluginCatalog).toContainText('"sendsUserContent": 1');
+  await pluginPanel.getByRole('button', { name: 'Load safe example' }).click();
+  await expect(pluginPanel.getByLabel('Engine plugin manifest JSON')).toContainText('community-safe-adapter');
+  await pluginPanel.getByRole('button', { name: 'Review manifest' }).click();
+  await expect(pluginPanel).toContainText('Plugin manifest accepted');
+  await expect(pluginPanel).toContainText('No remote code was installed');
+  await expect(pluginPanel).toContainText('Community safe adapter');
+  await expect(pluginCatalog).toContainText('"total": 6');
+  await expect(pluginCatalog).toContainText('"plugin_id": "community-safe-adapter"');
+  await expect(pluginCatalog).toContainText('"installable_without_network": true');
   await page.reload({ waitUntil: 'networkidle' });
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+6' : 'Control+6');
   await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();

@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible Rubric Studio Open bug.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Email security@auraone.ai.
+        Remove API keys, proprietary rubrics, private samples, local paths, hostnames,
+        customer names, and confidential model outputs before posting.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Desktop app
+        - Browser edition
+        - VS Code extension
+        - CLI/export
+        - Project format
+        - Calibration/live testing
+        - Diff/versioning
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Browser only
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands, project shape, and user actions.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Redact secrets, local paths, hostnames, private data, and proprietary content.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed API keys, private samples, proprietary rubrics, local paths, hostnames, and confidential content.
+          required: true

@@ -29,6 +29,8 @@ import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } fro
 import {
   enginePluginCatalog,
   enginePluginCompatibility,
+  reviewEnginePluginManifest,
+  safeExamplePluginManifest,
   summarizeEnginePluginCatalog,
   validateEnginePluginManifest,
 } from './pluginMarketplace';
@@ -184,6 +186,30 @@ assert.ok(validateEnginePluginManifest({
   manifestSha256: 'not-a-sha',
   sandbox: { ...enginePluginCatalog[3].sandbox, unsignedCode: true },
 }).length >= 2);
+const safePluginReview = reviewEnginePluginManifest(safeExamplePluginManifest(), 'browser');
+assert.equal(safePluginReview.accepted, true);
+assert.equal(safePluginReview.plugin?.id, 'community-safe-adapter');
+assert.equal(safePluginReview.installableWithoutNetwork, true);
+assert.equal(safePluginReview.executesRemoteCode, false);
+assert.equal(safePluginReview.sendsUserContent, false);
+const remotePluginReview = reviewEnginePluginManifest(JSON.stringify({
+  ...JSON.parse(safeExamplePluginManifest()),
+  id: 'unsafe-community-runner',
+  manifestSha256: '3f1b9b4f68e0d02fcb0606a4bfa9084d5a57bb32e295f710af36f4a59a11a4d8',
+  sandbox: {
+    runtime: 'node-sidecar',
+    requiresDesktop: true,
+    networkAccess: 'declared-endpoints',
+    fileSystem: 'project-read-write',
+    sendsUserContent: true,
+    unsignedCode: true,
+  },
+}), 'desktop');
+assert.equal(remotePluginReview.accepted, false);
+assert.equal(remotePluginReview.executesRemoteCode, true);
+assert.equal(remotePluginReview.sendsUserContent, true);
+assert.ok(remotePluginReview.errors.some((error) => error.includes('Community plugins')));
+assert.equal(reviewEnginePluginManifest('{', 'browser').accepted, false);
 const crdtSnapshot = buildReadOnlyCrdtSnapshot(sampleProject, 'reviewer one', '2026-05-13T00:00:00.000Z');
 assert.equal(crdtSnapshot.mode, 'read-only');
 assert.equal(crdtSnapshot.actorId, 'reviewer-one');

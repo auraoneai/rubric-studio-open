@@ -56,9 +56,47 @@ export interface EnginePluginCatalogSummary {
   sendsUserContent: number;
 }
 
+export interface EnginePluginManifestParseResult {
+  plugin: EnginePluginListing | null;
+  errors: string[];
+}
+
+export interface EnginePluginReviewReceipt {
+  accepted: boolean;
+  errors: string[];
+  plugin: EnginePluginListing | null;
+  compatibility: EnginePluginCompatibility | null;
+  reviewSummary: string;
+  installableWithoutNetwork: boolean;
+  executesRemoteCode: boolean;
+  sendsUserContent: boolean;
+}
+
 const sha256Pattern = /^[a-f0-9]{64}$/;
 const pluginIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const allowedLicenses = new Set<EnginePluginListing['license']>(['MIT', 'Apache-2.0', 'BSD-3-Clause']);
+const allowedCapabilities = new Set<EnginePluginCapability>([
+  'rubric-validation',
+  'calibration',
+  'bias-probe',
+  'contamination-audit',
+  'export-adapter',
+  'judge-scoring',
+  'semantic-diff',
+]);
+const allowedRuntimes = new Set<EnginePluginRuntime>(['rust-native', 'python-sidecar', 'wasm', 'node-sidecar']);
+const allowedTrustLevels = new Set<EnginePluginTrustLevel>(['built-in', 'verified-community', 'community-review']);
+const allowedInstallStates = new Set<EnginePluginInstallState>(['installed', 'available', 'blocked']);
+const allowedNetworkAccess = new Set<EnginePluginSandboxPolicy['networkAccess']>([
+  'none',
+  'explicit-provider',
+  'declared-endpoints',
+]);
+const allowedFileSystem = new Set<EnginePluginSandboxPolicy['fileSystem']>([
+  'none',
+  'project-read',
+  'project-read-write',
+]);
 
 export const enginePluginCatalog: EnginePluginListing[] = [
   {
@@ -269,4 +307,167 @@ export function summarizeEnginePluginCatalog(
       sendsUserContent: 0,
     },
   );
+}
+
+export function parseEnginePluginManifest(raw: string): EnginePluginManifestParseResult {
+  const errors: string[] = [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { plugin: null, errors: ['Plugin manifest must be valid JSON.'] };
+  }
+
+  if (!isRecord(parsed)) {
+    return { plugin: null, errors: ['Plugin manifest must be a JSON object.'] };
+  }
+  if (!isRecord(parsed.sandbox)) {
+    errors.push('Plugin manifest requires a sandbox object.');
+  }
+
+  const sandbox = isRecord(parsed.sandbox) ? parsed.sandbox : {};
+  const capabilities = Array.isArray(parsed.capabilities) ? parsed.capabilities : [];
+  const invalidCapabilities = capabilities.filter(
+    (capability): capability is string => typeof capability !== 'string' || !allowedCapabilities.has(capability as EnginePluginCapability),
+  );
+  if (invalidCapabilities.length > 0 || capabilities.length === 0) {
+    errors.push('Plugin capabilities must be non-empty and use known engine capability names.');
+  }
+
+  const runtime = readString(sandbox.runtime);
+  const networkAccess = readString(sandbox.networkAccess);
+  const fileSystem = readString(sandbox.fileSystem);
+  const license = readString(parsed.license);
+  const trustLevel = readString(parsed.trustLevel);
+  const installState = readString(parsed.installState);
+
+  if (!allowedRuntimes.has(runtime as EnginePluginRuntime)) {
+    errors.push('Sandbox runtime must be rust-native, python-sidecar, wasm, or node-sidecar.');
+  }
+  if (!allowedNetworkAccess.has(networkAccess as EnginePluginSandboxPolicy['networkAccess'])) {
+    errors.push('Sandbox networkAccess must be none, explicit-provider, or declared-endpoints.');
+  }
+  if (!allowedFileSystem.has(fileSystem as EnginePluginSandboxPolicy['fileSystem'])) {
+    errors.push('Sandbox fileSystem must be none, project-read, or project-read-write.');
+  }
+  if (!allowedLicenses.has(license as EnginePluginListing['license'])) {
+    errors.push('Plugin license must be MIT, Apache-2.0, or BSD-3-Clause.');
+  }
+  if (!allowedTrustLevels.has(trustLevel as EnginePluginTrustLevel)) {
+    errors.push('Plugin trustLevel must be built-in, verified-community, or community-review.');
+  }
+  if (!allowedInstallStates.has(installState as EnginePluginInstallState)) {
+    errors.push('Plugin installState must be installed, available, or blocked.');
+  }
+
+  if (errors.length > 0) {
+    return { plugin: null, errors };
+  }
+
+  const plugin: EnginePluginListing = {
+    id: readString(parsed.id),
+    name: readString(parsed.name),
+    version: readString(parsed.version),
+    description: readString(parsed.description),
+    author: readString(parsed.author),
+    license: license as EnginePluginListing['license'],
+    homepage: readString(parsed.homepage),
+    engineLibrary: readString(parsed.engineLibrary),
+    capabilities: capabilities as EnginePluginCapability[],
+    trustLevel: trustLevel as EnginePluginTrustLevel,
+    installState: installState as EnginePluginInstallState,
+    manifestSha256: readString(parsed.manifestSha256),
+    blockedReason: typeof parsed.blockedReason === 'string' ? parsed.blockedReason : undefined,
+    sandbox: {
+      runtime: runtime as EnginePluginRuntime,
+      requiresDesktop: Boolean(sandbox.requiresDesktop),
+      networkAccess: networkAccess as EnginePluginSandboxPolicy['networkAccess'],
+      fileSystem: fileSystem as EnginePluginSandboxPolicy['fileSystem'],
+      sendsUserContent: Boolean(sandbox.sendsUserContent),
+      unsignedCode: Boolean(sandbox.unsignedCode),
+    },
+  };
+
+  return { plugin, errors: validateEnginePluginManifest(plugin) };
+}
+
+export function reviewEnginePluginManifest(raw: string, surface: SurfaceMode): EnginePluginReviewReceipt {
+  const parsed = parseEnginePluginManifest(raw);
+  if (!parsed.plugin) {
+    return {
+      accepted: false,
+      errors: parsed.errors,
+      plugin: null,
+      compatibility: null,
+      reviewSummary: 'Plugin manifest rejected before compatibility checks.',
+      installableWithoutNetwork: false,
+      executesRemoteCode: true,
+      sendsUserContent: true,
+    };
+  }
+
+  const compatibility = enginePluginCompatibility(parsed.plugin, surface);
+  const errors = [...parsed.errors];
+  const installableWithoutNetwork =
+    compatibility.compatible &&
+    parsed.plugin.sandbox.networkAccess === 'none' &&
+    !parsed.plugin.sandbox.unsignedCode &&
+    !parsed.plugin.sandbox.sendsUserContent;
+
+  if (!compatibility.compatible) {
+    errors.push(compatibility.message);
+  }
+  if (!installableWithoutNetwork && compatibility.compatible) {
+    errors.push('Plugin can be reviewed, but cannot be installed without maintainer approval.');
+  }
+
+  return {
+    accepted: installableWithoutNetwork,
+    errors,
+    plugin: parsed.plugin,
+    compatibility,
+    reviewSummary: installableWithoutNetwork
+      ? 'Plugin manifest accepted for local catalog use. No remote code was installed.'
+      : 'Plugin manifest recorded as blocked pending maintainer approval.',
+    installableWithoutNetwork,
+    executesRemoteCode: parsed.plugin.sandbox.unsignedCode || parsed.plugin.sandbox.networkAccess === 'declared-endpoints',
+    sendsUserContent: parsed.plugin.sandbox.sendsUserContent,
+  };
+}
+
+export function safeExamplePluginManifest(): string {
+  return JSON.stringify(
+    {
+      id: 'community-safe-adapter',
+      name: 'Community safe adapter',
+      version: '0.1.0',
+      description: 'Local WASM export adapter reviewed without installing remote code.',
+      author: 'Open eval community',
+      license: 'MIT',
+      homepage: 'https://example.invalid/community-safe-adapter',
+      engineLibrary: 'eval-adapter',
+      capabilities: ['export-adapter'],
+      trustLevel: 'verified-community',
+      installState: 'available',
+      manifestSha256: '2f1b9b4f68e0d02fcb0606a4bfa9084d5a57bb32e295f710af36f4a59a11a4d8',
+      sandbox: {
+        runtime: 'wasm',
+        requiresDesktop: false,
+        networkAccess: 'none',
+        fileSystem: 'project-read',
+        sendsUserContent: false,
+        unsignedCode: false,
+      },
+    },
+    null,
+    2,
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
 }

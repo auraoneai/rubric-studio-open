@@ -1679,6 +1679,50 @@ small {
   margin: 0;
 }
 
+.plugin-manifest-review {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.plugin-manifest-review label {
+  font-weight: 700;
+}
+
+.plugin-manifest-review textarea {
+  min-height: 150px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(4, 17, 20, 0.42);
+  color: var(--text);
+  padding: 10px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.plugin-review {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.plugin-review.ok {
+  border-color: rgba(24, 214, 163, 0.45);
+  background: rgba(24, 214, 163, 0.08);
+}
+
+.plugin-review.blocked {
+  border-color: rgba(255, 209, 102, 0.5);
+  background: rgba(255, 209, 102, 0.08);
+}
+
+.plugin-review p,
+.plugin-review small {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
 .segmented {
   display: inline-grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

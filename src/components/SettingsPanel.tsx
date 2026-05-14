@@ -7,8 +7,11 @@ import { sidecarHealthSummary, sidecarWorkerReadiness } from '../domain/sidecarH
 import { studioMessages, supportedLocales, type LocaleCode } from '../domain/i18n';
 import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
 import {
+  type EnginePluginReviewReceipt,
   enginePluginCatalog,
   enginePluginCompatibility,
+  reviewEnginePluginManifest,
+  safeExamplePluginManifest,
   summarizeEnginePluginCatalog,
 } from '../domain/pluginMarketplace';
 
@@ -55,11 +58,15 @@ export function SettingsPanel(props: {
   const [updateChecking, setUpdateChecking] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const [diagnosticsRunAt, setDiagnosticsRunAt] = useState('');
+  const [pluginManifestDraft, setPluginManifestDraft] = useState('');
+  const [pluginReview, setPluginReview] = useState<EnginePluginReviewReceipt | null>(null);
+  const [sessionPlugins, setSessionPlugins] = useState<typeof enginePluginCatalog>([]);
   const shortcutConflicts = findShortcutConflicts(props.shortcuts);
   const diagnostics = operationalDiagnostics(props.surface);
   const sidecarHealth = sidecarHealthSummary(props.surface);
   const messages = studioMessages[props.locale].settings;
-  const pluginSummary = summarizeEnginePluginCatalog(enginePluginCatalog, props.surface);
+  const pluginListings = [...enginePluginCatalog, ...sessionPlugins];
+  const pluginSummary = summarizeEnginePluginCatalog(pluginListings, props.surface);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +170,14 @@ export function SettingsPanel(props: {
       setUpdateCheck(result);
     } finally {
       setUpdateChecking(false);
+    }
+  }
+
+  function reviewPluginManifest() {
+    const receipt = reviewEnginePluginManifest(pluginManifestDraft, props.surface);
+    setPluginReview(receipt);
+    if (receipt.accepted && receipt.plugin && !pluginListings.some((plugin) => plugin.id === receipt.plugin?.id)) {
+      setSessionPlugins((current) => [...current, receipt.plugin!]);
     }
   }
 
@@ -306,7 +321,7 @@ export function SettingsPanel(props: {
         </div>
         <p className="subtle">Third-party engine libraries run through signed manifests, local sandbox declarations, and explicit browser/desktop compatibility checks. This catalog never installs remote code automatically.</p>
         <div className="plugin-grid" aria-label="Engine plugin marketplace">
-          {enginePluginCatalog.map((plugin) => {
+          {pluginListings.map((plugin) => {
             const compatibility = enginePluginCompatibility(plugin, props.surface);
             return (
               <article key={plugin.id} className={`plugin-card ${compatibility.compatible ? 'ok' : 'blocked'}`}>
@@ -326,10 +341,43 @@ export function SettingsPanel(props: {
             );
           })}
         </div>
+        <div className="plugin-manifest-review">
+          <label htmlFor="engine-plugin-manifest">Review local plugin manifest</label>
+          <textarea
+            id="engine-plugin-manifest"
+            aria-label="Engine plugin manifest JSON"
+            value={pluginManifestDraft}
+            placeholder="Paste a signed engine plugin manifest JSON..."
+            onChange={(event) => setPluginManifestDraft(event.target.value)}
+          />
+          <div className="inline-actions">
+            <button className="ghost-button" type="button" onClick={() => setPluginManifestDraft(safeExamplePluginManifest())}>
+              Load safe example
+            </button>
+            <button className="glass-button" type="button" onClick={reviewPluginManifest}>
+              Review manifest
+            </button>
+          </div>
+          {pluginReview ? (
+            <div className={`plugin-review ${pluginReview.accepted ? 'ok' : 'blocked'}`} role="status">
+              <strong>{pluginReview.accepted ? 'Plugin manifest accepted' : 'Plugin manifest blocked'}</strong>
+              <p>{pluginReview.reviewSummary}</p>
+              {pluginReview.errors.length > 0 ? <small>{pluginReview.errors.join(' ')}</small> : null}
+            </div>
+          ) : null}
+        </div>
         <pre className="export-preview" tabIndex={0} aria-label="Engine plugin catalog JSON">{JSON.stringify({
           surface: props.surface,
           summary: pluginSummary,
-          plugins: enginePluginCatalog.map((plugin) => ({
+          review: pluginReview ? {
+            accepted: pluginReview.accepted,
+            plugin_id: pluginReview.plugin?.id ?? null,
+            installable_without_network: pluginReview.installableWithoutNetwork,
+            executes_remote_code: pluginReview.executesRemoteCode,
+            sends_user_content: pluginReview.sendsUserContent,
+            errors: pluginReview.errors,
+          } : null,
+          plugins: pluginListings.map((plugin) => ({
             id: plugin.id,
             status: enginePluginCompatibility(plugin, props.surface).status,
             compatible: enginePluginCompatibility(plugin, props.surface).compatible,

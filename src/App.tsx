@@ -1030,7 +1030,7 @@ export function App() {
                 <FolderOpen className="button-icon" aria-hidden="true" />
                 Open
               </button>
-              <button className="glass-button" type="button" aria-label="New from Template" onClick={() => setTemplateDialogOpen(true)}>
+              <button className="glass-button" type="button" aria-label={messages.newFromTemplate} onClick={() => setTemplateDialogOpen(true)}>
                 <FilePlus2 className="button-icon" aria-hidden="true" />
                 New
               </button>
@@ -1055,7 +1055,7 @@ export function App() {
               </label>
             </>
           ) : (
-            <button className="glass-button" type="button" aria-label="New from Template" onClick={() => setTemplateDialogOpen(true)}>
+            <button className="glass-button" type="button" aria-label={messages.newFromTemplate} onClick={() => setTemplateDialogOpen(true)}>
               <FilePlus2 className="button-icon" aria-hidden="true" />
               New
             </button>
@@ -1131,6 +1131,7 @@ export function App() {
           onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
           onDeleteCriterion={(criterionId) => setDeleteCriterionId(criterionId)}
           onNewCriterion={(themeId) => dispatch({ type: 'addCriterion', themeId })}
+          onReorderCriterion={(draggedId, targetId) => dispatch({ type: 'reorderCriterion', draggedId, targetId })}
           onOpenContainingFolder={(path, label) => void openSidebarPath(path, label, 'containing')}
           onRevealInFileManager={(path, label) => void openSidebarPath(path, label, 'reveal')}
         />

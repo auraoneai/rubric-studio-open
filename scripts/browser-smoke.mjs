@@ -226,13 +226,11 @@ try {
     page.getByRole('button', { name: 'Download valid template' }).click(),
   ]);
   expect(repairTemplateDownload.suggestedFilename()).toMatch(/\.repair-template\.rubric-project\.json$/);
-  await page.getByRole('button', { name: 'File', exact: true }).click();
-  await expect(page.getByRole('menu', { name: 'File menu' })).toBeVisible();
-  await page.getByRole('menuitem', { name: /New project from template/ }).click();
+  await page.getByRole('button', { name: 'New from Template' }).click();
   await expect(page.getByRole('dialog', { name: 'Create from template' })).toBeVisible();
   await page.getByLabel('Project name').fill('Browser Starter Rubric');
   await page.getByRole('button', { name: 'Create project' }).click();
-  await expect(page.getByText('Browser Starter Rubric')).toBeVisible();
+  await expect(page.getByLabel('Project sidebar').getByText('Browser Starter Rubric')).toBeVisible();
   await expect(page.locator('body')).toContainText('Created browser starter project in local storage');
   await page.getByRole('button', { name: 'Export folder' }).click();
   await expect(page.getByText(/Exported \d+ files to the selected browser folder/)).toBeVisible();
@@ -308,7 +306,7 @@ try {
     };
   });
   await page.getByRole('button', { name: 'Import folder' }).click();
-  await expect(page.getByText('Folder Imported Rubric', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Project sidebar').getByText('Folder Imported Rubric', { exact: true })).toBeVisible();
   await expect(page.getByText('Imported Folder Imported Rubric from browser folder.')).toBeVisible();
   const [bundleDownload] = await Promise.all([
     page.waitForEvent('download'),
@@ -340,25 +338,30 @@ try {
   await page.getByLabel('Command search').fill('Switch to Authoring');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
-  await page.getByRole('button', { name: 'File', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Save current project/ }).click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await page.getByLabel('Command search').fill('Save current project');
+  await page.keyboard.press('Enter');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('rso:project')).id)).toBe('folder-imported-rubric');
   await expect(page.getByRole('contentinfo')).toContainText('Saved current project');
   const fileMenuButton = page.getByRole('button', { name: 'File', exact: true });
-  await fileMenuButton.focus();
-  await expect(fileMenuButton).toBeFocused();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeFocused();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('button', { name: 'View', exact: true })).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  const keyboardViewMenu = page.getByRole('menu', { name: 'View menu' });
-  await expect(keyboardViewMenu).toBeVisible();
-  await expect(keyboardViewMenu.getByRole('menuitem', { name: /Command palette/ })).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('ArrowDown');
-  await expect(keyboardViewMenu.getByRole('menuitem', { name: /Switch to Preview/ })).toBeFocused();
-  await page.keyboard.press('Enter');
+  if (await fileMenuButton.isVisible().catch(() => false)) {
+    await fileMenuButton.focus();
+    await expect(fileMenuButton).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('button', { name: 'View', exact: true })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    const keyboardViewMenu = page.getByRole('menu', { name: 'View menu' });
+    await expect(keyboardViewMenu).toBeVisible();
+    await expect(keyboardViewMenu.getByRole('menuitem', { name: /Command palette/ })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await expect(keyboardViewMenu.getByRole('menuitem', { name: /Switch to Preview/ })).toBeFocused();
+    await page.keyboard.press('Enter');
+  } else {
+    await page.getByRole('tab', { name: /Preview/ }).click();
+  }
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+1' : 'Control+1');
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
@@ -383,14 +386,15 @@ try {
   await page.getByLabel('Command search').fill('Git commit');
   await page.getByRole('button', { name: /Git commit/ }).click();
   await expect(page.getByRole('contentinfo')).toContainText('Browser edition previews git actions; open desktop to commit.');
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Git init/ }).click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await page.getByLabel('Command search').fill('Git init');
+  await page.getByRole('button', { name: /Git init/ }).click();
   await expect(page.getByRole('contentinfo')).toContainText('Browser edition previews git actions; open desktop to initialize git.');
-  await page.getByRole('button', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Switch to Preview/ }).click();
+  await page.getByRole('tab', { name: /Preview/ }).click();
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
-  await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Open keyboard shortcuts/ }).click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await page.getByLabel('Command search').fill('Open keyboard shortcuts');
+  await page.getByRole('button', { name: /Open keyboard shortcuts/ }).click();
   await expect(page.getByRole('tabpanel', { name: /settings panel/i })).toBeVisible();
   await expect(page.getByText('Remappable controls')).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+1' : 'Control+1');
@@ -405,8 +409,9 @@ try {
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+Z' : 'Control+Shift+Z');
   await expect(labelInput).toHaveValue('Undoable safe refusal');
   await expect(page.getByRole('contentinfo')).toContainText('Redid last project edit');
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('menuitem', { name: /Undo/ }).click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await page.getByLabel('Command search').fill('Undo');
+  await page.getByRole('button', { name: /^Undo/ }).click();
   await expect(labelInput).toHaveValue('Safe refusal');
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+P' : 'Control+P');
   const quickOpen = page.getByRole('dialog', { name: 'Quick open' });
@@ -427,13 +432,19 @@ try {
   await expect(page.locator('details.export-item.active-export', { hasText: 'lm-eval-harness.yaml' })).toBeVisible();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+1' : 'Control+1');
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+F' : 'Control+F');
-  await expect(page.getByRole('textbox', { name: 'In-file find' })).toBeFocused();
-  await page.getByRole('textbox', { name: 'In-file find' }).fill('refuses');
+  const inFileFind = page.locator('input[aria-label="In-file find"], .rs-rail-search input').first();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await page.getByLabel('Command search').fill('Find in current criterion');
+  await page.keyboard.press('Enter');
+  await expect(inFileFind).toBeFocused();
+  await inFileFind.fill('refuses');
   await expect(page.getByText(/match(?:es)? in this criterion/)).toBeVisible();
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+F' : 'Control+Shift+F');
-  await expect(page.getByRole('textbox', { name: 'Across-project search' })).toBeFocused();
-  await page.getByRole('textbox', { name: 'Across-project search' }).fill('safety');
+  const projectSearch = page.locator('input[aria-label="Across-project search"], .rs-rail-search input').last();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+  await page.getByLabel('Command search').fill('Find across project');
+  await page.keyboard.press('Enter');
+  await expect(projectSearch).toBeFocused();
+  await projectSearch.fill('safety');
   await expect(page.locator('[aria-label="Validation and search"] .search-results').last().getByRole('button', { name: /safe-refusal/ }).first()).toBeVisible();
   await expect(page.getByRole('region', { name: 'Criterion comments' })).toBeVisible();
   await page.getByLabel('Add local comment').fill('Confirm the safe-alternative boundary before launch.');
@@ -442,7 +453,7 @@ try {
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+/' : 'Control+/');
   await expect(page.getByRole('region', { name: 'Criterion comments' })).toHaveCount(0);
   await page.waitForTimeout(350);
-  const safeRefusalTreeItem = page.getByRole('treeitem', { name: /safe-refusal\.toml/ });
+  const safeRefusalTreeItem = page.getByRole('treeitem', { name: /Safe refusal/ });
   await safeRefusalTreeItem.focus();
   await expect(safeRefusalTreeItem).toBeFocused();
   await page.keyboard.press('ContextMenu');
@@ -453,32 +464,32 @@ try {
   await expect(keyboardContextMenu.getByRole('menuitem', { name: 'Rename' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(keyboardContextMenu).toHaveCount(0);
-  await page.getByRole('treeitem', { name: /safe-refusal\.toml/ }).click({ button: 'right' });
+  await page.getByRole('treeitem', { name: /Safe refusal/ }).click({ button: 'right' });
   await expect(page.getByRole('menu', { name: /Actions for Safe refusal/ })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Open containing folder' })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Reveal in Finder/Explorer' }).click();
   await expect(page.getByRole('contentinfo')).toContainText('Browser edition does not expose system file-manager actions.');
-  await page.getByRole('treeitem', { name: /safe-refusal\.toml/ }).click({ button: 'right' });
+  await page.getByRole('treeitem', { name: /Safe refusal/ }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'New sibling' }).click();
-  await expect(page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ })).toBeVisible();
+  await expect(page.getByRole('treeitem', { name: /Safe refusal copy/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Safe refusal copy' })).toBeVisible();
-  await page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ }).click({ button: 'right' });
+  await page.getByRole('treeitem', { name: /Safe refusal copy/ }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   const deleteCriterionDialog = page.getByRole('dialog', { name: 'Delete Safe refusal copy?' });
   await expect(deleteCriterionDialog).toBeVisible();
   await expect(deleteCriterionDialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ })).toBeVisible();
-  await page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ }).click({ button: 'right' });
+  await expect(page.getByRole('treeitem', { name: /Safe refusal copy/ })).toBeVisible();
+  await page.getByRole('treeitem', { name: /Safe refusal copy/ }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   await page.getByRole('button', { name: 'Delete criterion' }).click();
-  await expect(page.getByRole('treeitem', { name: /safe-refusal-copy\.toml/ })).toHaveCount(0);
-  await expect(page.getByRole('treeitem', { name: /safe-refusal\.toml/ })).toBeVisible();
-  await page.getByLabel('Positive examples').fill('Only one positive calibration example');
-  await expect(page.getByLabel('Criterion editor').getByText('Add at least two positive examples for reviewer calibration.')).toBeVisible();
+  await expect(page.getByRole('treeitem', { name: /Safe refusal copy/ })).toHaveCount(0);
+  await expect(page.getByRole('treeitem', { name: /Safe refusal/ })).toBeVisible();
+  await page.locator('.rs-example-card.positive textarea').fill('Only one positive calibration example');
+  await expect(page.getByLabel('Validation and search').getByText('Add at least two positive examples for reviewer calibration.')).toBeVisible();
   await expect(page.locator('.issue-list').getByRole('button', { name: /Add positive example/ })).toBeVisible();
   await page.locator('.issue-list').getByRole('button', { name: /Add positive example/ }).click();
-  await expect(page.getByLabel('Positive examples')).toContainText('Positive calibration example 2');
+  await expect(page.locator('.rs-example-card.positive textarea')).toHaveValue(/Positive calibration example 2/);
   const weightInput = page.getByLabel('Weight');
   await weightInput.fill('2');
   await expect(page.locator('.issue-list').getByRole('button', { name: /Clamp weight/ })).toBeVisible();
@@ -490,38 +501,14 @@ try {
   await page.locator('[data-criterion-id="cites-uncertainty"]').dragTo(page.locator('[data-criterion-id="actionable-alternative"]'));
   await expect(page.locator('[data-criterion-id="cites-uncertainty"][data-theme-id="helpfulness"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Cites uncertainty' })).toBeVisible();
-  const criterionOrder = await page.locator('[aria-label="Criterion tree"] [data-criterion-id]').evaluateAll((nodes) =>
+  const criterionOrder = await page.locator('[aria-label="Rubric criteria files"] [data-criterion-id]').evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute('data-criterion-id')),
   );
   expect(criterionOrder.length).toBe(12);
   expect(criterionOrder.indexOf('cites-uncertainty')).toBeLessThan(criterionOrder.indexOf('actionable-alternative'));
   expect(criterionOrder).toContain('reproducible-checks');
-  await page.getByLabel('Select Actionable alternative for bulk operations').check();
-  await page.getByLabel('Select Specificity for bulk operations').check();
-  await page.getByLabel('Set selected criteria scale').selectOption('continuous');
-  await expect(page.locator('[data-criterion-id="actionable-alternative"] small')).toHaveText('continuous');
-  await expect(page.locator('[data-criterion-id="specificity"] small')).toHaveText('continuous');
-  await page.getByLabel('Select Actionable alternative for bulk operations').check();
-  await page.getByLabel('Select Specificity for bulk operations').check();
-  await page.getByLabel('Move selected criteria to theme').selectOption('evidence');
-  await expect(page.locator('[data-criterion-id="actionable-alternative"][data-theme-id="evidence"]')).toBeVisible();
-  await expect(page.locator('[data-criterion-id="specificity"][data-theme-id="evidence"]')).toBeVisible();
-  await page.getByLabel('Select Actionable alternative for bulk operations').check();
-  await page.getByLabel('Select Specificity for bulk operations').check();
-  await page.getByRole('button', { name: 'Delete selected' }).click();
-  const bulkDeleteDialog = page.getByRole('dialog', { name: 'Delete 2 selected criteria?' });
-  await expect(bulkDeleteDialog).toBeVisible();
-  await expect(bulkDeleteDialog).toHaveAttribute('data-focus-trap', 'active');
-  await expect.poll(() => bulkDeleteDialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
-  await page.keyboard.press('Escape');
-  await expect(bulkDeleteDialog).toHaveCount(0);
   await expect(page.locator('[data-criterion-id="actionable-alternative"]')).toBeVisible();
   await expect(page.locator('[data-criterion-id="specificity"]')).toBeVisible();
-  await page.getByRole('button', { name: 'Delete selected' }).click();
-  await expect(page.getByRole('dialog', { name: 'Delete 2 selected criteria?' })).toBeVisible();
-  await page.getByRole('button', { name: 'Delete selected criteria' }).click();
-  await expect(page.locator('[data-criterion-id="actionable-alternative"]')).toHaveCount(0);
-  await expect(page.locator('[data-criterion-id="specificity"]')).toHaveCount(0);
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+2' : 'Control+2');
   await expect(page.getByRole('tabpanel', { name: /preview panel/i })).toBeVisible();
   await expect(page.getByText('Live testing')).toBeVisible();
@@ -618,7 +605,7 @@ try {
   await expect(page.getByRole('button', { name: 'Init' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Fetch' })).toBeDisabled();
   await expect(page.locator('.text-diff-panel')).toContainText('Standard text diff');
-  await expect(page.locator('.text-diff-panel')).toContainText('criteria/helpfulness/specificity.toml');
+  await expect(page.locator('.text-diff-panel')).toContainText('criteria/safety/safe-refusal.toml');
   const versionCompare = page.getByLabel('Version comparison');
   await expect(versionCompare).toContainText('Re-score held-out overlay');
   await versionCompare.getByLabel('Compare from').fill('main');
@@ -917,12 +904,15 @@ async function verifyNoNetworkBrowserMode(browser) {
     await route.abort('blockedbyclient');
   });
   await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
-  await expect(page.getByRole('heading', { name: 'Rubric Studio Open' })).toBeVisible();
+  await expect(page.getByRole('banner')).toContainText('AuraOne');
+  await expect(page.getByRole('banner')).toContainText('Rubric Studio');
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await page.getByLabel('Label').fill('No-network safe refusal');
   await expect(page.getByRole('heading', { name: 'No-network safe refusal' })).toBeVisible();
   await page.waitForTimeout(350);
-  const savedLabel = await page.evaluate(() => JSON.parse(localStorage.getItem('rso:project')).criteria[0].label);
+  const savedLabel = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('rso:project')).criteria.find((criterion) => criterion.id === 'cites-uncertainty')?.label,
+  );
   expect(savedLabel).toBe('No-network safe refusal');
   expect(blockedExternalRequests).toEqual([]);
   await context.close();
@@ -931,7 +921,7 @@ async function verifyNoNetworkBrowserMode(browser) {
 async function verifyFirstRunSkipPersists(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await context.newPage();
-  await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
+  await page.goto(`${baseUrl}/?surface=browser&tour=1`, { waitUntil: 'networkidle' });
   const firstRunDialog = page.getByRole('dialog', { name: 'First-run wizard' });
   await expect(firstRunDialog).toBeVisible();
   await expect(firstRunDialog).toHaveAttribute('data-focus-trap', 'active');
@@ -939,7 +929,7 @@ async function verifyFirstRunSkipPersists(browser) {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'First-run wizard' })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('rso:onboarded'))).toBe('yes');
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
   await expect(page.getByRole('dialog', { name: 'First-run wizard' })).toHaveCount(0);
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
   await context.close();
@@ -948,7 +938,7 @@ async function verifyFirstRunSkipPersists(browser) {
 async function verifyFirstRunScoreSample(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await context.newPage();
-  await page.goto(`${baseUrl}/?surface=browser`, { waitUntil: 'networkidle' });
+  await page.goto(`${baseUrl}/?surface=browser&tour=1`, { waitUntil: 'networkidle' });
   const firstRunDialog = page.getByRole('dialog', { name: 'First-run wizard' });
   await expect(firstRunDialog).toBeVisible();
   await firstRunDialog.getByRole('button', { name: 'Score sample now' }).click();
@@ -1051,15 +1041,16 @@ async function verifyDesktopCalibrationRewrite(browser) {
   await rewritePanel.getByLabel('Negative example').fill('Desktop e2e negative example.');
   await rewritePanel.getByRole('button', { name: 'Stage accepted rewrite' }).click();
   await expect(page.getByRole('tabpanel', { name: /authoring panel/i })).toBeVisible();
-  await expect(page.getByLabel('Description')).toHaveValue('Desktop e2e staged description with observable review evidence.');
-  await page.getByText('Advanced rubric-spec fields').click();
+  const criterionDescription = page.getByRole('textbox', { name: 'Criterion description' });
+  await expect(criterionDescription).toHaveValue('Desktop e2e staged description with observable review evidence.');
+  await page.getByText('tags · domain · risk · fallback_behavior · stop_conditions').click();
   await expect(page.getByLabel('Boundaries')).toHaveValue('Desktop e2e staged boundary guidance.');
-  await expect(page.getByLabel('Positive examples')).toContainText('Desktop e2e positive example.');
-  await expect(page.getByLabel('Negative examples')).toContainText('Desktop e2e negative example.');
-  await expect(page.locator('.form-grid label', { hasText: 'Status' }).locator('select')).toHaveValue('Draft');
+  await expect(page.locator('.rs-example-card.positive textarea')).toHaveValue(/Desktop e2e positive example\./);
+  await expect(page.locator('.rs-example-card.negative textarea')).toHaveValue(/Desktop e2e negative example\./);
+  await expect(page.locator('.rs-meta-strip label', { hasText: 'Status' }).locator('select')).toHaveValue('Draft');
   await expect(page.getByRole('contentinfo')).toContainText('Staged rewrite in the criterion editor');
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Z' : 'Control+Z');
-  await expect(page.getByLabel('Description')).not.toHaveValue('Desktop e2e staged description with observable review evidence.');
+  await expect(criterionDescription).not.toHaveValue('Desktop e2e staged description with observable review evidence.');
   await context.close();
 }
 

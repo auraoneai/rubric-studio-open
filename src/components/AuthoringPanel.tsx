@@ -60,14 +60,24 @@ export function AuthoringPanel(props: {
   const inFileMatches = useMemo(() => findCriterionMatches(criterion, inFileQuery), [criterion, inFileQuery]);
 
   useEffect(() => {
+    let frame = 0;
     if (props.focusRequest?.target === 'in-file') {
-      inFileInputRef.current?.focus();
-      inFileInputRef.current?.select();
+      frame = window.requestAnimationFrame(() => {
+        inFileInputRef.current?.focus();
+        inFileInputRef.current?.select();
+      });
     }
     if (props.focusRequest?.target === 'project') {
-      projectSearchInputRef.current?.focus();
-      projectSearchInputRef.current?.select();
+      frame = window.requestAnimationFrame(() => {
+        projectSearchInputRef.current?.focus();
+        projectSearchInputRef.current?.select();
+      });
     }
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
   }, [props.focusRequest]);
 
   function toggleBulk(criterionId: string) {
@@ -97,6 +107,48 @@ export function AuthoringPanel(props: {
     }
     props.onUpdate({ comments: [...criterion.comments, body] });
     setCommentDraft('');
+  }
+
+  function applyQuickFix(quickFix: string) {
+    if (quickFix === 'Add positive example') {
+      props.onUpdate({ positiveExamples: [...criterion.positiveExamples, `Positive calibration example ${criterion.positiveExamples.length + 1}`] });
+    }
+    if (quickFix === 'Add negative example') {
+      props.onUpdate({ negativeExamples: [...criterion.negativeExamples, `Negative calibration example ${criterion.negativeExamples.length + 1}`] });
+    }
+    if (quickFix === 'Use draft label') {
+      props.onUpdate({ status: 'Draft' });
+    }
+    if (quickFix === 'Shorten label') {
+      props.onUpdate({ label: criterion.label.slice(0, 64).trim() });
+    }
+    if (quickFix === 'Derive slug from label') {
+      props.onUpdate({ id: slugify(criterion.label) });
+    }
+    if (quickFix === 'Add description starter') {
+      props.onUpdate({ description: 'Reviewer-visible behavior and pass threshold to evaluate.' });
+    }
+    if (quickFix === 'Trim description') {
+      props.onUpdate({ description: criterion.description.slice(0, 480).trim() });
+    }
+    if (quickFix === 'Clamp weight') {
+      props.onUpdate({ weight: Math.max(0, Math.min(1, criterion.weight)) });
+    }
+    if (quickFix === 'Normalize theme weights') {
+      const themeCriteria = project.criteria.filter((item) => item.themeId === criterion.themeId);
+      const normalizedWeight = Number((1 / Math.max(1, themeCriteria.length)).toFixed(2));
+      props.onBulkUpdate(themeCriteria.map((item) => item.id), { weight: normalizedWeight });
+    }
+    if (quickFix === 'Add observable wording') {
+      props.onUpdate({ description: `${criterion.description.trim()} Observable evidence must be visible in the response.`.trim() });
+    }
+    if (quickFix === 'Remove invalid references') {
+      props.onUpdate({ references: criterion.references.filter((reference) => /^https?:\/\//.test(reference) || reference.startsWith('docs/')) });
+    }
+    if (quickFix === 'Remove missing sibling links') {
+      const criterionIds = new Set(project.criteria.map((item) => item.id));
+      props.onUpdate({ siblingLinks: criterion.siblingLinks.filter((link) => criterionIds.has(link)) });
+    }
   }
 
   return (
@@ -159,7 +211,7 @@ export function AuthoringPanel(props: {
           </DocSection>
         </article>
         <aside className="rs-copilot-rail" aria-label="Validation and search">
-          <div className="rs-rail-block"><div className="rs-eyebrow">Inline validation</div><div className="rs-rail-number">{issues.length}<span>signals on this criterion</span></div>{issues.length === 0 ? <><SuccessState title="Spec checks pass" body="Style, schema, weights, and ID slug all clean." /><div className="rs-warning-state" role="status"><strong>Still in TODO</strong><p>Promote to DRAFT once examples are reviewed.</p></div></> : <div className="issue-list">{issues.map((issue) => <div key={issue.id} className={`issue ${issue.severity}`}><strong>{issue.field}</strong><span>{issue.message}</span></div>)}</div>}</div>
+          <div className="rs-rail-block"><div className="rs-eyebrow">Inline validation</div><div className="rs-rail-number">{issues.length}<span>signals on this criterion</span></div>{issues.length === 0 ? <><SuccessState title="Spec checks pass" body="Style, schema, weights, and ID slug all clean." /><div className="rs-warning-state" role="status"><strong>Still in TODO</strong><p>Promote to DRAFT once examples are reviewed.</p></div></> : <div className="issue-list">{issues.map((issue) => <div key={issue.id} className={`issue ${issue.severity}`}><strong>{issue.field}</strong><span>{issue.message}</span>{issue.quickFix ? <button className="ghost-button" type="button" onClick={() => applyQuickFix(issue.quickFix!)}><Wrench className="button-icon" aria-hidden="true" />{issue.quickFix}</button> : null}</div>)}</div>}</div>
           <div className="rs-rail-block"><label className="rs-rail-search"><span>In-file find</span><input ref={inFileInputRef} aria-label="In-file find" value={inFileQuery} onChange={(event) => setInFileQuery(event.target.value)} /></label>{inFileQuery ? <small className="rs-search-count">{inFileMatches.length} {inFileMatches.length === 1 ? 'match' : 'matches'} in this criterion</small> : null}<div className="search-results">{inFileMatches.slice(0, 5).map((match) => <button key={`${match.field}-${match.index}-${match.excerpt}`} type="button"><Search className="button-icon" aria-hidden="true" /><strong className="search-result-title"><span className="search-result-field">{match.field}</span></strong><small>{match.excerpt}</small></button>)}</div></div>
           <div className="rs-rail-block"><label className="rs-rail-search"><span>Across-project search</span><input ref={projectSearchInputRef} value={props.searchQuery} onChange={(event) => props.setSearchQuery(event.target.value)} /></label><div className="toggle-row rs-search-toggles"><label><input type="checkbox" checked={props.regex} onChange={(event) => props.setRegex(event.target.checked)} />Regex</label><label><input type="checkbox" checked={props.caseSensitive} onChange={(event) => props.setCaseSensitive(event.target.checked)} />Case</label><label><input type="checkbox" checked={props.wholeWord} onChange={(event) => props.setWholeWord(event.target.checked)} />Word</label></div><div className="search-results">{props.searchResults.slice(0, 8).map((result) => <button key={`${result.criterionId}-${result.field}-${result.excerpt}`} type="button" onClick={() => props.onSelect(result.criterionId)}><Search className="button-icon" aria-hidden="true" /><strong className="search-result-title"><span>{result.criterionId}</span><span className="search-result-field">{result.field}</span></strong><small>{result.excerpt}</small></button>)}</div></div>
         </aside>

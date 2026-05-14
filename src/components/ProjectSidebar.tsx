@@ -19,6 +19,7 @@ export function ProjectSidebar({
   onDuplicateCriterion,
   onDeleteCriterion,
   onNewCriterion,
+  onReorderCriterion,
   onOpenContainingFolder,
   onRevealInFileManager,
 }: {
@@ -31,6 +32,7 @@ export function ProjectSidebar({
   onDuplicateCriterion: (criterionId: string) => void;
   onDeleteCriterion: (criterionId: string) => void;
   onNewCriterion: (themeId: string) => void;
+  onReorderCriterion: (draggedId: string, targetId: string) => void;
   onOpenContainingFolder: (path: string | null, label: string) => void;
   onRevealInFileManager: (path: string | null, label: string) => void;
 }) {
@@ -152,11 +154,29 @@ export function ProjectSidebar({
                     key={criterion.id}
                     className={criterion.id === selectedCriterionId ? 'tree-file active' : 'tree-file'}
                     type="button"
+                    draggable
+                    data-criterion-id={criterion.id}
+                    data-theme-id={criterion.themeId}
                     role="treeitem"
                     aria-level={3}
                     aria-current={criterion.id === selectedCriterionId ? 'true' : undefined}
                     aria-haspopup="menu"
                     onClick={() => onSelect(criterion.id)}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData('text/plain', criterion.id);
+                      event.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const draggedId = event.dataTransfer.getData('text/plain');
+                      if (draggedId && draggedId !== criterion.id) {
+                        onReorderCriterion(draggedId, criterion.id);
+                      }
+                    }}
                     onKeyDown={(event) =>
                       openKeyboardContextMenu(event, {
                         kind: 'criterion',

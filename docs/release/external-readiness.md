@@ -4,7 +4,7 @@ Status: public-safe handoff generated from the Rubric Studio Open external readi
 
 This page lists the remaining account-gated, legal, security, release, registry, DNS, launch, community, sales, and success-metric evidence required before the launch PRD can be marked complete. It does not contain secrets, private contacts, employee PII, signing material, privileged legal analysis, private telemetry, or CRM records. Internal owners use the private readiness checklist and evidence templates to attach proof; public repo contributors should not commit private evidence here.
 
-Rows and metrics can be closed only after the required evidence exists and the internal readiness verifier reports no blocker for that item.
+Rows can be closed only after the required evidence exists and the internal readiness verifier reports no blocker for that item. Non-checkbox metrics and post-launch requirements use the same evidence standard.
 
 ## Remaining Unchecked Rows
 

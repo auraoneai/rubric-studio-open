@@ -1026,7 +1026,7 @@ export function App() {
           </div>
           {surface === 'desktop' ? (
             <>
-              <button className="glass-button" type="button" onClick={() => void openProjectPicker()}>
+              <button className="glass-button" type="button" aria-label={messages.openFolder} onClick={() => void openProjectPicker()}>
                 <FolderOpen className="button-icon" aria-hidden="true" />
                 Open
               </button>

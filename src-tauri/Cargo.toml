@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT"
 
 [features]
-default = []
+default = ["tauri-runtime"]
 tauri-runtime = ["tauri", "tauri-plugin-deep-link", "tauri-plugin-dialog", "tauri-plugin-updater"]
 
 [dependencies]

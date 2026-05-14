@@ -25,6 +25,7 @@ assert.ok(scripts['test:desktop'].includes('tauri:check'), 'desktop suite must i
 assert.ok(scripts['test:desktop'].includes('tauri:build:ci'), 'desktop suite must include a Tauri app build');
 assert.ok(scripts['test:desktop'].includes('tauri:e2e:preflight'), 'desktop suite must include Tauri e2e preflight');
 assert.ok(scripts['test:product'].includes('test:unit:ts'), 'product suite must include TS unit tests');
+assert.ok(scripts['test:product'].includes('test:postlaunch'), 'product suite must include post-launch product contract coverage');
 assert.ok(scripts['test:product'].includes('test:desktop'), 'product suite must include desktop/Tauri tests');
 assert.ok(scripts['test:product'].includes('test:suite'), 'product suite must include this suite coverage contract');
 assert.ok(scripts['test:product'].includes('test:e2e'), 'product suite must include browser Playwright e2e');

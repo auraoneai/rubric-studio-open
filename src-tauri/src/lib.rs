@@ -927,7 +927,7 @@ print(json.dumps({"ok": payload["ok"], "state": state.read_text()}))
                 script.into(),
                 state_path.to_string_lossy().into_owned(),
             ],
-            timeout_ms: 5_000,
+            timeout_ms: 30_000,
             max_output_bytes: 8_192,
             sends_api_keys: false,
             network_allowed: false,

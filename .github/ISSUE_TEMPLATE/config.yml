@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: mailto:security@auraone.ai
+    about: Report vulnerabilities privately. Do not open public security issues.
+  - name: GitHub Discussions
+    url: https://github.com/auraoneai/rubric-studio-open/discussions
+    about: Ask design questions, share project layouts, and discuss adapter ideas.
+  - name: AuraOne Open support policy
+    url: https://github.com/auraoneai/rubric-studio-open/blob/main/docs/README.md
+    about: Read the public docs and support routing notes before filing an issue.

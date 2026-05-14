@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a Rubric Studio Open feature or improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Authoring and validation
+        - Preview/live testing
+        - Calibration
+        - Diff/versioning
+        - Export adapter
+        - Browser edition
+        - VS Code extension
+        - Accessibility
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow or user problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: checkboxes
+    id: rfc
+    attributes:
+      label: RFC triggers
+      options:
+        - label: This changes project format, schemas, exports, intake packets, or `rubric-spec`.
+        - label: This changes an engine-library integration.
+        - label: This adds plugin marketplace, collaboration, sync, remote execution, or Cloud-boundary behavior.
+        - label: This changes telemetry, crash reporting, keychain, updater, signing, security, CSP, ACL, or network behavior.
+        - label: None of the RFC triggers apply.
+  - type: textarea
+    id: verification
+    attributes:
+      label: Suggested verification
+      description: Commands, fixtures, examples, screenshots, or acceptance evidence.

@@ -6,6 +6,11 @@ import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '..
 import { sidecarHealthSummary, sidecarWorkerReadiness } from '../domain/sidecarHealth';
 import { studioMessages, supportedLocales, type LocaleCode } from '../domain/i18n';
 import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
+import {
+  enginePluginCatalog,
+  enginePluginCompatibility,
+  summarizeEnginePluginCatalog,
+} from '../domain/pluginMarketplace';
 
 export type VisualMode = 'dark' | 'light' | 'high-contrast';
 export type UpdateChannel = 'stable' | 'beta';
@@ -54,6 +59,7 @@ export function SettingsPanel(props: {
   const diagnostics = operationalDiagnostics(props.surface);
   const sidecarHealth = sidecarHealthSummary(props.surface);
   const messages = studioMessages[props.locale].settings;
+  const pluginSummary = summarizeEnginePluginCatalog(enginePluginCatalog, props.surface);
 
   useEffect(() => {
     let cancelled = false;
@@ -291,6 +297,47 @@ export function SettingsPanel(props: {
           checks: diagnostics,
           sidecar_health: sidecarHealth,
           recovery_states_covered: ['sidecar-crash', 'git-conflict', 'disk-full', 'missing-dependency'],
+        }, null, 2)}</pre>
+      </section>
+      <section className="glass-panel">
+        <div className="panel-title">
+          <div><p>Extensibility</p><h2>Engine plugin catalog</h2></div>
+          <span className="success-chip">{pluginSummary.installed} installed</span>
+        </div>
+        <p className="subtle">Third-party engine libraries run through signed manifests, local sandbox declarations, and explicit browser/desktop compatibility checks. This catalog never installs remote code automatically.</p>
+        <div className="plugin-grid" aria-label="Engine plugin marketplace">
+          {enginePluginCatalog.map((plugin) => {
+            const compatibility = enginePluginCompatibility(plugin, props.surface);
+            return (
+              <article key={plugin.id} className={`plugin-card ${compatibility.compatible ? 'ok' : 'blocked'}`}>
+                <div>
+                  <strong>{plugin.name}</strong>
+                  <small>{plugin.engineLibrary} · {plugin.version}</small>
+                </div>
+                <span>{compatibility.status}</span>
+                <p>{plugin.description}</p>
+                <dl className="status-grid plugin-policy">
+                  <div><dt>Runtime</dt><dd>{plugin.sandbox.runtime}</dd></div>
+                  <div><dt>Network</dt><dd>{plugin.sandbox.networkAccess}</dd></div>
+                  <div><dt>Content</dt><dd>{plugin.sandbox.sendsUserContent ? 'review required' : 'local only'}</dd></div>
+                </dl>
+                <small>{compatibility.message}</small>
+              </article>
+            );
+          })}
+        </div>
+        <pre className="export-preview" tabIndex={0} aria-label="Engine plugin catalog JSON">{JSON.stringify({
+          surface: props.surface,
+          summary: pluginSummary,
+          plugins: enginePluginCatalog.map((plugin) => ({
+            id: plugin.id,
+            status: enginePluginCompatibility(plugin, props.surface).status,
+            compatible: enginePluginCompatibility(plugin, props.surface).compatible,
+            capabilities: plugin.capabilities,
+            trust_level: plugin.trustLevel,
+            manifest_sha256: plugin.manifestSha256,
+            sandbox: plugin.sandbox,
+          })),
         }, null, 2)}</pre>
       </section>
       <section className="glass-panel">

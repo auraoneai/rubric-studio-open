@@ -17,7 +17,31 @@ Launch QA assets:
 [export](docs/demo/screenshots/05-export.png), and
 [short workflow video](docs/demo/rubric-studio-open-launch-smoke.mp4).
 
+Production captures from `https://rubric-studio.auraone.ai`:
+[authoring](docs/demo/production/01-production-authoring.png),
+[preview](docs/demo/production/02-production-preview.png),
+[calibration](docs/demo/production/03-production-calibration.png),
+[diff](docs/demo/production/04-production-diff.png),
+[export](docs/demo/production/05-production-export.png), and
+[settings](docs/demo/production/06-production-settings.png).
+
+Production docs and website captures:
+[docs home](docs/demo/production/07-production-docs-home.png) and
+[AuraOne product page](docs/demo/production/08-production-website-page.png).
+
 ## Install
+
+Download the verified macOS Apple Silicon DMG from GitHub Releases:
+
+- [Rubric Studio Open v0.1.0 release](https://github.com/auraoneai/rubric-studio-open/releases/tag/v0.1.0)
+- [Rubric.Studio.Open_0.1.0_aarch64.dmg](https://github.com/auraoneai/rubric-studio-open/releases/download/v0.1.0/Rubric.Studio.Open_0.1.0_aarch64.dmg)
+- SHA-256: `ac3e98745dd9f7aa60fb9a3fc90cbec9df1ac27876db379c461aebb537886fc4`
+
+Or run the browser IDE immediately:
+
+Browser IDE: [rubric-studio.auraone.ai](https://rubric-studio.auraone.ai)
+
+Build from source:
 
 ```bash
 git clone https://github.com/auraoneai/rubric-studio-open.git
@@ -25,8 +49,6 @@ cd rubric-studio-open
 pnpm install
 pnpm dev
 ```
-
-Browser IDE: [rubric-studio.auraone.ai](https://rubric-studio.auraone.ai)
 
 Product page: [auraone.ai/open/rubric-studio-open](https://auraone.ai/open/rubric-studio-open)
 

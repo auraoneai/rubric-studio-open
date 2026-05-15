@@ -1,5 +1,9 @@
 # Rubric Studio Open Docs
 
+Public docs: https://docs.rubricstudio.auraone.ai
+
+Browser IDE: https://rubric-studio.auraone.ai
+
 Start with the sample project in `../examples/helpful-response-evaluation/`,
 then use these guides:
 

@@ -4,10 +4,10 @@ import { distributionForCriterion, scoreSamples } from '../domain/engine';
 import { readBrowserProviderSecret } from '../domain/keychain';
 import { streamOllamaCriterionScore } from '../domain/ollama';
 import { isRemoteJudge, scoreProviderCriterion } from '../domain/providerJudge';
-import type { NativeScoreRunReceipt } from '../domain/nativeScoring';
 import type { ScoreResult, RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
+import { defaultGoldScores, parseJsonlSamples } from '../domain/samples';
 import { previewScaleWalls } from '../domain/scaleWalls';
-import { SampleControls, type SampleActionRequest } from './SampleControls';
+import { SampleControls } from './SampleControls';
 import { ScaleWallCallout } from './ScaleWallCallout';
 
 export function PreviewPanel(props: {
@@ -15,13 +15,10 @@ export function PreviewPanel(props: {
   selectedSampleId: string;
   selectedSample: RubricProject['samples'][number];
   results: ReturnType<typeof scoreSamples>;
-  nativeScoreRun: NativeScoreRunReceipt | null;
   running: boolean;
-  runningScope: 'current' | 'all';
   surface: SurfaceMode;
   noNetworkMode: boolean;
-  sampleActionRequest: SampleActionRequest | null;
-  onRun: (scope: 'current' | 'all') => void;
+  onRun: () => void;
   onCancelRun: () => void;
   onOpenSettings: () => void;
   onSelectSample: (sampleId: string) => void;
@@ -41,18 +38,14 @@ export function PreviewPanel(props: {
   const [catchCriterionId, setCatchCriterionId] = useState(props.project.criteria[0]?.id ?? '');
   const [catchSort, setCatchSort] = useState<CatchSort>('confidence');
   const [catchVerdict, setCatchVerdict] = useState<CatchVerdictFilter>('all');
-  const [comparisonCriterionId, setComparisonCriterionId] = useState<string | null>(null);
+  const [sampleImportStatus, setSampleImportStatus] = useState('');
   const scaleWalls = previewScaleWalls(props.project);
   const activeResults = props.results.filter((result) => result.sampleId === props.selectedSampleId);
-  const activeResultsWithLiveScores = activeResults.map((result) => {
-    const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
-    return providerScores[key] ?? ollamaScores[key] ?? result;
-  });
   const disagreementIds = new Set(
     props.project.criteria
       .filter((criterion) => {
         const verdicts = new Set(
-          activeResultsWithLiveScores
+          activeResults
             .filter((result) => result.criterionId === criterion.id)
             .map((result) => result.verdict),
         );
@@ -66,24 +59,10 @@ export function PreviewPanel(props: {
     if (lowConfidenceOnly && result.confidence >= 0.72) return false;
     return true;
   });
-  const resultsWithLiveScores = visibleResults.map((result) => activeResultsWithLiveScores.find(
-    (liveResult) =>
-      liveResult.sampleId === result.sampleId &&
-      liveResult.criterionId === result.criterionId &&
-      liveResult.judgeId === result.judgeId,
-  ) ?? result);
-  const comparisonCriterion = props.project.criteria.find((criterion) => criterion.id === comparisonCriterionId);
-  const comparisonRows = comparisonCriterion
-    ? props.project.judges
-      .filter((judge) => judge.enabled)
-      .map((judge) => ({
-        judge,
-        result: activeResultsWithLiveScores.find(
-          (result) => result.criterionId === comparisonCriterion.id && result.judgeId === judge.id,
-        ),
-      }))
-      .filter((row): row is { judge: RubricProject['judges'][number]; result: ScoreResult } => Boolean(row.result))
-    : [];
+  const resultsWithLiveScores = visibleResults.map((result) => {
+    const key = `${result.sampleId}:${result.criterionId}:${result.judgeId}`;
+    return providerScores[key] ?? ollamaScores[key] ?? result;
+  });
   const catchRows = catchViewRows(props.project, props.results, catchCriterionId, catchSort, catchVerdict);
   const themeDistributions = props.project.themes.map((theme) => {
     const criteria = props.project.criteria.filter((criterion) => criterion.themeId === theme.id);
@@ -173,6 +152,210 @@ export function PreviewPanel(props: {
     }
   }
 
+  async function importJsonl(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+    try {
+      const imported = parseJsonlSamples(await file.text(), props.project);
+      if (imported.length === 0) {
+        setSampleImportStatus('No samples were found in that JSONL file.');
+        return;
+      }
+      imported.forEach(props.onAddSample);
+      setSampleImportStatus(`Loaded ${imported.length} sample${imported.length === 1 ? '' : 's'} from ${file.name}.`);
+    } catch {
+      setSampleImportStatus('Sample import failed. Use JSONL rows with id, prompt, and response fields.');
+    }
+  }
+
+  function generateSyntheticSample() {
+    const sample: RubricSample = {
+      id: `synthetic-${Date.now()}`,
+      prompt: 'Synthetic calibration prompt generated for rubric smoke testing.',
+      response:
+        'This response gives concrete steps, names uncertainty, cites missing evidence, and redirects unsafe requests toward a safe alternative.',
+      metadata: {
+        source: 'synthetic',
+        topic: 'generated smoke test',
+        previewScore: 86,
+      },
+      goldScores: defaultGoldScores(props.project),
+    };
+    props.onAddSample(sample);
+    setSampleImportStatus(`Generated ${sample.id}.`);
+  }
+
+  return (
+    <div className="rs-surface rs-preview-surface">
+      <header className="rs-surface-header">
+        <div className="rs-breadcrumb">
+          <span>Live testing</span>
+        </div>
+        <div className="rs-header-actions">
+          <label className="ghost-button file-button" aria-label="Load sample JSONL">
+            Load JSONL
+            <input
+              type="file"
+              accept=".jsonl,application/json"
+              onChange={(event) => {
+                void importJsonl(event.currentTarget.files?.[0]);
+                event.currentTarget.value = '';
+              }}
+            />
+          </label>
+          <button className="ghost-button" type="button" onClick={generateSyntheticSample}>Generate synthetic</button>
+          <button className="glass-button" type="button" onClick={props.onRun}>Score current</button>
+          <button className="glass-button primary" type="button" onClick={props.onRun}>Score all · {props.project.samples.length} samples</button>
+        </div>
+      </header>
+
+      <div className="rs-preview-body">
+        <section className="rs-preview-main">
+          <div className="rs-eyebrow">Sample</div>
+          <div className="rs-sample-deck">
+            {props.project.samples.map((sample) => {
+              const sampleResults = props.results.filter((result) => result.sampleId === sample.id);
+              const average = typeof sample.metadata.previewScore === 'number'
+                ? sample.metadata.previewScore
+                : sampleResults.length
+                ? Math.round((sampleResults.reduce((sum, result) => sum + result.score, 0) / sampleResults.length) * 100)
+                : 0;
+              return (
+                <button
+                  key={sample.id}
+                  type="button"
+                  className={sample.id === props.selectedSampleId ? 'active' : ''}
+                  onClick={() => props.onSelectSample(sample.id)}
+                >
+                  <span>{sample.id}</span>
+                  <b>{average}%</b>
+                  <strong>{String(sample.metadata.topic ?? sample.id).replace(/-/g, ' ')}</strong>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="rs-conversation">
+            <article>
+              <span>User</span>
+              <p>{props.selectedSample.prompt}</p>
+            </article>
+            <article className="model">
+              <span>Model</span>
+              <p>{props.selectedSample.response}</p>
+            </article>
+          </div>
+
+          <div className="rs-preview-filters">
+            <span>Filter:</span>
+            <label><input type="checkbox" checked={failuresOnly} onChange={(event) => setFailuresOnly(event.target.checked)} />Failures</label>
+            <label><input type="checkbox" checked={disagreementsOnly} onChange={(event) => setDisagreementsOnly(event.target.checked)} />Disagreements</label>
+            <label><input type="checkbox" checked={lowConfidenceOnly} onChange={(event) => setLowConfidenceOnly(event.target.checked)} />Low confidence</label>
+            <small>{props.surface === 'browser' ? 'Browser scoring uses BYO keys directly.' : 'Desktop scoring runs through the Rust core.'}</small>
+          </div>
+
+          {props.running ? <LoadingState label="Scoring all criteria with cancellable progress" onCancel={props.onCancelRun} /> : null}
+          {sampleImportStatus ? <p className="success-chip" role="status">{sampleImportStatus}</p> : null}
+
+          <div className="rs-eyebrow rs-judge-label">Judges · {props.project.judges.filter((judge) => judge.enabled).length} of {props.project.judges.length} enabled</div>
+          <div className="rs-judge-grid">
+            {props.project.judges.filter((judge) => judge.enabled).map((judge) => (
+              <div key={judge.id} className="rs-judge-panel">
+                <header>
+                  <span className="tree-status live" />
+                  <strong>{judge.label}</strong>
+                  <code>{judge.provider}/{judge.model}</code>
+                </header>
+                {providerErrors[judge.id] ? (
+                  <span className="inline-error provider-error" role="alert">
+                    {providerErrors[judge.id]}
+                    <button className="ghost-button" type="button" onClick={props.onOpenSettings}>
+                      Rotate key in Settings
+                    </button>
+                  </span>
+                ) : null}
+                {resultsWithLiveScores
+                  .filter((result) => result.judgeId === judge.id)
+                  .map((result) => (
+                    <div key={`${result.judgeId}-${result.criterionId}`} className={`rs-score-row ${result.verdict}`}>
+                      <span>{props.project.criteria.find((criterion) => criterion.id === result.criterionId)?.label}</span>
+                      <b>{result.verdict}</b>
+                      <code>{result.confidence.toFixed(2)}</code>
+                      {props.surface === 'browser' && isRemoteJudge(judge) ? (
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          disabled={!judge.keyConfigured || props.noNetworkMode || providerRunningId === `${result.sampleId}:${result.criterionId}:${result.judgeId}`}
+                          onClick={() => runProviderScore(result)}
+                        >
+                          {providerRunningId === `${result.sampleId}:${result.criterionId}:${result.judgeId}` ? 'Scoring...' : 'Run'}
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                {resultsWithLiveScores.filter((result) => result.judgeId === judge.id).length === 0 ? (
+                  <EmptyState title="No visible scores" body="Adjust filters or score a different sample." />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <aside className="rs-analysis-rail">
+          <div className="rs-rail-block">
+            <div className="rs-eyebrow">What did this catch?</div>
+            <h2>Cites uncertainty lags.</h2>
+            <p>Sort: low confidence · Verdict: all</p>
+          </div>
+
+          <div className="rs-rail-block rs-catch-list">
+            {catchRows.slice(0, 3).map((row) => (
+              <button key={row.sampleId} type="button" className={row.sampleId === props.selectedSampleId ? 'active' : ''} onClick={() => props.onSelectSample(row.sampleId)}>
+                <strong>{row.sampleId}</strong>
+                <span>{row.verdict}</span>
+                <small>{Math.round(row.confidence * 100)}%</small>
+              </button>
+            ))}
+          </div>
+
+          <div className="rs-rail-block">
+            <div className="rs-eyebrow">Verdict mix by criterion</div>
+            {props.project.criteria.map((criterion) => {
+              const distribution = distributionForCriterion(props.results, criterion.id);
+              return (
+                <div className="distribution" key={criterion.id}>
+                  <button type="button" onClick={() => setCatchCriterionId(criterion.id)}>{criterion.label}</button>
+                  <div className="bars" role="group" aria-label={`Distribution for ${criterion.label}`}>
+                    <button type="button" aria-label={`${criterion.label} pass samples`} style={{ width: `${distribution.pass * 18 + 8}%` }} className="pass" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('pass'); }} />
+                    <button type="button" aria-label={`${criterion.label} partial samples`} style={{ width: `${distribution.partial * 18 + 8}%` }} className="partial" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('partial'); }} />
+                    <button type="button" aria-label={`${criterion.label} fail samples`} style={{ width: `${distribution.fail * 18 + 8}%` }} className="fail" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('fail'); }} />
+                  </div>
+                  <small>{distribution.pass} pass · {distribution.partial} partial · {distribution.fail} fail</small>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="rs-rail-block">
+            <div className="rs-eyebrow">Theme weight</div>
+            {themeDistributions.map(({ theme, totals }) => (
+              <div key={theme.id} className="distribution theme-row">
+                <strong>{theme.label}</strong>
+                <div className="bars" role="img" aria-label={`${theme.label} theme contribution`}>
+                  <span style={{ width: `${totals.pass * 10 + 8}%` }} className="pass" />
+                  <span style={{ width: `${totals.partial * 10 + 8}%` }} className="partial" />
+                  <span style={{ width: `${totals.fail * 10 + 8}%` }} className="fail" />
+                </div>
+                <small>weight {totals.weight.toFixed(2)}</small>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+
   return (
     <div className="panel-grid preview-grid">
       <section className="glass-panel">
@@ -182,15 +365,14 @@ export function PreviewPanel(props: {
             <h2>Live testing</h2>
           </div>
           <div className="inline-actions">
-            <button className="glass-button" type="button" onClick={() => props.onRun('current')}>Score current</button>
-            <button className="glass-button primary" type="button" onClick={() => props.onRun('all')}>Score all</button>
+            <button className="glass-button" type="button" onClick={props.onRun}>Score current</button>
+            <button className="glass-button primary" type="button" onClick={props.onRun}>Score all</button>
           </div>
         </div>
         <SampleControls
           project={props.project}
           selectedSampleId={props.selectedSampleId}
           surface={props.surface}
-          actionRequest={props.sampleActionRequest}
           onSelect={props.onSelectSample}
           onAddSample={props.onAddSample}
         />
@@ -200,21 +382,9 @@ export function PreviewPanel(props: {
           <label><input type="checkbox" checked={disagreementsOnly} onChange={(event) => setDisagreementsOnly(event.target.checked)} />Disagreements</label>
           <label><input type="checkbox" checked={lowConfidenceOnly} onChange={(event) => setLowConfidenceOnly(event.target.checked)} />Low confidence</label>
         </div>
-        {props.running ? (
-          <LoadingState
-            label={props.runningScope === 'current' ? 'Scoring current sample with cancellable progress' : 'Scoring all samples with cancellable progress'}
-            onCancel={props.onCancelRun}
-          />
-        ) : null}
-        {props.nativeScoreRun ? <NativeScoreRunReceiptView receipt={props.nativeScoreRun} /> : null}
+        {props.running ? <LoadingState label="Scoring all criteria with cancellable progress" onCancel={props.onCancelRun} /> : null}
         <article className="sample-card">
           <p>{props.selectedSample.id} · {props.project.samples.length} samples loaded</p>
-          {props.selectedSample.metadata.source ? (
-            <small className="sample-provenance">
-              {String(props.selectedSample.metadata.source)}
-              {props.selectedSample.metadata.meta_prompt ? ` · ${String(props.selectedSample.metadata.meta_prompt)}` : ''}
-            </small>
-          ) : null}
           <small>{props.selectedSample.prompt}</small>
           <blockquote>{props.selectedSample.response}</blockquote>
         </article>
@@ -258,15 +428,6 @@ export function PreviewPanel(props: {
                       <small>{result.confidence}</small>
                     </summary>
                     <p>{result.reasoning}</p>
-                    {disagreementIds.has(result.criterionId) ? (
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={() => setComparisonCriterionId(result.criterionId)}
-                      >
-                        Compare disagreement
-                      </button>
-                    ) : null}
                     {judge.provider === 'ollama' ? (
                       <div className="ollama-trace">
                         <button
@@ -308,32 +469,6 @@ export function PreviewPanel(props: {
             <h2>What did this catch?</h2>
           </div>
         </div>
-        {comparisonCriterion ? (
-          <section className="comparison-panel" aria-label="Side-by-side judge comparison">
-            <div className="comparison-title">
-              <div>
-                <p>Side-by-side judge comparison</p>
-                <h3>{comparisonCriterion.label}</h3>
-              </div>
-              <button className="ghost-button" type="button" onClick={() => setComparisonCriterionId(null)}>
-                Clear
-              </button>
-            </div>
-            <div className="comparison-grid">
-              {comparisonRows.map(({ judge, result }) => (
-                <article key={judge.id} className={`comparison-card ${result.verdict}`}>
-                  <strong>{judge.label}</strong>
-                  <dl>
-                    <div><dt>Verdict</dt><dd>{result.verdict}</dd></div>
-                    <div><dt>Score</dt><dd>{result.score.toFixed(2)}</dd></div>
-                    <div><dt>Confidence</dt><dd>{Math.round(result.confidence * 100)}%</dd></div>
-                  </dl>
-                  <p>{result.reasoning}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
         <div className="catch-controls">
           <label>
             Criterion
@@ -376,18 +511,7 @@ export function PreviewPanel(props: {
           const distribution = distributionForCriterion(props.results, criterion.id);
           return (
             <div className="distribution" key={criterion.id}>
-              <div className="distribution-heading">
-                <button type="button" onClick={() => setCatchCriterionId(criterion.id)}>{criterion.label}</button>
-                {disagreementIds.has(criterion.id) ? (
-                  <button
-                    className="ghost-button"
-                    type="button"
-                    onClick={() => setComparisonCriterionId(criterion.id)}
-                  >
-                    Compare
-                  </button>
-                ) : null}
-              </div>
+              <button type="button" onClick={() => setCatchCriterionId(criterion.id)}>{criterion.label}</button>
               <div className="bars" role="group" aria-label={`Distribution for ${criterion.label}`}>
                 <button type="button" aria-label={`${criterion.label} pass samples`} style={{ width: `${distribution.pass * 18 + 8}%` }} className="pass" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('pass'); }} />
                 <button type="button" aria-label={`${criterion.label} partial samples`} style={{ width: `${distribution.partial * 18 + 8}%` }} className="partial" onClick={() => { setCatchCriterionId(criterion.id); setCatchVerdict('partial'); }} />
@@ -425,22 +549,6 @@ export function PreviewPanel(props: {
   );
 }
 
-function NativeScoreRunReceiptView({ receipt }: { receipt: NativeScoreRunReceipt }) {
-  return (
-    <div className="native-score-receipt" role="status" aria-live="polite">
-      <strong>{receipt.mode === 'tauri-rust-core' ? 'Rust core score run' : 'Desktop score-run preview'}</strong>
-      <p>
-        {receipt.providerRequestOwner} prepared {receipt.results.length} results, emitted {receipt.scoreUpdateEvents} score-update events, and wrote the eval-run manifest plan.
-      </p>
-      <dl className="status-grid">
-        <div><dt>Prompt template</dt><dd>{receipt.promptTemplateVersion}</dd></div>
-        <div><dt>Manifest</dt><dd>{receipt.manifestPath}</dd></div>
-        <div><dt>AuraOne keys</dt><dd>{receipt.manifestJson.includes('"sends_api_keys_to_auraone":false') ? 'not sent' : 'blocked'}</dd></div>
-      </dl>
-    </div>
-  );
-}
-
 function EmptyState({ title, body }: { title: string; body: string }) {
   return <div className="empty-state" role="status"><strong>{title}</strong><p>{body}</p></div>;
 }
@@ -448,11 +556,7 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 function LoadingState({ label, onCancel }: { label: string; onCancel: () => void }) {
   return (
     <div className="loading-state" role="status" aria-live="polite">
-      <span className="skeleton-pulse" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
+      <span />
       <div><strong>{label}</strong><progress value={66} max={100}>66%</progress></div>
       <button className="ghost-button" type="button" onClick={onCancel}>Cancel score run</button>
     </div>

@@ -2,9 +2,9 @@
 
 Status: public-safe handoff generated from the Rubric Studio Open external readiness manifest on 2026-05-13.
 
-This page lists the remaining account-gated, legal, security, release, registry, DNS, launch, community, sales, and success-metric evidence required before the launch PRD can be marked complete. It does not contain secrets, private contacts, employee PII, signing material, privileged legal analysis, private telemetry, or CRM records. Internal owners use the private readiness checklist and evidence templates to attach proof; public repo contributors should not commit private evidence here.
+This page lists the remaining account-gated, legal, security, release, registry, DNS, launch, community, sales, and success-metric evidence required before the launch PRD can be marked complete. It does not contain secrets, private contacts, employee PII, signing material, privileged legal analysis, private telemetry, or CRM records. Internal owners use the private readiness checklist and evidence templates to attach proof; public repo contributors should not commit private evidence here. Rubric Studio Open uses GitHub Discussions and GitHub Issues for public community support at launch; no real-time chat channel is required for launch readiness.
 
-Rows can be closed only after the required evidence exists and the internal readiness verifier reports no blocker for that item. Non-checkbox metrics and post-launch requirements use the same evidence standard.
+Rows and metrics can be closed only after the required evidence exists and the internal readiness verifier reports no blocker for that item.
 
 ## Remaining Unchecked Rows
 
@@ -26,7 +26,7 @@ Rows can be closed only after the required evidence exists and the internal read
 | `launch-podcast` | Podcast outreach (Latent Space, The Cognitive Revolution | Dated sent podcast outreach tracker | `launch-community-sales` |
 | `launch-design-partners` | Design partner list pre-briefed | NDA-free tracker with eight approved contacts and briefing dates | `launch-community-sales` |
 | `launch-eight-posts` | Eight launch-day blog posts pre-scheduled | Scheduler export or eight public URLs | `launch-community-sales` |
-| `launch-community-channel` | Discord / Slack community channel opened | Channel/invite URL and moderation coverage | `launch-community-sales` |
+| `launch-community-channel` | GitHub Discussions community support configured | Public discussion URLs, moderation owner, and issue-routing notes | `launch-community-sales` |
 | `launch-github-discussions` | GitHub Discussions opened with seeded threads | Public discussion URLs for the five approved seed prompts | `launch-community-sales` |
 | `launch-docs-subdomain` | Docs site live on a custom subdomain | DNS/TLS evidence and HTTP 200 | `registries-domains` |
 | `launch-status-page` | Status page live (uptime for update server | Public status URL with live monitor checks | `registries-domains` |
@@ -38,7 +38,6 @@ Rows can be closed only after the required evidence exists and the internal read
 | `registry-domain` | **Domain / subdomain:** `rubric-studio.auraone.ai` | DNS/TLS evidence and HTTP redirect to marketing route | `registries-domains` |
 | `registry-apple-identifier` | **Apple Developer signing identifier:** `ai.auraone.rubricstudio` | Apple Developer identifier and team evidence without secrets | `registries-domains` |
 | `registry-windows-identity` | **Windows app identity:** `AuraOne.RubricStudioOpen` | Partner Center or Store identity evidence | `registries-domains` |
-| `registry-discord-vanity` | **Discord vanity:** confirm "rubric-studio-open" | Server/channel URL or admin availability confirmation | `registries-domains` |
 | `registry-hugging-face` | **Hugging Face org:** confirm `rubric-studio-open` | Reserved Space/dataset URL or org-token confirmation | `registries-domains` |
 
 ## Non-Checkbox Requirements
@@ -65,7 +64,7 @@ Rows can be closed only after the required evidence exists and the internal read
 | `phase-public-launch-day` | P3-20 | Launch-day execution log tying public posts, repo release, docs/status endpoints, and support/community monitoring to the planned launch window | `phase-task` |
 | `postlaunch-weekly-point-releases` | P4-1 | Release log proving weekly point releases for the first four weeks after launch | `post-launch` |
 | `postlaunch-issue-triage-sla` | P4-2 | GitHub Issues analytics proving the 24h response SLA during the post-launch period | `post-launch` |
-| `postlaunch-community-management` | P4-3 | Community moderation and response log for the post-launch Discord/Slack channel | `post-launch` |
+| `postlaunch-community-management` | P4-3 | Community moderation and response log for GitHub Discussions and GitHub Issues | `post-launch` |
 | `postlaunch-cohort-interviews` | P4-4 | Redacted PM tracker proving interviews with the first 50 high-engagement installs | `post-launch` |
 | `postlaunch-plugin-marketplace` | P4-5 | Implementation, docs, and release evidence for the third-party engine-library plugin marketplace | `post-launch` |
 | `postlaunch-realtime-collaboration` | P4-6 | Implementation, tests, and docs for read-only initial CRDT collaboration | `post-launch` |

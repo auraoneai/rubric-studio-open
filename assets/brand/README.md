@@ -17,5 +17,5 @@ Generated app/web assets:
 - `../../public/favicon.svg`
 - `../../public/favicon.ico`
 
-The icon set uses the same cyan/emerald/violet RS mark as the in-app product
-chrome.
+The icon set uses the same structured rubric sheet and scoring-check mark as
+the in-app product chrome.

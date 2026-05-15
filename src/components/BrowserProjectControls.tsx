@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { browserFolderArtifacts, projectFromBrowserFolder } from '../domain/browserFolder';
 import type { RubricProject, SurfaceMode, ValidationIssue } from '../domain/rubric';
 import { validateProject } from '../domain/validation';
@@ -19,6 +19,10 @@ export function BrowserProjectControls({
 }) {
   const [error, setError] = useState<ImportErrorState | null>(null);
   const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    setError(null);
+  }, [project.id, project.name]);
 
   function exportProject(filename = `${project.id}.rubric-project.json`) {
     const payload = JSON.stringify(
@@ -161,7 +165,7 @@ export function BrowserProjectControls({
   }
 
   return (
-    <div className="browser-controls" aria-label="Browser project import and export">
+    <div className="rso-browser-controls" aria-label="Browser project import and export">
       <button className="ghost-button" type="button" onClick={() => exportProject()}>
         Export bundle
       </button>

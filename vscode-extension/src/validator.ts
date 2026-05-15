@@ -35,40 +35,22 @@ export function validateCriterionToml(document: CriterionDocument): RubricDiagno
     }
   }
 
-  const positiveExamples = arrayValues(content, 'positive_examples');
-  if (!positiveExamples) {
+  if (!/positive_examples\s*=/.test(content)) {
     diagnostics.push({
       file: document.file,
       line: 0,
       field: 'positive_examples',
       severity: 'hint',
-      message: 'Add at least two positive examples for reviewer calibration.',
-    });
-  } else if (positiveExamples.length < 2) {
-    diagnostics.push({
-      file: document.file,
-      line: lineFor(content, 'positive_examples'),
-      field: 'positive_examples',
-      severity: 'warning',
       message: 'Add at least two positive examples for reviewer calibration.',
     });
   }
 
-  const negativeExamples = arrayValues(content, 'negative_examples');
-  if (!negativeExamples) {
+  if (!/negative_examples\s*=/.test(content)) {
     diagnostics.push({
       file: document.file,
       line: 0,
       field: 'negative_examples',
       severity: 'hint',
-      message: 'Add at least two negative examples to constrain the criterion.',
-    });
-  } else if (negativeExamples.length < 2) {
-    diagnostics.push({
-      file: document.file,
-      line: lineFor(content, 'negative_examples'),
-      field: 'negative_examples',
-      severity: 'warning',
       message: 'Add at least two negative examples to constrain the criterion.',
     });
   }
@@ -93,15 +75,4 @@ function lineFor(content: string, field: string): number {
   const fieldPattern = new RegExp(`^${field}\\s*=`);
   const index = lines.findIndex((line) => fieldPattern.test(line.trim()));
   return index >= 0 ? index : 0;
-}
-
-function arrayValues(content: string, field: string): string[] | null {
-  const match = new RegExp(`^${field}\\s*=\\s*\\[([^\\]]*)\\]`, 'm').exec(content);
-  if (!match) {
-    return null;
-  }
-  return match[1]
-    .split(',')
-    .map((value) => value.trim().replace(/^["']|["']$/g, '').trim())
-    .filter(Boolean);
 }

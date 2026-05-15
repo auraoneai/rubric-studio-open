@@ -29,22 +29,9 @@ const menuActions: Record<MenuName, string[]> = {
     'New project from template',
     'Quick open',
     'Save current project',
-    'Export: Rubric file',
-    'Export: Judge card',
-    'Export: eval-run-manifest',
-    'Export: Conformance badge',
-    'Export: lm-eval-harness',
-    'Export: Inspect',
-    'Export: OpenAI Evals',
-    'Export: Promptfoo',
-    'Export: Hugging Face Hub',
-    'Export: Surge SOW',
-    'Export: Scale task spec',
     'Export: AuraOne intake package',
   ],
   Edit: [
-    'Undo',
-    'Redo',
     'New criterion',
     'New theme',
     'Duplicate criterion',
@@ -67,36 +54,17 @@ const menuActions: Record<MenuName, string[]> = {
     'Run bias probes',
     'Run contamination audit',
     'Open semantic diff',
-    'Run diff overlay',
     'Try criterion variant',
   ],
-  Run: [
-    'Run preview',
-    'Load JSONL samples',
-    'Paste scratch sample',
-    'Generate test sample',
-    'Score current sample',
-    'Score all samples',
-  ],
+  Run: ['Run preview', 'Score current sample', 'Score all samples'],
   Tools: [
     'Git init',
-    'Git status',
-    'Git branch',
-    'Git switch branch',
-    'Git remote add',
-    'Git fetch',
-    'Git pull',
-    'Git push',
-    'Git fast-forward merge',
     'Git commit',
-    'Generate GitHub Actions helper',
-    'Generate GitLab CI helper',
-    'Generate CircleCI helper',
-    'Generate Make helper',
+    'Generate CI helper',
     'Open keyboard shortcuts',
     'Toggle browser constraints',
   ],
-  Help: ['Command palette', 'Open keyboard shortcuts'],
+  Help: ['Start guided tour', 'Command palette', 'Open keyboard shortcuts'],
 };
 
 export function ApplicationMenu({
@@ -185,7 +153,7 @@ export function ApplicationMenu({
 
   return (
     <nav
-      className="menu app-menu"
+      className="menu rs-app-menu"
       aria-label="Application menu"
       onKeyDown={(event) => {
         if (event.key === 'Escape') setOpenMenu(null);

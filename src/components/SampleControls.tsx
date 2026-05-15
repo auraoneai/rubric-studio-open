@@ -1,47 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { RubricProject, RubricSample, SurfaceMode } from '../domain/rubric';
-import { generateSyntheticTestSample, parseJsonlSamples, parseScratchSamples } from '../domain/samples';
-
-export type SampleAction = 'load-jsonl' | 'paste-sample' | 'generate-synthetic';
-export type SampleActionRequest = { action: SampleAction; nonce: number };
+import { defaultGoldScores, parseJsonlSamples, parseScratchSamples } from '../domain/samples';
 
 export function SampleControls({
   project,
   selectedSampleId,
   surface,
-  actionRequest,
   onSelect,
   onAddSample,
 }: {
   project: RubricProject;
   selectedSampleId: string;
   surface: SurfaceMode;
-  actionRequest: SampleActionRequest | null;
   onSelect: (sampleId: string) => void;
   onAddSample: (sample: RubricSample) => void;
 }) {
   const [scratch, setScratch] = useState('');
   const [error, setError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const scratchRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    if (!actionRequest) {
-      return;
-    }
-    if (actionRequest.action === 'load-jsonl') {
-      fileInputRef.current?.focus();
-      setError('Choose a JSONL file from the focused loader to add samples.');
-    }
-    if (actionRequest.action === 'paste-sample') {
-      scratchRef.current?.focus();
-      setError('');
-    }
-    if (actionRequest.action === 'generate-synthetic') {
-      generateSynthetic();
-      setError('');
-    }
-  }, [actionRequest]);
 
   async function importJsonl(file: File | undefined) {
     if (!file) {
@@ -73,7 +48,17 @@ export function SampleControls({
   }
 
   function generateSynthetic() {
-    onAddSample(generateSyntheticTestSample(project, surface));
+    onAddSample({
+      id: `synthetic-${Date.now()}`,
+      prompt: 'Synthetic calibration prompt generated for rubric smoke testing.',
+      response:
+        'This response includes concrete steps, names uncertainty, cites where evidence is missing, and declines unsafe requests with a safe alternative.',
+      metadata: {
+        source: 'synthetic',
+        surface,
+      },
+      goldScores: defaultGoldScores(project),
+    });
   }
 
   return (
@@ -91,7 +76,6 @@ export function SampleControls({
       <label className="file-button">
         <span>Load JSONL</span>
         <input
-          ref={fileInputRef}
           type="file"
           accept=".jsonl,application/json"
           onChange={(event) => {
@@ -101,12 +85,11 @@ export function SampleControls({
         />
       </label>
       <button className="ghost-button" type="button" onClick={generateSynthetic}>
-        Generate test sample
+        Generate synthetic
       </button>
       <label className="scratch-pane">
         Paste sample
         <textarea
-          ref={scratchRef}
           value={scratch}
           onChange={(event) => setScratch(event.target.value)}
           placeholder='{"id":"scratch-1","prompt":"...","response":"..."}'

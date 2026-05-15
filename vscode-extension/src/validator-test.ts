@@ -41,24 +41,4 @@ const compactWeight = validateCriterionToml({
 assert.equal(compactWeight.find((diagnostic) => diagnostic.field === 'weight')?.line, 3);
 assert.equal(compactWeight.find((diagnostic) => diagnostic.field === 'weight')?.severity, 'error');
 
-const sparseExamples = validateCriterionToml({
-  file: '/workspace/criteria/helpfulness/sparse-examples.toml',
-  content: [
-    'id = "sparse-examples"',
-    'label = "Sparse examples"',
-    'description = "The response is judged with too few calibration examples."',
-    'weight = 0.2',
-    'scale = "binary"',
-    'positive_examples = ["Only one positive example"]',
-    'negative_examples = ["Only one negative example"]',
-  ].join('\n'),
-});
-assert.deepEqual(
-  sparseExamples.map((diagnostic) => [diagnostic.field, diagnostic.severity, diagnostic.line]),
-  [
-    ['positive_examples', 'warning', 5],
-    ['negative_examples', 'warning', 6],
-  ],
-);
-
 console.log('Rubric Studio Open VS Code validator behavior passed.');

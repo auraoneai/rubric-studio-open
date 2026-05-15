@@ -1,19 +1,10 @@
 import { useEffect, useState } from 'react';
 import { configureProviderKey, getKeychainStatus, type KeychainStatus } from '../domain/keychain';
 import { detectOllama, type OllamaStatus } from '../domain/ollama';
+import { toAuraTelemetryEvents, type AuraTelemetryEvent, type TelemetryLogEntry } from '../domain/platformTelemetry';
 import { checkForPlatformUpdate, getReliabilityStatus, type ReliabilityStatus, type UpdateCheckResult } from '../domain/reliability';
-import type { JudgeConfig, RubricProject, SurfaceMode, TelemetryEvent } from '../domain/rubric';
-import { sidecarHealthSummary, sidecarWorkerReadiness } from '../domain/sidecarHealth';
-import { studioMessages, supportedLocales, type LocaleCode } from '../domain/i18n';
+import { providerModelOptions, type JudgeConfig, type RubricProject, type SurfaceMode } from '../domain/rubric';
 import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
-import {
-  type EnginePluginReviewReceipt,
-  enginePluginCatalog,
-  enginePluginCompatibility,
-  reviewEnginePluginManifest,
-  safeExamplePluginManifest,
-  summarizeEnginePluginCatalog,
-} from '../domain/pluginMarketplace';
 
 export type VisualMode = 'dark' | 'light' | 'high-contrast';
 export type UpdateChannel = 'stable' | 'beta';
@@ -38,35 +29,34 @@ export function SettingsPanel(props: {
   setUpdateChannel: (channel: UpdateChannel) => void;
   noNetworkMode: boolean;
   setNoNetworkMode: (value: boolean) => void;
-  telemetryLog: TelemetryEvent[];
+  telemetryLog: TelemetryLogEntry[];
   shortcuts: ShortcutRow[];
   visualMode: VisualMode;
   setVisualMode: (mode: VisualMode) => void;
-  locale: LocaleCode;
-  setLocale: (locale: LocaleCode) => void;
   onSetShortcut: (action: string, shortcut: string) => void;
   onToggleJudge: (judgeId: string) => void;
   onSetKey: (judgeId: string, configured: boolean) => void;
+  onUpdateJudge: (judgeId: string, patch: Partial<Pick<JudgeConfig, 'model' | 'label'>>) => void;
 }) {
+  const settingsNav = [
+    ['Provider keys', 'settings-provider-keys'],
+    ['Theme & contrast', 'settings-theme'],
+    ['Telemetry', 'settings-telemetry'],
+    ['Network', 'settings-network'],
+    ['Operational recovery', 'settings-recovery'],
+    ['Crash reporting', 'settings-reliability'],
+    ['Shortcuts', 'settings-shortcuts'],
+  ] as const;
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
   const [keychainStatus, setKeychainStatus] = useState<KeychainStatus | null>(null);
   const [reliabilityStatus, setReliabilityStatus] = useState<ReliabilityStatus | null>(null);
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
-  const [updateNotificationDismissed, setUpdateNotificationDismissed] = useState(false);
-  const [updateInstallIntent, setUpdateInstallIntent] = useState('');
   const [updateChecking, setUpdateChecking] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const [diagnosticsRunAt, setDiagnosticsRunAt] = useState('');
-  const [pluginManifestDraft, setPluginManifestDraft] = useState('');
-  const [pluginReview, setPluginReview] = useState<EnginePluginReviewReceipt | null>(null);
-  const [sessionPlugins, setSessionPlugins] = useState<typeof enginePluginCatalog>([]);
   const shortcutConflicts = findShortcutConflicts(props.shortcuts);
   const diagnostics = operationalDiagnostics(props.surface);
-  const sidecarHealth = sidecarHealthSummary(props.surface);
-  const messages = studioMessages[props.locale].settings;
-  const pluginListings = [...enginePluginCatalog, ...sessionPlugins];
-  const pluginSummary = summarizeEnginePluginCatalog(pluginListings, props.surface);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,8 +144,6 @@ export function SettingsPanel(props: {
   }
 
   async function checkForUpdates() {
-    setUpdateInstallIntent('');
-    setUpdateNotificationDismissed(false);
     if (props.noNetworkMode) {
       setUpdateCheck({
         status: 'unavailable',
@@ -166,45 +154,80 @@ export function SettingsPanel(props: {
     }
     setUpdateChecking(true);
     try {
-      const result = await checkForPlatformUpdate(props.surface);
-      setUpdateCheck(result);
+      setUpdateCheck(await checkForPlatformUpdate(props.surface));
     } finally {
       setUpdateChecking(false);
     }
   }
 
-  function reviewPluginManifest() {
-    const receipt = reviewEnginePluginManifest(pluginManifestDraft, props.surface);
-    setPluginReview(receipt);
-    if (receipt.accepted && receipt.plugin && !pluginListings.some((plugin) => plugin.id === receipt.plugin?.id)) {
-      setSessionPlugins((current) => [...current, receipt.plugin!]);
-    }
-  }
-
   return (
-    <div className="panel-grid settings-grid">
-      <section className="glass-panel">
-        <div className="panel-title"><div><p>Keys</p><h2>BYO provider settings</h2></div></div>
+    <div className="rs-surface rs-settings-surface">
+      <header className="rs-settings-hero">
+        <div className="rs-eyebrow">Settings</div>
+        <h2>How this studio behaves on this machine.</h2>
+      </header>
+      <div className="rs-settings-body">
+        <aside className="rs-settings-nav">
+          {settingsNav.map(([item, id], index) => (
+            <button
+              key={item}
+              className={index === 0 ? 'active' : ''}
+              type="button"
+              onClick={() => document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
+            >
+              {item}
+            </button>
+          ))}
+        </aside>
+        <section className="rs-settings-main">
+          <section className="rs-settings-section" id="settings-provider-keys">
+            <header>
+              <span>01</span>
+              <div>
+                <h3>BYO provider keys</h3>
+                <p>Desktop routes keys through the OS keychain bridge — never plaintext in project files.</p>
+              </div>
+            </header>
         {props.project.judges.map((judge) => (
-          <div key={judge.id} className="setting-row">
-            <div><strong>{judge.label}</strong><small>{judge.provider}/{judge.model}</small></div>
-            <label><input type="checkbox" checked={judge.enabled} onChange={() => props.onToggleJudge(judge.id)} />Enabled</label>
+          <div key={judge.id} className="rs-provider-row">
+            <div className="setting-identity"><strong>{judge.label}</strong><small>{judge.provider}/{judge.model}</small></div>
+            <label className="setting-enabled"><input type="checkbox" checked={judge.enabled} onChange={() => props.onToggleJudge(judge.id)} />Enabled</label>
+            {isConfigurableProvider(judge) ? (
+              <label className="model-picker">
+                <span>Model</span>
+                <input
+                  list={`${judge.id}-model-options`}
+                  aria-label={`${judge.label} model ID`}
+                  value={judge.model}
+                  onChange={(event) => props.onUpdateJudge(judge.id, {
+                    model: event.target.value,
+                    label: labelForModel(judge.provider, event.target.value),
+                  })}
+                />
+                <datalist id={`${judge.id}-model-options`}>
+                  {providerModelOptions[judge.provider].map((model) => (
+                    <option key={model} value={model} />
+                  ))}
+                </datalist>
+              </label>
+            ) : <input aria-label={`${judge.label} model auto-detect`} value="auto-detect" disabled readOnly />}
             {judge.provider !== 'mock' && judge.provider !== 'ollama' ? (
               <input
+                className="provider-key-input"
                 aria-label={`${judge.label} API key`}
                 type="password"
                 value={keyDrafts[judge.id] ?? ''}
                 placeholder={judge.keyConfigured ? 'Configured in session' : 'Paste BYO key'}
                 onChange={(event) => setKeyDrafts((current) => ({ ...current, [judge.id]: event.target.value }))}
               />
-            ) : null}
-            <button className="glass-button" type="button" onClick={() => configureJudge(judge)}>
+            ) : <input aria-label={`${judge.label} key storage auto-detect`} value="auto-detect" disabled readOnly />}
+            <button className="glass-button configure-key-button" type="button" onClick={() => configureJudge(judge)}>
               {judge.provider === 'ollama' ? 'Detect Ollama' : judge.keyConfigured ? 'Rotate key' : 'Configure key'}
             </button>
             {keyErrors[judge.id] ? <span className="inline-error" role="alert">{keyErrors[judge.id]}</span> : null}
           </div>
         ))}
-        <div className="callout">
+        <div className="rs-key-storage">
           <strong>Local judge</strong>
           <p>Ollama runs at localhost only. Rubric Studio Open detects installed models, uses native streaming for local traces, and never sends local prompts to AuraOne.</p>
           <dl className="status-grid">
@@ -217,7 +240,7 @@ export function SettingsPanel(props: {
             <code>ollama pull llama3.1:8b</code>
           </div>
         </div>
-        <div className="callout">
+        <div className="rs-key-storage">
           <strong>Key storage</strong>
           <p>{props.surface === 'browser' ? 'Browser edition stores BYO keys in session memory for direct provider calls only.' : 'Desktop routes keys through the OS keychain bridge; never plaintext project files.'}</p>
           <dl className="status-grid">
@@ -227,11 +250,12 @@ export function SettingsPanel(props: {
           </dl>
         </div>
       </section>
-      <section className="glass-panel">
-        <div className="panel-title">
-          <div><p>{messages.displayEyebrow}</p><h2>{messages.themeHeading}</h2></div>
-        </div>
-        <div className="segmented" role="radiogroup" aria-label={messages.visualModeLabel}>
+      <section className="rs-settings-section rs-theme-section" id="settings-theme">
+        <header>
+          <span>02</span>
+          <div><h3>Theme & contrast</h3><p>Studio matches OS by default; pick a forced mode if you prefer.</p></div>
+        </header>
+        <div className="segmented" role="radiogroup" aria-label="Visual mode">
           {(['dark', 'light', 'high-contrast'] as const).map((mode) => (
             <button
               key={mode}
@@ -241,29 +265,21 @@ export function SettingsPanel(props: {
               aria-checked={props.visualMode === mode}
               onClick={() => props.setVisualMode(mode)}
             >
-              {mode}
+              {mode === 'high-contrast' ? 'High contrast' : mode[0].toUpperCase() + mode.slice(1)}
             </button>
           ))}
         </div>
-        <label className="setting-row locale-row">
-          <span>{messages.interfaceLanguage}</span>
-          <select value={props.locale} onChange={(event) => props.setLocale(event.target.value as LocaleCode)}>
-            {supportedLocales.map((locale) => (
-              <option key={locale.code} value={locale.code}>
-                {locale.nativeLabel} ({locale.label})
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="subtle">{messages.languageDescription}</p>
-        <small className="locale-summary">{messages.localeSummary}</small>
       </section>
-      <section className="glass-panel">
+        </section>
+      </div>
+      <div className="rs-settings-extra">
+      <section className="glass-panel" id="settings-telemetry">
         <div className="panel-title"><div><p>Telemetry</p><h2>Transparent event log</h2></div><label className="switch"><span>Opt in</span><input type="checkbox" checked={props.telemetryEnabled} onChange={(event) => props.setTelemetryEnabled(event.target.checked)} /></label></div>
         <p className="subtle">Collected only when opted in: anonymous install hash, feature usage counts, and error rates. Never rubric content, samples, judge prompts, or API keys.</p>
+        <AuraTelemetryEventLog events={toAuraTelemetryEvents(props.telemetryLog)} />
         <pre className="export-preview" tabIndex={0} aria-label="Transparent telemetry event log JSON">{JSON.stringify(props.telemetryLog, null, 2)}</pre>
       </section>
-      <section className="glass-panel">
+      <section className="glass-panel" id="settings-network">
         <div className="panel-title">
           <div><p>Network</p><h2>No-network mode</h2></div>
           <label className="switch">
@@ -283,7 +299,7 @@ export function SettingsPanel(props: {
           sends_user_authored_content: false,
         }, null, 2)}</pre>
       </section>
-      <section className="glass-panel">
+      <section className="glass-panel" id="settings-recovery">
         <div className="panel-title">
           <div><p>Diagnostics</p><h2>Operational recovery</h2></div>
           <button className="glass-button" type="button" onClick={() => setDiagnosticsRunAt(new Date().toISOString())}>
@@ -291,12 +307,6 @@ export function SettingsPanel(props: {
           </button>
         </div>
         <div className="diagnostic-grid" aria-label="Operational diagnostics">
-          <article className={`diagnostic-card ${sidecarHealth.overallStatus === 'healthy' ? 'ok' : 'blocked'}`}>
-            <strong>Sidecar health</strong>
-            <span>{sidecarHealth.overallStatus}</span>
-            <p>{sidecarWorkerReadiness(sidecarHealth)}</p>
-            <small>{sidecarHealth.childCrashSafe ? 'Crash-safe restart enabled through Rust core.' : 'Desktop-only sidecars stay disabled here.'}</small>
-          </article>
           {diagnostics.map((row) => (
             <article key={row.id} className={`diagnostic-card ${row.status}`}>
               <strong>{row.label}</strong>
@@ -310,85 +320,10 @@ export function SettingsPanel(props: {
           checked_at: diagnosticsRunAt || 'not-run-this-session',
           surface: props.surface,
           checks: diagnostics,
-          sidecar_health: sidecarHealth,
           recovery_states_covered: ['sidecar-crash', 'git-conflict', 'disk-full', 'missing-dependency'],
         }, null, 2)}</pre>
       </section>
-      <section className="glass-panel">
-        <div className="panel-title">
-          <div><p>Extensibility</p><h2>Engine plugin catalog</h2></div>
-          <span className="success-chip">{pluginSummary.installed} installed</span>
-        </div>
-        <p className="subtle">Third-party engine libraries run through signed manifests, local sandbox declarations, and explicit browser/desktop compatibility checks. This catalog never installs remote code automatically.</p>
-        <div className="plugin-grid" aria-label="Engine plugin marketplace">
-          {pluginListings.map((plugin) => {
-            const compatibility = enginePluginCompatibility(plugin, props.surface);
-            return (
-              <article key={plugin.id} className={`plugin-card ${compatibility.compatible ? 'ok' : 'blocked'}`}>
-                <div>
-                  <strong>{plugin.name}</strong>
-                  <small>{plugin.engineLibrary} · {plugin.version}</small>
-                </div>
-                <span>{compatibility.status}</span>
-                <p>{plugin.description}</p>
-                <dl className="status-grid plugin-policy">
-                  <div><dt>Runtime</dt><dd>{plugin.sandbox.runtime}</dd></div>
-                  <div><dt>Network</dt><dd>{plugin.sandbox.networkAccess}</dd></div>
-                  <div><dt>Content</dt><dd>{plugin.sandbox.sendsUserContent ? 'review required' : 'local only'}</dd></div>
-                </dl>
-                <small>{compatibility.message}</small>
-              </article>
-            );
-          })}
-        </div>
-        <div className="plugin-manifest-review">
-          <label htmlFor="engine-plugin-manifest">Review local plugin manifest</label>
-          <textarea
-            id="engine-plugin-manifest"
-            aria-label="Engine plugin manifest JSON"
-            value={pluginManifestDraft}
-            placeholder="Paste a signed engine plugin manifest JSON..."
-            onChange={(event) => setPluginManifestDraft(event.target.value)}
-          />
-          <div className="inline-actions">
-            <button className="ghost-button" type="button" onClick={() => setPluginManifestDraft(safeExamplePluginManifest())}>
-              Load safe example
-            </button>
-            <button className="glass-button" type="button" onClick={reviewPluginManifest}>
-              Review manifest
-            </button>
-          </div>
-          {pluginReview ? (
-            <div className={`plugin-review ${pluginReview.accepted ? 'ok' : 'blocked'}`} role="status">
-              <strong>{pluginReview.accepted ? 'Plugin manifest accepted' : 'Plugin manifest blocked'}</strong>
-              <p>{pluginReview.reviewSummary}</p>
-              {pluginReview.errors.length > 0 ? <small>{pluginReview.errors.join(' ')}</small> : null}
-            </div>
-          ) : null}
-        </div>
-        <pre className="export-preview" tabIndex={0} aria-label="Engine plugin catalog JSON">{JSON.stringify({
-          surface: props.surface,
-          summary: pluginSummary,
-          review: pluginReview ? {
-            accepted: pluginReview.accepted,
-            plugin_id: pluginReview.plugin?.id ?? null,
-            installable_without_network: pluginReview.installableWithoutNetwork,
-            executes_remote_code: pluginReview.executesRemoteCode,
-            sends_user_content: pluginReview.sendsUserContent,
-            errors: pluginReview.errors,
-          } : null,
-          plugins: pluginListings.map((plugin) => ({
-            id: plugin.id,
-            status: enginePluginCompatibility(plugin, props.surface).status,
-            compatible: enginePluginCompatibility(plugin, props.surface).compatible,
-            capabilities: plugin.capabilities,
-            trust_level: plugin.trustLevel,
-            manifest_sha256: plugin.manifestSha256,
-            sandbox: plugin.sandbox,
-          })),
-        }, null, 2)}</pre>
-      </section>
-      <section className="glass-panel">
+      <section className="glass-panel" id="settings-reliability">
         <div className="panel-title">
           <div><p>Reliability</p><h2>Crash reports and updates</h2></div>
           <label className="switch"><span>Crash reports</span><input type="checkbox" checked={props.crashReportingEnabled} onChange={(event) => props.setCrashReportingEnabled(event.target.checked)} /></label>
@@ -407,16 +342,6 @@ export function SettingsPanel(props: {
           </button>
           {updateCheck ? <span className="success-chip" role="status">{updateCheck.status}</span> : null}
         </div>
-        {updateCheck?.status === 'available' && !updateNotificationDismissed ? (
-          <UpdateNotification
-            update={updateCheck}
-            currentVersion="0.1.0"
-            installIntent={updateInstallIntent}
-            onInstallNextLaunch={() => setUpdateInstallIntent(`Queued ${updateCheck.version} for install on next launch.`)}
-            onInstallNow={() => setUpdateInstallIntent(`Ready to install ${updateCheck.version}; the desktop app will restart after the signed download verifies.`)}
-            onRemindLater={() => setUpdateNotificationDismissed(true)}
-          />
-        ) : null}
         <pre className="export-preview" tabIndex={0} aria-label="Reliability status JSON">{JSON.stringify({
           crash_reporting_enabled: reliabilityStatus?.crash.enabled ?? props.crashReportingEnabled,
           crash_provider: reliabilityStatus?.crash.provider ?? 'sentry',
@@ -428,14 +353,14 @@ export function SettingsPanel(props: {
             'https://updates.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}',
             'https://updates2.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}',
           ],
-          update_pubkey: reliabilityStatus?.updater.pubkey ?? '<PLATFORM_UPDATE_PUBKEY>',
+          update_pubkey: reliabilityStatus?.updater.pubkey ?? 'DAKD/Nqj4KoXZpXv9li/zVQv+2LhThXE5J9tx0Wl1B8=',
           update_signature_required: reliabilityStatus?.updater.signature_required ?? true,
           update_kill_switch_supported: reliabilityStatus?.updater.kill_switch_supported ?? true,
           update_last_check: updateCheck,
           sends_user_authored_content: reliabilityStatus?.crash.sends_user_authored_content ?? false,
         }, null, 2)}</pre>
       </section>
-      <section className="glass-panel">
+      <section className="glass-panel" id="settings-shortcuts">
         <div className="panel-title"><div><p>Shortcuts</p><h2>Remappable controls</h2></div></div>
         {shortcutConflicts.length > 0 ? (
           <div className="inline-error shortcut-conflict" role="alert">
@@ -455,50 +380,8 @@ export function SettingsPanel(props: {
           </label>
         ))}
       </section>
+      </div>
     </div>
-  );
-}
-
-function UpdateNotification({
-  update,
-  currentVersion,
-  installIntent,
-  onInstallNextLaunch,
-  onInstallNow,
-  onRemindLater,
-}: {
-  update: Extract<UpdateCheckResult, { status: 'available' }>;
-  currentVersion: string;
-  installIntent: string;
-  onInstallNextLaunch: () => void;
-  onInstallNow: () => void;
-  onRemindLater: () => void;
-}) {
-  return (
-    <aside className="update-notification" role="dialog" aria-label="Update available" aria-live="polite">
-      <div className="panel-title">
-        <div><p>Signed update</p><h3>Update available</h3></div>
-        {update.mandatory ? <span className="success-chip">mandatory</span> : null}
-      </div>
-      <dl className="status-grid">
-        <div><dt>Current</dt><dd>{currentVersion}</dd></div>
-        <div><dt>Target</dt><dd>{update.version}</dd></div>
-        <div><dt>Released</dt><dd>{update.date ?? 'not provided'}</dd></div>
-      </dl>
-      <pre className="update-notes" tabIndex={0} aria-label="Update release notes">{update.body || 'No release notes were provided with this signed manifest.'}</pre>
-      <details className="signing-details">
-        <summary>What&apos;s signed by whom</summary>
-        <p>Manifest and bundle signatures are verified against {update.signed_by} before install.</p>
-        <a href={update.signing_docs_url} target="_blank" rel="noreferrer">Open signing docs</a>
-      </details>
-      <div className="inline-actions">
-        <button className="glass-button" type="button" onClick={onInstallNextLaunch}>Install on next launch</button>
-        <button className="ghost-button" type="button" onClick={onInstallNow}>Install now and restart</button>
-        {!update.mandatory ? <button className="link-button" type="button" onClick={onRemindLater}>Remind me later</button> : null}
-      </div>
-      {update.mandatory ? <p className="subtle">This update is mandatory for the selected channel, so reminder deferral is unavailable.</p> : null}
-      {installIntent ? <span className="success-chip" role="status">{installIntent}</span> : null}
-    </aside>
   );
 }
 
@@ -566,4 +449,54 @@ function operationalDiagnostics(surface: SurfaceMode): DiagnosticRow[] {
       action: 'Install the prompted dependency or continue with mock/offline features.',
     },
   ];
+}
+
+function isConfigurableProvider(
+  judge: JudgeConfig,
+): judge is JudgeConfig & { provider: keyof typeof providerModelOptions } {
+  return judge.provider === 'openai' || judge.provider === 'anthropic' || judge.provider === 'google';
+}
+
+function labelForModel(provider: keyof typeof providerModelOptions, model: string): string {
+  const trimmed = model.trim();
+  if (!trimmed) {
+    if (provider === 'openai') return 'OpenAI custom';
+    if (provider === 'anthropic') return 'Claude custom';
+    return 'Gemini custom';
+  }
+  if (trimmed === 'gpt-5.2') return 'OpenAI GPT-5.2';
+  if (trimmed === 'gpt-5.2-pro') return 'OpenAI GPT-5.2 Pro';
+  if (trimmed === 'gpt-5.5') return 'OpenAI GPT-5.5';
+  if (trimmed === 'gpt-5.5-pro') return 'OpenAI GPT-5.5 Pro';
+  if (trimmed.startsWith('gpt-')) return `OpenAI ${trimmed.toUpperCase()}`;
+  if (trimmed === 'claude-opus-4-7') return 'Claude Opus 4.7';
+  if (trimmed === 'claude-opus-4-1-20250805') return 'Claude Opus 4.1';
+  if (trimmed === 'claude-sonnet-4-20250514') return 'Claude Sonnet 4';
+  if (trimmed.startsWith('claude-')) return `Claude ${trimmed.replace(/^claude-/, '')}`;
+  if (trimmed === 'gemini-3.1-pro-preview' || trimmed === 'gemini-3.1-pro') return 'Gemini 3.1 Pro';
+  if (trimmed === 'gemini-3-pro-preview') return 'Gemini 3 Pro';
+  if (trimmed.startsWith('gemini-')) return `Gemini ${trimmed.replace(/^gemini-/, '')}`;
+  return trimmed;
+}
+
+function AuraTelemetryEventLog({ events }: { events: AuraTelemetryEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <div className="telemetry-event-list" aria-label="Transparent telemetry events">
+        <p className="subtle">No telemetry events recorded this session.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="telemetry-event-list" role="list" aria-label="Transparent telemetry events">
+      {events.map((event) => (
+        <article key={event.id} className="metric-row compact" role="listitem">
+          <strong>{event.name}</strong>
+          <span>{event.destination}</span>
+          <small>{event.timestamp}</small>
+        </article>
+      ))}
+    </div>
+  );
 }

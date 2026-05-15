@@ -11,9 +11,31 @@ Goal: go from first install to a scored sample and exported manifest in about on
 
 ## Install
 
+Download the verified macOS Apple Silicon DMG:
+
+```text
+https://github.com/auraoneai/rubric-studio-open/releases/download/v0.1.0/Rubric.Studio.Open_0.1.0_aarch64.dmg
+```
+
+Verify the SHA-256 before opening the app:
+
+```text
+ac3e98745dd9f7aa60fb9a3fc90cbec9df1ac27876db379c461aebb537886fc4
+```
+
+Or run the browser IDE:
+
+```text
+https://rubric-studio.auraone.ai
+```
+
+Build from source when you want the latest public repo state:
+
 ```bash
-brew install --cask auraoneai/open/rubric-studio-open
-pipx install rubric-studio-open
+git clone https://github.com/auraoneai/rubric-studio-open.git
+cd rubric-studio-open
+pnpm install
+pnpm dev
 ```
 
 ## Create a project

@@ -1,5 +1,4 @@
 import { openRubricProjectFolder, type OpenedRubricProject } from './deepLink';
-import type { RubricProject } from './rubric';
 
 export interface RecentProject {
   name: string;
@@ -74,22 +73,6 @@ export async function createRubricProjectFromTemplate(name: string): Promise<Ope
 
 export async function openRubricProjectPath(path: string): Promise<OpenedRubricProject> {
   const opened = await openRubricProjectFolder(path);
-  rememberProject(opened.project.name, opened.path);
-  return opened;
-}
-
-export async function saveRubricProjectPath(path: string, project: RubricProject): Promise<OpenedRubricProject | null> {
-  if (!isDesktopShell()) {
-    return null;
-  }
-  const invoke = await loadTauriInvoke();
-  if (!invoke) {
-    throw new Error('Desktop project autosave bridge is unavailable.');
-  }
-  const opened = await invoke<OpenedRubricProject>('save_rubric_project_folder', {
-    path,
-    project,
-  });
   rememberProject(opened.project.name, opened.path);
   return opened;
 }

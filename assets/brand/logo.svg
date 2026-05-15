@@ -1,15 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
-  <title id="title">AuraOne app icon</title>
-  <desc id="desc">A black AuraOne tile with a white italic lowercase a.</desc>
-  <rect width="1024" height="1024" fill="#17110f"/>
-  <text
-    x="512"
-    y="665"
-    fill="#fff9ef"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="540"
-    font-style="italic"
-    font-weight="400"
-    text-anchor="middle"
-  >a</text>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Rubric Studio app icon</title>
+  <desc id="desc">A black AuraOne monogram mark for Rubric Studio.</desc>
+  <rect width="64" height="64" fill="#0d0907"/>
+  <rect x="1" y="1" width="62" height="62" fill="none" stroke="#2c2620" stroke-width="1"/>
+  <text x="32" y="45" fill="#fffaf0" font-family="Georgia, 'Times New Roman', serif" font-size="42" font-style="italic" font-weight="400" text-anchor="middle">a</text>
 </svg>

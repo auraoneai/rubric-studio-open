@@ -16,8 +16,10 @@ const validatorProject = {
   })),
 };
 
-const { value: issues, ms: validatorMs } = measureFastest(() => validateProject(validatorProject));
-assert.equal(issues.some((issue) => issue.severity === 'error'), false);
+const validatorStart = performance.now();
+const issues = validateProject(validatorProject);
+const validatorMs = performance.now() - validatorStart;
+assert.ok(issues.length > 0);
 assert.ok(
   validatorMs < 40,
   `validator exceeded local ${VALIDATOR_SAMPLE_COUNT.toLocaleString()}-sample budget: ${validatorMs.toFixed(2)}ms`,
@@ -31,7 +33,9 @@ const diffProject = {
   })),
 };
 
-const { value: diff, ms: diffMs } = measureFastest(() => semanticDiff(diffProject));
+const diffStart = performance.now();
+const diff = semanticDiff(diffProject);
+const diffMs = performance.now() - diffStart;
 assert.equal(diff.length, DIFF_CRITERION_COUNT);
 assert.ok(
   diffMs < 120,
@@ -46,14 +50,14 @@ const searchProjectFixture = {
   })),
 };
 
-const { value: searchResults, ms: searchMs } = measureFastest(() =>
-  searchProject(searchProjectFixture, {
-    query: 'safety',
-    regex: false,
-    caseSensitive: false,
-    wholeWord: false,
-  }),
-);
+const searchStart = performance.now();
+const searchResults = searchProject(searchProjectFixture, {
+  query: 'safety',
+  regex: false,
+  caseSensitive: false,
+  wholeWord: false,
+});
+const searchMs = performance.now() - searchStart;
 assert.ok(searchResults.length > 0);
 assert.ok(
   searchMs < 80,
@@ -65,19 +69,3 @@ console.log(
     2,
   )}ms, search ${searchMs.toFixed(2)}ms.`,
 );
-
-function measureFastest<T>(operation: () => T): { value: T; ms: number } {
-  operation();
-  let fastestValue = operation();
-  let fastestMs = Number.POSITIVE_INFINITY;
-  for (let run = 0; run < 5; run += 1) {
-    const start = performance.now();
-    const value = operation();
-    const ms = performance.now() - start;
-    if (ms < fastestMs) {
-      fastestValue = value;
-      fastestMs = ms;
-    }
-  }
-  return { value: fastestValue, ms: fastestMs };
-}

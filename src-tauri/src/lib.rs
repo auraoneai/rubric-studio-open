@@ -1,16 +1,11 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::io::Write;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 
-mod git;
 mod project;
 
-pub use git::{git_status_summary, run_project_git_operation, ProjectGitFailure, ProjectGitResult};
 pub use project::{
-    create_rubric_project_from_template, open_rubric_project_folder, save_rubric_project_folder,
-    OpenedRubricProject, ProjectOpenFailure, RubricProjectFile,
+    create_rubric_project_from_template, open_rubric_project_folder, OpenedRubricProject,
+    ProjectOpenFailure,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -41,22 +36,11 @@ pub struct ValidationIssue {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScoreOutput {
     pub criterion_id: String,
-    pub judge_id: String,
     pub sample_id: String,
     pub verdict: String,
     pub score: f64,
     pub confidence: f64,
     pub reasoning: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ScoreRunOutput {
-    pub results: Vec<ScoreOutput>,
-    pub manifest_json: String,
-    pub manifest_path: String,
-    pub score_update_events: usize,
-    pub prompt_template_version: String,
-    pub provider_request_owner: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -134,19 +118,6 @@ pub struct SidecarInvocation {
     pub max_output_bytes: usize,
     pub sends_api_keys: bool,
     pub network_allowed: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SidecarRunOutput {
-    pub kind: SidecarKind,
-    pub output_json: String,
-    pub stderr: String,
-    pub exit_status: i32,
-    pub timed_out: bool,
-    pub restarted: bool,
-    pub duration_ms: u128,
-    pub output_bytes: usize,
-    pub child_crash_safe: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -276,7 +247,6 @@ pub fn mock_score(
             };
             ScoreOutput {
                 criterion_id: criterion.id.clone(),
-                judge_id: judge_id.clone(),
                 sample_id: sample.id.clone(),
                 verdict: verdict.into(),
                 score: round2(score),
@@ -289,52 +259,6 @@ pub fn mock_score(
             }
         })
         .collect()
-}
-
-pub fn prepare_score_run(
-    project_id: String,
-    criteria: Vec<CriterionInput>,
-    samples: Vec<SampleInput>,
-    judge_ids: Vec<String>,
-) -> ScoreRunOutput {
-    let mut results = Vec::new();
-    for sample in samples {
-        for judge_id in &judge_ids {
-            results.extend(mock_score(
-                criteria.clone(),
-                sample.clone(),
-                judge_id.clone(),
-            ));
-        }
-    }
-
-    let run_hash = sha256_hex(&format!("{project_id}:{}", results.len()));
-    let manifest_path = format!(
-        ".rubric/score-runs/{}-eval-run-manifest.json",
-        &run_hash[0..12]
-    );
-    let manifest_json = serde_json::json!({
-        "schema": "eval-run-manifest.v1",
-        "project_id": project_id,
-        "run_id": &run_hash[0..12],
-        "scorer": "rubric-studio-open-rust-core",
-        "prompt_template_version": "rubric-studio-open/v1",
-        "provider_request_owner": "tauri-rust-core",
-        "result_count": results.len(),
-        "score_update_events": results.len(),
-        "manifest_path": manifest_path,
-        "sends_api_keys_to_auraone": false
-    })
-    .to_string();
-
-    ScoreRunOutput {
-        score_update_events: results.len(),
-        results,
-        manifest_json,
-        manifest_path,
-        prompt_template_version: "rubric-studio-open/v1".into(),
-        provider_request_owner: "tauri-rust-core".into(),
-    }
 }
 
 pub fn semantic_diff(
@@ -388,7 +312,10 @@ pub fn keychain_status() -> KeychainStatus {
     KeychainStatus {
         service: "rubric-studio-open".into(),
         backend: keychain_backend_label().into(),
-        allowed_scopes: vec!["byo-api-keys".into()],
+        allowed_scopes: vec![
+            "byo-api-keys".into(),
+            "intake-install-signing-key".into(),
+        ],
         stores_user_content: false,
     }
 }
@@ -438,12 +365,38 @@ pub fn store_keychain_secret(
     Ok(receipt)
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+pub fn read_keychain_secret(key: KeychainKey) -> Result<Option<String>, KeychainFailure> {
+    validate_keychain_key(&key)?;
+    let entry = keyring::Entry::new_with_target(&key.scope, &key.service, &key.identifier)
+        .map_err(|error| KeychainFailure {
+            field: "backend".into(),
+            message: format!("OS keychain entry could not be opened: {error}"),
+            secret_redacted: true,
+        })?;
+    match entry.get_password() {
+        Ok(secret) => Ok(Some(secret)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(KeychainFailure {
+            field: "backend".into(),
+            message: format!("OS keychain read failed: {error}"),
+            secret_redacted: true,
+        }),
+    }
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn store_keychain_secret(
     key: KeychainKey,
     secret: String,
 ) -> Result<KeychainReceipt, KeychainFailure> {
     prepare_keychain_set(key, secret)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+pub fn read_keychain_secret(key: KeychainKey) -> Result<Option<String>, KeychainFailure> {
+    validate_keychain_key(&key)?;
+    Ok(None)
 }
 
 pub fn prepare_sidecar_invocation(
@@ -483,29 +436,6 @@ pub fn prepare_sidecar_invocation(
     })
 }
 
-pub fn run_sidecar_json(request: SidecarRequest) -> Result<SidecarRunOutput, SidecarFailure> {
-    let input_json = request.input_json.clone();
-    let kind = request.kind.clone();
-    let invocation = prepare_sidecar_invocation(request)?;
-    run_prepared_sidecar_json(kind, &invocation, &input_json)
-}
-
-fn run_prepared_sidecar_json(
-    kind: SidecarKind,
-    invocation: &SidecarInvocation,
-    input_json: &str,
-) -> Result<SidecarRunOutput, SidecarFailure> {
-    match execute_sidecar_invocation(kind.clone(), &invocation, &input_json, false) {
-        Ok(output) => Ok(output),
-        Err(error) if error.retryable => {
-            std::thread::sleep(Duration::from_millis(125));
-            execute_sidecar_invocation(kind, invocation, input_json, true)
-                .map_err(|error| error.failure)
-        }
-        Err(error) => Err(error.failure),
-    }
-}
-
 pub fn reliability_status(crash_enabled: bool, update_channel: String) -> ReliabilityStatus {
     let channel = match update_channel.as_str() {
         "stable" | "beta" => update_channel,
@@ -530,11 +460,15 @@ pub fn reliability_status(crash_enabled: bool, update_channel: String) -> Reliab
                 "https://updates.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}".into(),
                 "https://updates2.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}".into(),
             ],
-            pubkey: "<PLATFORM_UPDATE_PUBKEY>".into(),
+            pubkey: "DAKD/Nqj4KoXZpXv9li/zVQv+2LhThXE5J9tx0Wl1B8=".into(),
             signature_required: true,
             kill_switch_supported: true,
         },
     }
+}
+
+pub fn git_status_summary(branch: &str, changed_files: usize) -> String {
+    format!("{branch}: {changed_files} changed files, local-only")
 }
 
 fn sidecar_failure(kind: SidecarKind, message: &str) -> SidecarFailure {
@@ -542,125 +476,6 @@ fn sidecar_failure(kind: SidecarKind, message: &str) -> SidecarFailure {
         kind,
         message: message.into(),
         child_crash_safe: true,
-    }
-}
-
-struct SidecarAttemptFailure {
-    failure: SidecarFailure,
-    retryable: bool,
-}
-
-fn execute_sidecar_invocation(
-    kind: SidecarKind,
-    invocation: &SidecarInvocation,
-    input_json: &str,
-    restarted: bool,
-) -> Result<SidecarRunOutput, SidecarAttemptFailure> {
-    let started_at = Instant::now();
-    let mut child = Command::new(&invocation.executable)
-        .args(&invocation.args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| {
-            sidecar_attempt_failure(
-                kind.clone(),
-                &format!("sidecar could not start: {error}"),
-                false,
-            )
-        })?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(input_json.as_bytes()).map_err(|error| {
-            sidecar_attempt_failure(
-                kind.clone(),
-                &format!("sidecar stdin write failed: {error}"),
-                true,
-            )
-        })?;
-    }
-
-    let timeout = Duration::from_millis(invocation.timeout_ms);
-    loop {
-        match child.try_wait() {
-            Ok(Some(_status)) => {
-                let output = child.wait_with_output().map_err(|error| {
-                    sidecar_attempt_failure(
-                        kind.clone(),
-                        &format!("sidecar output could not be collected: {error}"),
-                        true,
-                    )
-                })?;
-                let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-                let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-                if output.stdout.len() > invocation.max_output_bytes {
-                    return Err(sidecar_attempt_failure(
-                        kind,
-                        "sidecar output exceeded the configured byte limit",
-                        true,
-                    ));
-                }
-                if !output.status.success() {
-                    return Err(sidecar_attempt_failure(
-                        kind,
-                        &format!(
-                            "sidecar exited with status {}: {}",
-                            output.status.code().unwrap_or(-1),
-                            stderr.lines().next().unwrap_or("no stderr")
-                        ),
-                        true,
-                    ));
-                }
-                let parsed =
-                    serde_json::from_str::<serde_json::Value>(&stdout).map_err(|error| {
-                        sidecar_attempt_failure(
-                            kind.clone(),
-                            &format!("sidecar stdout must be valid JSON: {error}"),
-                            true,
-                        )
-                    })?;
-                return Ok(SidecarRunOutput {
-                    kind,
-                    output_json: parsed.to_string(),
-                    stderr,
-                    exit_status: output.status.code().unwrap_or(0),
-                    timed_out: false,
-                    restarted,
-                    duration_ms: started_at.elapsed().as_millis(),
-                    output_bytes: output.stdout.len(),
-                    child_crash_safe: true,
-                });
-            }
-            Ok(None) if started_at.elapsed() >= timeout => {
-                let _ = child.kill();
-                let _ = child.wait_with_output();
-                return Err(sidecar_attempt_failure(
-                    kind,
-                    "sidecar timed out and was terminated",
-                    true,
-                ));
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(error) => {
-                return Err(sidecar_attempt_failure(
-                    kind,
-                    &format!("sidecar status could not be checked: {error}"),
-                    true,
-                ));
-            }
-        }
-    }
-}
-
-fn sidecar_attempt_failure(
-    kind: SidecarKind,
-    message: &str,
-    retryable: bool,
-) -> SidecarAttemptFailure {
-    SidecarAttemptFailure {
-        failure: sidecar_failure(kind, message),
-        retryable,
     }
 }
 
@@ -689,10 +504,10 @@ fn validate_keychain_key(key: &KeychainKey) -> Result<(), KeychainFailure> {
             secret_redacted: true,
         });
     }
-    if key.scope != "byo-api-keys" {
+    if key.scope != "byo-api-keys" && key.scope != "intake-install-signing-key" {
         return Err(KeychainFailure {
             field: "scope".into(),
-            message: "Rubric Studio Open only stores BYO provider keys in the OS keychain.".into(),
+            message: "Rubric Studio Open only stores BYO provider keys and intake install signing keys in the OS keychain.".into(),
             secret_redacted: true,
         });
     }
@@ -784,31 +599,6 @@ mod tests {
     }
 
     #[test]
-    fn score_run_prepares_eval_manifest_and_update_events() {
-        let output = prepare_score_run(
-            "demo-rubric".into(),
-            vec![criterion("specificity")],
-            vec![SampleInput {
-                id: "s1".into(),
-                prompt: "Improve this rubric".into(),
-                response: "Use a specific checklist with clear details.".into(),
-            }],
-            vec!["local-mock".into()],
-        );
-
-        assert_eq!(output.results.len(), 1);
-        assert_eq!(output.score_update_events, 1);
-        assert_eq!(output.provider_request_owner, "tauri-rust-core");
-        assert!(output.manifest_path.starts_with(".rubric/score-runs/"));
-        assert!(output
-            .manifest_json
-            .contains("\"schema\":\"eval-run-manifest.v1\""));
-        assert!(output
-            .manifest_json
-            .contains("\"sends_api_keys_to_auraone\":false"));
-    }
-
-    #[test]
     fn semantic_diff_labels_weight_changes() {
         let mut current = criterion("specificity");
         current.weight = 0.8;
@@ -845,6 +635,29 @@ mod tests {
         assert!(receipt.native_bridge_required);
         assert!(!receipt.stores_user_content);
         assert!(!format!("{receipt:?}").contains("sk-test-value"));
+    }
+
+    #[test]
+    fn keychain_bridge_accepts_intake_install_signing_keys() {
+        let status = keychain_status();
+        assert!(
+            status
+                .allowed_scopes
+                .contains(&"intake-install-signing-key".to_string())
+        );
+
+        let receipt = prepare_keychain_set(
+            KeychainKey {
+                service: "rubric-studio-open".into(),
+                scope: "intake-install-signing-key".into(),
+                identifier: "ed25519-install-keypair-v1".into(),
+            },
+            "{\"algorithm\":\"Ed25519\",\"private_key\":\"secret\",\"public_key\":\"pub\"}".into(),
+        )
+        .unwrap();
+
+        assert_eq!(receipt.scope, "intake-install-signing-key");
+        assert!(!receipt.stores_user_content);
     }
 
     #[test]
@@ -894,56 +707,6 @@ mod tests {
     }
 
     #[test]
-    fn sidecar_runner_pipes_json_and_restarts_once_after_crash() {
-        if std::process::Command::new("python3")
-            .arg("--version")
-            .output()
-            .is_err()
-        {
-            return;
-        }
-        let state_path = std::env::temp_dir().join(format!(
-            "rubric-studio-sidecar-restart-{}",
-            std::process::id()
-        ));
-        if state_path.exists() {
-            std::fs::remove_file(&state_path).unwrap();
-        }
-        let script = r#"
-import json
-import pathlib
-import sys
-state = pathlib.Path(sys.argv[1])
-payload = json.load(sys.stdin)
-if not state.exists():
-    state.write_text("crashed-once")
-    raise SystemExit(7)
-print(json.dumps({"ok": payload["ok"], "state": state.read_text()}))
-"#;
-        let invocation = SidecarInvocation {
-            executable: "python3".into(),
-            args: vec![
-                "-c".into(),
-                script.into(),
-                state_path.to_string_lossy().into_owned(),
-            ],
-            timeout_ms: 30_000,
-            max_output_bytes: 8_192,
-            sends_api_keys: false,
-            network_allowed: false,
-        };
-
-        let output =
-            run_prepared_sidecar_json(SidecarKind::IaaKit, &invocation, r#"{"ok":true}"#).unwrap();
-
-        assert!(output.restarted);
-        assert!(output.child_crash_safe);
-        assert_eq!(output.output_json, r#"{"ok":true,"state":"crashed-once"}"#);
-
-        std::fs::remove_file(state_path).unwrap();
-    }
-
-    #[test]
     fn reliability_status_uses_platform_update_and_crash_contracts() {
         let status = reliability_status(false, "beta".into());
 
@@ -956,7 +719,10 @@ print(json.dumps({"ok": payload["ok"], "state": state.read_text()}))
         assert!(status.updater.signature_required);
         assert!(status.updater.kill_switch_supported);
         assert!(status.updater.endpoints[0].starts_with("https://updates.auraone.ai/"));
-        assert_eq!(status.updater.pubkey, "<PLATFORM_UPDATE_PUBKEY>");
+        assert_eq!(
+            status.updater.pubkey,
+            "DAKD/Nqj4KoXZpXv9li/zVQv+2LhThXE5J9tx0Wl1B8="
+        );
     }
 
     #[test]

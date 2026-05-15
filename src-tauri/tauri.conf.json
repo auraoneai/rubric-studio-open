@@ -43,7 +43,7 @@
         "https://updates.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}",
         "https://updates2.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}"
       ],
-      "pubkey": "<PLATFORM_UPDATE_PUBKEY>"
+      "pubkey": "DAKD/Nqj4KoXZpXv9li/zVQv+2LhThXE5J9tx0Wl1B8="
     },
     "deep-link": {
       "desktop": {

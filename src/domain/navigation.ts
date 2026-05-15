@@ -8,9 +8,9 @@ export interface TourStep {
 }
 
 export const tabs: Array<{ id: Tab; label: string; action: string }> = [
-  { id: 'authoring', label: 'Authoring', action: 'Switch to Authoring' },
+  { id: 'authoring', label: 'Author', action: 'Switch to Authoring' },
   { id: 'preview', label: 'Preview', action: 'Switch to Preview' },
-  { id: 'calibration', label: 'Calibration', action: 'Switch to Calibration' },
+  { id: 'calibration', label: 'Calibrate', action: 'Switch to Calibration' },
   { id: 'diff', label: 'Diff', action: 'Switch to Diff' },
   { id: 'export', label: 'Export', action: 'Switch to Export' },
   { id: 'settings', label: 'Settings', action: 'Switch to Settings' },

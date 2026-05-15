@@ -13,7 +13,6 @@ const tauriMain = readFileSync(join(root, 'src-tauri/src/main.rs'), 'utf8');
 const deepLinkSource = readFileSync(join(root, 'src-tauri/src/deep_link.rs'), 'utf8');
 const rendererDeepLinkSource = readFileSync(join(root, 'src/domain/deepLink.ts'), 'utf8');
 const projectOpenSource = readFileSync(join(root, 'src/domain/projectOpen.ts'), 'utf8');
-const i18nSource = readFileSync(join(root, 'src/domain/i18n.ts'), 'utf8');
 const appSource = readFileSync(join(root, 'src/App.tsx'), 'utf8');
 const workflow = readFileSync(join(root, '.github/workflows/tauri-cross-platform.yml'), 'utf8');
 
@@ -23,7 +22,6 @@ const requiredScripts = [
   'test:a11y',
   'test:product',
   'test:desktop',
-  'test:suite',
   'tauri:e2e',
   'tauri:check',
   'tauri:core:test',
@@ -63,12 +61,9 @@ assert.ok(projectOpenSource.includes("@tauri-apps/plugin-dialog"), 'desktop proj
 assert.ok(projectOpenSource.includes('onDragDropEvent'), 'desktop project opener must handle project folder drops');
 assert.ok(projectOpenSource.includes('rso:recent-projects'), 'desktop project opener must persist recent projects');
 assert.ok(projectOpenSource.includes('create_rubric_project_from_template'), 'desktop project opener must create starter folders from the template');
-assert.ok(appSource.includes('messages.openFolder'), 'desktop shell must wire the localized Open Folder control');
-assert.ok(appSource.includes('messages.openRecentProject'), 'desktop shell must wire recent project reopening');
-assert.ok(appSource.includes('messages.newFromTemplate'), 'desktop and browser shells must wire new-project-from-template');
-assert.ok(i18nSource.includes("openFolder: 'Open Folder'"), 'English locale must expose the Open Folder control label');
-assert.ok(i18nSource.includes("openRecentProject: 'Open recent project'"), 'English locale must expose recent project reopening label');
-assert.ok(i18nSource.includes("newFromTemplate: 'New from Template'"), 'English locale must expose new-project-from-template label');
+assert.ok(appSource.includes('Open Folder'), 'desktop shell must expose an Open Folder control');
+assert.ok(appSource.includes('Open recent project'), 'desktop shell must expose recent project reopening');
+assert.ok(appSource.includes('New from Template'), 'desktop and browser shells must expose new-project-from-template');
 assert.ok(tauriCapability.permissions.includes('dialog:default'), 'desktop shell must allow the dialog folder picker');
 assert.deepEqual(tauriConfig.plugins['deep-link'].desktop.schemes, ['auraone']);
 assert.ok(workflow.includes('macos-latest'), 'cross-platform Tauri workflow must include macOS');

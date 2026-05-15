@@ -1,9 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { configureProviderKey } from '../domain/keychain';
 import { detectOllama } from '../domain/ollama';
-import type { JudgeConfig, SurfaceMode } from '../domain/rubric';
-import { RubricStudioMark } from './RubricStudioMark';
-import { useDialogFocusTrap } from './useDialogFocusTrap';
+import { providerModelOptions, type JudgeConfig, type SurfaceMode } from '../domain/rubric';
 
 export function FirstRunWizard({
   judges,
@@ -13,9 +11,9 @@ export function FirstRunWizard({
   onTelemetryChange,
   onCrashReportingChange,
   onSetKey,
+  onUpdateJudge,
   onSkip,
   onStart,
-  onScoreSample,
 }: {
   judges: JudgeConfig[];
   surface: SurfaceMode;
@@ -24,15 +22,13 @@ export function FirstRunWizard({
   onTelemetryChange: (enabled: boolean) => void;
   onCrashReportingChange: (enabled: boolean) => void;
   onSetKey: (judgeId: string, configured: boolean) => void;
+  onUpdateJudge: (judgeId: string, patch: Partial<Pick<JudgeConfig, 'model' | 'label'>>) => void;
   onSkip: () => void;
   onStart: () => void;
-  onScoreSample: () => void;
 }) {
-  const dialogRef = useRef<HTMLElement | null>(null);
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Record<string, string>>({});
   const setupJudges = judges.filter((judge) => judge.provider !== 'mock');
-  useDialogFocusTrap(dialogRef);
 
   async function configureJudge(judge: JudgeConfig) {
     if (judge.provider === 'ollama') {
@@ -75,28 +71,13 @@ export function FirstRunWizard({
 
   return (
     <div className="modal-backdrop">
-      <section
-        ref={dialogRef}
-        className="wizard wide"
-        role="dialog"
-        aria-modal="true"
-        aria-label="First-run wizard"
-        tabIndex={-1}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            onSkip();
-          }
-        }}
-      >
-        <div className="app-icon large" aria-hidden="true">
-          <RubricStudioMark size={58} />
-        </div>
+      <section className="wizard wide" role="dialog" aria-modal="true" aria-label="First-run wizard">
+        <div className="app-icon large rubric-brand-mark" aria-hidden="true">a</div>
         <h2>Sixty seconds to first value</h2>
         <div className="wizard-steps">
-          <div><strong>1. Look at the rubric</strong><span>A 12-criterion helpful-response project is preloaded with themes, samples, and judges.</span></div>
-          <div><strong>2. Score this sample</strong><span>The local mock judge works immediately; configured providers unlock direct model scoring.</span></div>
-          <div><strong>3. Read the diff</strong><span>Open semantic diff to see score impact before exporting or committing the rubric.</span></div>
+          <div><strong>1. Look at the rubric</strong><span>A helpful-response project is preloaded with themes, criteria, samples, and judges.</span></div>
+          <div><strong>2. Optional BYO keys</strong><span>Remote keys stay in the OS keychain on desktop and in session memory in browser edition.</span></div>
+          <div><strong>3. Score this sample</strong><span>The local mock judge works immediately; configured providers unlock direct model scoring.</span></div>
         </div>
         <div className="key-setup" aria-label="BYO key setup">
           {setupJudges.map((judge) => (
@@ -104,6 +85,33 @@ export function FirstRunWizard({
               <div><strong>{judge.label}</strong><small>{judge.provider}/{judge.model}</small></div>
               {judge.provider === 'ollama' ? (
                 <code>ollama pull llama3.1:8b</code>
+              ) : isConfigurableProvider(judge) ? (
+                <>
+                  <label className="model-picker">
+                    <span>Model</span>
+                    <input
+                      list={`${judge.id}-first-run-model-options`}
+                      aria-label={`${judge.label} first-run model ID`}
+                      value={judge.model}
+                      onChange={(event) => onUpdateJudge(judge.id, {
+                        model: event.target.value,
+                        label: labelForModel(judge.provider, event.target.value),
+                      })}
+                    />
+                    <datalist id={`${judge.id}-first-run-model-options`}>
+                      {providerModelOptions[judge.provider].map((model) => (
+                        <option key={model} value={model} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <input
+                    aria-label={`${judge.label} first-run API key`}
+                    type="password"
+                    value={keyDrafts[judge.id] ?? ''}
+                    placeholder={judge.keyConfigured ? 'Configured' : 'Paste BYO key'}
+                    onChange={(event) => setKeyDrafts((current) => ({ ...current, [judge.id]: event.target.value }))}
+                  />
+                </>
               ) : (
                 <input
                   aria-label={`${judge.label} first-run API key`}
@@ -127,10 +135,37 @@ export function FirstRunWizard({
         <p className="subtle">Both reporting switches are off by default. Neither sends rubric content, samples, judge prompts, or API keys.</p>
         <div className="inline-actions">
           <button className="ghost-button" type="button" onClick={onSkip}>Skip</button>
-          <button className="glass-button" type="button" onClick={onScoreSample}>Score sample now</button>
           <button className="glass-button primary" type="button" onClick={onStart}>Start tour</button>
         </div>
       </section>
     </div>
   );
+}
+
+function isConfigurableProvider(
+  judge: JudgeConfig,
+): judge is JudgeConfig & { provider: keyof typeof providerModelOptions } {
+  return judge.provider === 'openai' || judge.provider === 'anthropic' || judge.provider === 'google';
+}
+
+function labelForModel(provider: keyof typeof providerModelOptions, model: string): string {
+  const trimmed = model.trim();
+  if (!trimmed) {
+    if (provider === 'openai') return 'OpenAI custom';
+    if (provider === 'anthropic') return 'Claude custom';
+    return 'Gemini custom';
+  }
+  if (trimmed === 'gpt-5.2') return 'OpenAI GPT-5.2';
+  if (trimmed === 'gpt-5.2-pro') return 'OpenAI GPT-5.2 Pro';
+  if (trimmed === 'gpt-5.5') return 'OpenAI GPT-5.5';
+  if (trimmed === 'gpt-5.5-pro') return 'OpenAI GPT-5.5 Pro';
+  if (trimmed.startsWith('gpt-')) return `OpenAI ${trimmed.toUpperCase()}`;
+  if (trimmed === 'claude-opus-4-7') return 'Claude Opus 4.7';
+  if (trimmed === 'claude-opus-4-1-20250805') return 'Claude Opus 4.1';
+  if (trimmed === 'claude-sonnet-4-20250514') return 'Claude Sonnet 4';
+  if (trimmed.startsWith('claude-')) return `Claude ${trimmed.replace(/^claude-/, '')}`;
+  if (trimmed === 'gemini-3.1-pro-preview' || trimmed === 'gemini-3.1-pro') return 'Gemini 3.1 Pro';
+  if (trimmed === 'gemini-3-pro-preview') return 'Gemini 3 Pro';
+  if (trimmed.startsWith('gemini-')) return `Gemini ${trimmed.replace(/^gemini-/, '')}`;
+  return trimmed;
 }

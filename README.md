@@ -9,16 +9,28 @@ The app is intentionally single-user and file-based. A rubric is a folder on
 disk, so it can be reviewed in Git, shipped in CI, and exported into downstream
 evaluation runners without a hosted account.
 
+Launch QA assets:
+[authoring](docs/demo/screenshots/01-authoring.png),
+[preview scoring](docs/demo/screenshots/02-preview-scoring.png),
+[calibration](docs/demo/screenshots/03-calibration.png),
+[diff](docs/demo/screenshots/04-diff.png),
+[export](docs/demo/screenshots/05-export.png), and
+[short workflow video](docs/demo/rubric-studio-open-launch-smoke.mp4).
+
 ## Install
 
 ```bash
 git clone https://github.com/auraoneai/rubric-studio-open.git
 cd rubric-studio-open
 pnpm install
-pnpm --filter=@auraone/rubric-studio-open dev
+pnpm dev
 ```
 
-Docs: [Rubric Studio Open docs](docs/README.md)
+Browser IDE: [rubric-studio.auraone.ai](https://rubric-studio.auraone.ai)
+
+Product page: [auraone.ai/open/rubric-studio-open](https://auraone.ai/open/rubric-studio-open)
+
+Docs: [docs.rubricstudio.auraone.ai](https://docs.rubricstudio.auraone.ai) or [local docs](docs/README.md)
 
 Privacy: [local-first privacy and telemetry policy](PRIVACY.md)
 
@@ -35,7 +47,7 @@ Roadmap and RFC process: [public roadmap and maintainer-gated RFCs](docs/roadmap
 ## Run locally
 
 ```bash
-pnpm --filter=@auraone/rubric-studio-open dev
+pnpm dev
 ```
 
 Open `http://127.0.0.1:5174/?surface=browser` to exercise the browser edition.
@@ -43,14 +55,14 @@ Open `http://127.0.0.1:5174/?surface=browser` to exercise the browser edition.
 ## Verify
 
 ```bash
-pnpm --filter=@auraone/rubric-studio-open typecheck
-pnpm --filter=@auraone/rubric-studio-open test
-pnpm --filter=@auraone/rubric-studio-open test:readme
-pnpm --filter=@auraone/rubric-studio-open test:privacy
-pnpm --filter=@auraone/rubric-studio-open build
-pnpm --filter=@auraone/rubric-studio-open vscode:contract
-pnpm --filter=@auraone/rubric-studio-open vscode:typecheck
-pnpm --filter=@auraone/rubric-studio-open tauri:core:test
+pnpm typecheck
+pnpm test
+pnpm test:readme
+pnpm test:privacy
+pnpm build
+pnpm vscode:contract
+pnpm vscode:typecheck
+pnpm tauri:core:test
 ```
 
 ## Project format

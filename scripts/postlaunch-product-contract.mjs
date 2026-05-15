@@ -10,15 +10,14 @@ function read(relativePath) {
 }
 
 const packageJson = JSON.parse(read('package.json'));
-const selfTest = read('src/domain/self-test.ts');
-const settingsPanel = read('src/components/SettingsPanel.tsx');
+const app = read('src/App.tsx');
+const previewPanel = read('src/components/PreviewPanel.tsx');
 const calibrationPanel = read('src/components/CalibrationPanel.tsx');
 const diffPanel = read('src/components/DiffPanel.tsx');
-const pluginMarketplace = read('src/domain/pluginMarketplace.ts');
-const collaboration = read('src/domain/collaboration.ts');
-const i18n = read('src/domain/i18n.ts');
-const advancedCalibration = read('src/domain/advancedCalibration.ts');
-const advancedDiff = read('src/domain/advancedDiff.ts');
+const settingsPanel = read('src/components/SettingsPanel.tsx');
+const projectSidebar = read('src/components/ProjectSidebar.tsx');
+const readme = read('README.md');
+const tauriConfig = JSON.parse(read('src-tauri/tauri.conf.json'));
 const browserSmoke = read('scripts/browser-smoke.mjs');
 
 assert.ok(packageJson.scripts['test:postlaunch'], 'package scripts must expose the post-launch product contract');
@@ -27,42 +26,37 @@ assert.ok(
   'full product suite must include post-launch product contract coverage',
 );
 
-assert.ok(pluginMarketplace.includes('enginePluginCatalog'), 'engine plugin catalog domain model is required');
-assert.ok(pluginMarketplace.includes('reviewEnginePluginManifest'), 'local plugin manifest review is required');
-assert.ok(pluginMarketplace.includes('safeExamplePluginManifest'), 'safe local plugin example is required');
-assert.ok(pluginMarketplace.includes("runtime: 'wasm'"), 'browser-compatible WASM plugin runtime must be represented');
-assert.ok(pluginMarketplace.includes("networkAccess: 'none'"), 'offline plugin policy must be represented');
-assert.ok(pluginMarketplace.includes('unsignedCode'), 'unsafe unsigned plugin handling must be represented');
-assert.ok(settingsPanel.includes('Engine plugin catalog'), 'Settings must expose the plugin marketplace');
-assert.ok(settingsPanel.includes('Review local plugin manifest'), 'Settings must expose local manifest review');
-assert.ok(settingsPanel.includes('Load safe example'), 'Settings must expose a safe manifest example');
-assert.ok(browserSmoke.includes('community-safe-adapter'), 'browser smoke must verify safe local plugin import');
-assert.ok(selfTest.includes('reviewEnginePluginManifest'), 'domain self-test must cover local plugin manifest review');
+assert.ok(app.includes("useState<Tab>('authoring')"), 'app must launch directly into the real authoring IDE');
+assert.ok(app.includes('setWizardOpen(true)'), 'guided onboarding must remain available without blocking launch');
+assert.ok(app.includes('recordTelemetryEvent'), 'launch-ready controls must record transparent feature telemetry');
 
-assert.ok(collaboration.includes("schema: 'auraone.rubric-studio-open.crdt-snapshot.v1'"), 'CRDT snapshot schema is required');
-assert.ok(collaboration.includes("mode: 'read-only'"), 'CRDT collaboration must remain read-only for OSS launch');
-assert.ok(collaboration.includes('summarizeReadOnlyCrdtSnapshot'), 'CRDT snapshot summary is required');
-assert.ok(diffPanel.includes('Read-only CRDT collaboration'), 'Diff panel must expose read-only collaboration review');
-assert.ok(selfTest.includes('buildReadOnlyCrdtSnapshot'), 'domain self-test must cover CRDT snapshots');
+assert.ok(previewPanel.includes('Load JSONL'), 'Preview must expose JSONL sample import');
+assert.ok(previewPanel.includes('Generate synthetic'), 'Preview must expose synthetic sample generation');
+assert.ok(previewPanel.includes('Score all'), 'Preview must expose score-all execution');
+assert.ok(previewPanel.includes('Score current'), 'Preview must expose current-sample scoring');
+assert.ok(calibrationPanel.includes('Load gold JSONL'), 'Calibration must expose gold JSONL import');
+assert.ok(diffPanel.includes('fetchRemote'), 'Diff must expose remote fetch action');
+assert.ok(diffPanel.includes('commit()'), 'Diff must expose local commit action');
 
-for (const locale of ['en', 'es', 'zh', 'ja']) {
-  assert.ok(i18n.includes(`code: '${locale}'`), `i18n must support ${locale}`);
-}
-assert.ok(i18n.includes('StudioMessages'), 'i18n messages must have a typed shape');
-assert.ok(settingsPanel.includes('messages.interfaceLanguage'), 'Settings must expose interface language copy');
-assert.ok(settingsPanel.includes('locale-row'), 'Settings must expose interface language control');
-assert.ok(selfTest.includes('supportedLocales'), 'domain self-test must cover supported locales');
+assert.ok(settingsPanel.includes('Provider keys'), 'Settings must include provider-key configuration');
+assert.ok(settingsPanel.includes('Theme & contrast'), 'Settings must include theme and contrast controls');
+assert.ok(settingsPanel.includes('Telemetry'), 'Settings must include transparent telemetry controls');
+assert.ok(settingsPanel.includes('Network'), 'Settings must include no-network controls');
+assert.ok(settingsPanel.includes('Shortcuts'), 'Settings must include shortcut controls');
+assert.ok(app.includes('AuraOne <span>· Rubric Studio</span>'), 'App chrome must use the AuraOne / Rubric Studio brand');
+assert.ok(projectSidebar.includes('Rubric Studio Open'), 'Sidebar must keep readable product context');
 
-assert.ok(advancedCalibration.includes('hierarchicalAlpha'), 'advanced calibration must compute hierarchical IAA');
-assert.ok(advancedCalibration.includes('latentClasses'), 'advanced calibration must compute latent classes');
-assert.ok(advancedCalibration.includes('buildCriterionRewriteSuggestions'), 'advanced calibration must generate rewrite suggestions');
-assert.ok(calibrationPanel.includes('Advanced calibration'), 'Calibration panel must expose advanced calibration UI');
-assert.ok(calibrationPanel.includes('Latent class analysis'), 'Calibration panel must expose latent class analysis');
-assert.ok(selfTest.includes('calculateAdvancedCalibration'), 'domain self-test must cover advanced calibration');
+assert.ok(tauriConfig.bundle.icon.includes('icons/32x32.png'), 'Tauri bundle must include 32px icon');
+assert.ok(tauriConfig.bundle.icon.includes('icons/128x128.png'), 'Tauri bundle must include 128px icon');
+assert.ok(tauriConfig.bundle.icon.includes('icons/128x128@2x.png'), 'Tauri bundle must include 256px icon');
+assert.ok(tauriConfig.bundle.icon.includes('icons/icon.icns'), 'Tauri bundle must include native macOS icon');
+assert.ok(tauriConfig.bundle.icon.includes('icons/icon.ico'), 'Tauri bundle must include Windows icon');
+assert.ok(tauriConfig.bundle.icon.includes('icons/icon.png'), 'Tauri bundle must include web PNG icon');
 
-assert.ok(advancedDiff.includes('calculateVariantAbTest'), 'advanced diff must calculate variant A/B tests');
-assert.ok(advancedDiff.includes('liveJudgeFleet'), 'advanced diff must evaluate an enabled judge fleet');
-assert.ok(diffPanel.includes('Live judge fleet A/B test'), 'Diff panel must expose live judge fleet A/B UI');
-assert.ok(selfTest.includes('calculateVariantAbTest'), 'domain self-test must cover advanced diff');
+assert.ok(readme.includes('rubric-studio-open-launch-smoke.mp4'), 'README must include the launch smoke video');
+assert.ok(readme.includes('rubric-studio.auraone.ai'), 'README must point to the browser IDE');
+assert.ok(readme.includes('docs.rubricstudio.auraone.ai'), 'README must point to docs');
+assert.ok(browserSmoke.includes('mainOverflowY'), 'browser smoke must verify fixed desktop shell behavior');
+assert.ok(browserSmoke.includes('bodyScrollY'), 'browser smoke must verify body scroll stays locked');
 
 console.log('Rubric Studio Open post-launch product contract passed.');

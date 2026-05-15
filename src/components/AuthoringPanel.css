@@ -1,32 +1,44 @@
 .criterion-row.drag-over {
-  border-color: rgba(52, 217, 255, 0.72);
-  box-shadow: 0 0 0 2px rgba(52, 217, 255, 0.18);
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px var(--accent-mid);
 }
 
 .bulk-toolbar .compact-select {
   display: grid;
-  gap: 3px;
-  color: var(--muted);
-  font-size: 11px;
+  gap: 4px;
+  color: var(--muted-strong);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .bulk-toolbar .compact-select select {
-  min-width: 128px;
-  min-height: 34px;
+  min-width: 132px;
+  min-height: 32px;
+  padding: 4px 24px 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .bulk-toolbar .ghost-button.danger {
-  color: #ffd6d6;
-  border-color: rgba(255, 105, 105, 0.42);
+  color: var(--red);
+}
+
+.bulk-toolbar .ghost-button.danger:hover {
+  background: var(--danger-soft);
+  color: var(--red);
 }
 
 .comments-panel {
   display: grid;
   gap: 10px;
-  border: 1px solid rgba(52, 217, 255, 0.26);
-  border-radius: 8px;
-  background: rgba(52, 217, 255, 0.06);
-  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel-soft);
+  padding: 14px;
   margin-bottom: 14px;
 }
 
@@ -36,29 +48,47 @@
 
 .comments-panel h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
+  color: var(--text-strong);
 }
 
 .comment-card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.16);
-  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  padding: 10px 12px;
+}
+
+.comment-card strong {
+  font-size: 12px;
+  color: var(--muted-strong);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .comment-card p {
   margin: 6px 0 0;
-  color: var(--muted);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .comment-composer {
   display: grid;
   gap: 6px;
-  color: var(--muted);
-  font-size: 13px;
+  color: var(--muted-strong);
+  font-size: 11px;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .comment-composer textarea {
-  min-height: 82px;
+  min-height: 80px;
+  text-transform: none;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0;
+  color: var(--text);
 }

@@ -36,9 +36,6 @@ export type UpdateCheckResult =
       version: string;
       body: string;
       date: string | null;
-      mandatory: boolean;
-      signed_by: string;
-      signing_docs_url: string;
       checked_at: string;
     }
   | {
@@ -52,17 +49,8 @@ type DesktopUpdate = {
   version: string;
   body?: string | null;
   date?: string | null;
-  mandatory?: boolean;
-  signedBy?: string | null;
-  signingDocsUrl?: string | null;
 };
 type DesktopUpdateChecker = () => Promise<DesktopUpdate | null>;
-
-declare global {
-  interface Window {
-    __RUBRIC_STUDIO_TEST_UPDATE__?: DesktopUpdate | null | (() => DesktopUpdate | null | Promise<DesktopUpdate | null>);
-  }
-}
 
 export async function getReliabilityStatus(
   surface: SurfaceMode,
@@ -103,7 +91,7 @@ export function fallbackReliabilityStatus(
         'https://updates.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}',
         'https://updates2.auraone.ai/rubric-studio-open/{{target}}/{{arch}}/{{current_version}}',
       ],
-      pubkey: '<PLATFORM_UPDATE_PUBKEY>',
+      pubkey: 'DAKD/Nqj4KoXZpXv9li/zVQv+2LhThXE5J9tx0Wl1B8=',
       signature_required: true,
       kill_switch_supported: true,
     },
@@ -127,7 +115,13 @@ export async function checkForPlatformUpdate(
     if (!update) {
       return { status: 'current', checked_at };
     }
-    return availableUpdateResult(update, checked_at);
+    return {
+      status: 'available',
+      version: update.version,
+      body: update.body ?? '',
+      date: update.date ?? null,
+      checked_at,
+    };
   } catch (error) {
     return {
       status: 'error',
@@ -137,25 +131,7 @@ export async function checkForPlatformUpdate(
   }
 }
 
-function availableUpdateResult(update: DesktopUpdate, checked_at: string): UpdateCheckResult {
-  const body = update.body ?? '';
-  return {
-    status: 'available',
-    version: update.version,
-    body,
-    date: update.date ?? null,
-    mandatory: update.mandatory === true || /\[mandatory\]/i.test(body),
-    signed_by: update.signedBy ?? 'AuraOne Open Studio release key',
-    signing_docs_url: update.signingDocsUrl ?? 'https://github.com/auraoneai/rubric-studio-open/blob/main/docs/security.md',
-    checked_at,
-  };
-}
-
 async function defaultDesktopUpdateChecker(): Promise<DesktopUpdate | null> {
-  if (typeof window !== 'undefined' && '__RUBRIC_STUDIO_TEST_UPDATE__' in window) {
-    const fixture = window.__RUBRIC_STUDIO_TEST_UPDATE__;
-    return typeof fixture === 'function' ? fixture() : fixture ?? null;
-  }
   const updater = await import('@tauri-apps/plugin-updater');
   return updater.check();
 }

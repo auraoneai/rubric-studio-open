@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.RSO_TAURI_DRIVER_PORT ?? 4455);
 const requestTimeoutMs = Number(process.env.RSO_TAURI_WEBDRIVER_TIMEOUT_MS ?? 30_000);
+const nativeTextTimeoutMs = Number(process.env.RSO_TAURI_NATIVE_TEXT_TIMEOUT_MS ?? 60_000);
 const application = process.env.RSO_TAURI_APP_PATH ?? defaultApplicationPath();
 const webviewUserDataFolder = process.platform === 'win32'
   ? mkdtempSync(join(tmpdir(), 'rso-webview2-'))
@@ -82,7 +83,7 @@ function tauriOptions() {
     application,
     webviewOptions: {
       userDataFolder: webviewUserDataFolder,
-      additionalBrowserArguments: ['disable-gpu', 'no-first-run'],
+      additionalBrowserArguments: ['--disable-gpu', '--no-first-run'],
     },
   };
 }
@@ -121,22 +122,47 @@ async function waitForText(sessionId, text) {
 }
 
 async function waitForAnyText(sessionId, texts) {
-  const deadline = Date.now() + 20_000;
+  const deadline = Date.now() + nativeTextTimeoutMs;
   while (Date.now() < deadline) {
     const found = await execute(sessionId, `
-      const bodyText = document.body?.innerText ?? '';
-      return arguments[0].some((text) => bodyText.includes(text));
+      const pageText = [
+        document.body?.innerText ?? '',
+        document.body?.textContent ?? '',
+        document.documentElement?.textContent ?? '',
+        document.title ?? '',
+      ].join('\\n');
+      return arguments[0].some((text) => pageText.includes(text));
     `, [texts]);
     if (found.value === true) {
       return;
     }
     await delay(250);
   }
-  throw new Error(`Timed out waiting for native app text: ${texts.join(' | ')}`);
+  const snapshot = await pageSnapshot(sessionId).catch((error) => ({
+    snapshot_error: error instanceof Error ? error.message : String(error),
+  }));
+  throw new Error(
+    `Timed out after ${nativeTextTimeoutMs}ms waiting for native app text: ${texts.join(' | ')}\n` +
+    `Last page snapshot:\n${JSON.stringify(snapshot, null, 2)}`
+  );
 }
 
 async function execute(sessionId, script, args = []) {
   return webdriver('POST', `/session/${sessionId}/execute/sync`, { script, args });
+}
+
+async function pageSnapshot(sessionId) {
+  const snapshot = await execute(sessionId, `
+    const body = document.body;
+    return {
+      readyState: document.readyState,
+      title: document.title,
+      location: location.href,
+      bodyText: (body?.innerText ?? body?.textContent ?? '').slice(0, 2000),
+      html: document.documentElement?.outerHTML?.slice(0, 2000) ?? '',
+    };
+  `);
+  return snapshot.value;
 }
 
 async function webdriver(method, path, body) {

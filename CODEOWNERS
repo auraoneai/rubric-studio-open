@@ -1,0 +1,16 @@
+# Rubric Studio Open ownership
+
+* @auraoneai/rubric-studio-maintainers
+
+/.github/** @auraoneai/rubric-studio-maintainers @auraoneai/security
+/CODEOWNERS @auraoneai/rubric-studio-maintainers @auraoneai/security
+/CONTRIBUTING.md @auraoneai/rubric-studio-maintainers
+/SECURITY.md @auraoneai/rubric-studio-maintainers @auraoneai/security
+/LICENSE @auraoneai/rubric-studio-maintainers
+/PRIVACY.md @auraoneai/rubric-studio-maintainers @auraoneai/security
+/scripts/** @auraoneai/rubric-studio-maintainers @auraoneai/security
+/src-tauri/** @auraoneai/rubric-studio-maintainers @auraoneai/security
+/docs/** @auraoneai/rubric-studio-maintainers
+/examples/** @auraoneai/rubric-studio-maintainers
+/src/** @auraoneai/rubric-studio-maintainers
+/vscode-extension/** @auraoneai/rubric-studio-maintainers

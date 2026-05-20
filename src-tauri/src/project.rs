@@ -131,7 +131,7 @@ pub fn open_rubric_project_folder(
             format!("rubric.toml could not be read: {error}"),
         )
     })?;
-    let manifest = manifest_source.parse::<toml::Value>().map_err(|error| {
+    let manifest = toml::from_str::<toml::Value>(&manifest_source).map_err(|error| {
         project_open_failure(
             "rubric.toml",
             format!("rubric.toml is invalid TOML: {error}"),
@@ -226,7 +226,7 @@ fn read_criteria(
                 format!("Criterion file could not be read: {error}"),
             )
         })?;
-        let value = source.parse::<toml::Value>().map_err(|error| {
+        let value = toml::from_str::<toml::Value>(&source).map_err(|error| {
             project_open_failure(
                 "criteria",
                 format!("Criterion file is invalid TOML: {error}"),
@@ -314,7 +314,7 @@ fn read_judges(
         let source = std::fs::read_to_string(&file).map_err(|error| {
             project_open_failure("judges", format!("Judge file could not be read: {error}"))
         })?;
-        let value = source.parse::<toml::Value>().map_err(|error| {
+        let value = toml::from_str::<toml::Value>(&source).map_err(|error| {
             project_open_failure("judges", format!("Judge file is invalid TOML: {error}"))
         })?;
         judges.push(JudgeFile {
@@ -739,14 +739,15 @@ mod tests {
 
     #[test]
     fn manifest_paths_stay_inside_project_root() {
-        let manifest = r#"
+        let manifest = toml::from_str::<toml::Value>(
+            r#"
 [paths]
 themes = "themes"
 criteria = "criteria/safety"
 samples = "samples"
 judges = "judges"
-"#
-        .parse::<toml::Value>()
+"#,
+        )
         .unwrap();
         let paths = manifest.get("paths");
         let root = Path::new("/project/root");
@@ -768,14 +769,13 @@ judges = "judges"
             "criteria/../outside",
             "./criteria",
         ] {
-            let manifest = format!(
+            let manifest_source = format!(
                 r#"
 [paths]
 criteria = "{configured}"
 "#
-            )
-            .parse::<toml::Value>()
-            .unwrap();
+            );
+            let manifest = toml::from_str::<toml::Value>(&manifest_source).unwrap();
             let error = path_from_manifest(
                 Path::new("/project/root"),
                 manifest.get("paths"),

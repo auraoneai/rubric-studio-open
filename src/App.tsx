@@ -347,8 +347,8 @@ export function App() {
     () => searchProject(state.project, { query: searchQuery, regex, caseSensitive, wholeWord }),
     [state.project, searchQuery, regex, caseSensitive, wholeWord],
   );
-  const saveTimer = useRef<number>();
-  const scoreTimer = useRef<number>();
+  const saveTimer = useRef<number | undefined>(undefined);
+  const scoreTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     window.clearTimeout(saveTimer.current);

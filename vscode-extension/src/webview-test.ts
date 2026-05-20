@@ -210,14 +210,18 @@ function dispatchMessage(data: unknown): void {
 
 function button(id: string): TestElement {
   const node = document.getElementById(id);
-  assert.ok(node, `Expected #${id} to exist`);
+  if (!node) {
+    throw new Error(`Expected #${id} to exist`);
+  }
   return node;
 }
 
 function buttonIn(id: string, label: string): TestElement {
   const rootNode = button(id);
   const match = find(rootNode, (node) => node.tagName === 'BUTTON' && node.textContent.includes(label));
-  assert.ok(match, `Expected a button containing ${label}`);
+  if (!match) {
+    throw new Error(`Expected a button containing ${label}`);
+  }
   return match;
 }
 

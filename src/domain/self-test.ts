@@ -6,11 +6,11 @@ import { catchViewRows } from './catchView';
 import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
 import { configureProviderKey, ensureRubricIntakeInstallSigningKeypair, keychainKeyForJudge, readBrowserProviderSecret, validateProviderSecret } from './keychain';
 import { buildOllamaScoringPrompt, deriveScoreFromOllamaText, detectOllama } from './ollama';
-import { buildProviderScoringPrompt, isRemoteJudge, parseProviderScore, scoreProviderCriterion } from './providerJudge';
+import { buildProviderScoringPrompt, isRemoteJudge, parseProviderScore, scoreProviderCriterion, type RemoteJudgeProvider } from './providerJudge';
 import { classifyDeepLink } from './deepLink';
 import { clearRecentProjects, readRecentProjects, rememberProject } from './projectOpen';
 import { checkForPlatformUpdate, fallbackReliabilityStatus } from './reliability';
-import { reorderCriteria, sampleProject } from './rubric';
+import { reorderCriteria, sampleProject, type JudgeConfig } from './rubric';
 import {
   calibrationScaleWalls,
   diffScaleWalls,
@@ -23,18 +23,19 @@ import { auditStudioActions, defaultShortcutRows, studioActionLabels } from './a
 import { actionForShortcut, findShortcutConflicts, normalizeShortcut } from './shortcuts';
 import { searchProject, validateProject } from './validation';
 
+function requireRemoteJudge(provider: RemoteJudgeProvider): JudgeConfig & { provider: RemoteJudgeProvider } {
+  const judge = sampleProject.judges.find((item) => item.provider === provider);
+  assert.ok(judge, `Expected ${provider} judge in sample project`);
+  assert.ok(isRemoteJudge(judge), `Expected ${provider} to be a remote judge`);
+  return judge;
+}
+
 const issues = validateProject(sampleProject);
 assert.ok(issues.some((issue) => issue.severity === 'warning'));
 assert.ok(sampleProject.judges.some((judge) => judge.provider === 'ollama' && judge.model.includes('llama')));
-const openAiJudge = sampleProject.judges.find((judge) => judge.provider === 'openai');
-assert.ok(openAiJudge);
-assert.ok(isRemoteJudge(openAiJudge));
-const anthropicJudge = sampleProject.judges.find((judge) => judge.provider === 'anthropic');
-assert.ok(anthropicJudge);
-assert.ok(isRemoteJudge(anthropicJudge));
-const googleJudge = sampleProject.judges.find((judge) => judge.provider === 'google');
-assert.ok(googleJudge);
-assert.ok(isRemoteJudge(googleJudge));
+const openAiJudge = requireRemoteJudge('openai');
+const anthropicJudge = requireRemoteJudge('anthropic');
+const googleJudge = requireRemoteJudge('google');
 assert.equal(keychainKeyForJudge(openAiJudge).scope, 'byo-api-keys');
 assert.equal(validateProviderSecret('short')?.includes('provider key'), true);
 assert.equal(validateProviderSecret('sk-test-value'), null);
@@ -217,6 +218,9 @@ assert.equal(reliabilityStatus.updater.signature_required, true);
 assert.ok(reliabilityStatus.updater.endpoints.every((endpoint) => endpoint.startsWith('https://updates')));
 const browserUpdateCheck = await checkForPlatformUpdate('browser');
 assert.equal(browserUpdateCheck.status, 'unavailable');
+if (browserUpdateCheck.status !== 'unavailable') {
+  throw new Error('Expected browser update check to be unavailable');
+}
 assert.ok(Date.parse(browserUpdateCheck.checked_at) > 0);
 assert.equal(browserUpdateCheck.reason.includes('Browser edition'), true);
 const currentDesktopUpdateCheck = await checkForPlatformUpdate('desktop', async () => null);
@@ -227,12 +231,18 @@ const availableDesktopUpdateCheck = await checkForPlatformUpdate('desktop', asyn
   date: '2026-05-13',
 }));
 assert.equal(availableDesktopUpdateCheck.status, 'available');
+if (availableDesktopUpdateCheck.status !== 'available') {
+  throw new Error('Expected desktop update check to be available');
+}
 assert.equal(availableDesktopUpdateCheck.version, '0.1.1');
 assert.equal(availableDesktopUpdateCheck.body, 'Signed update manifest fixture.');
 const failedDesktopUpdateCheck = await checkForPlatformUpdate('desktop', async () => {
   throw new Error('signed manifest endpoint unavailable');
 });
 assert.equal(failedDesktopUpdateCheck.status, 'error');
+if (failedDesktopUpdateCheck.status !== 'error') {
+  throw new Error('Expected desktop update check to fail');
+}
 assert.equal(failedDesktopUpdateCheck.reason, 'signed manifest endpoint unavailable');
 assert.deepEqual(
   classifyDeepLink({
@@ -307,6 +317,9 @@ const diff = semanticDiff(sampleProject);
 assert.equal(diff.length, sampleProject.criteria.length);
 const variant = createCriterionVariantBranch(sampleProject, diff);
 assert.ok(variant);
+if (!variant) {
+  throw new Error('Expected variant branch proposal');
+}
 assert.ok(variant.branchName.startsWith('try/'));
 assert.ok(variant.proposedDescription.includes('Variant boundary'));
 

@@ -52,7 +52,7 @@
     "vite": "^5.0.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.11.2",
+    "@axe-core/playwright": "4.11.3",
     "@playwright/test": "1.60.0",
     "@tauri-apps/cli": "2.11.1",
     "@types/node": "^25.9.1",

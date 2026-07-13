@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rubric-studio"
-version = "0.0.2"
+version = "0.0.3"
 description = "Install guidance and package-name reservation for Rubric Studio Open."
 readme = "README.md"
 requires-python = ">=3.11"

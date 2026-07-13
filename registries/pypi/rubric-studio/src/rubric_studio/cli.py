@@ -13,7 +13,7 @@ def main() -> int:
         description="Rubric Studio Open PyPI distribution guide",
         epilog=(
             "Install the full CLI with: "
-            "npm install --global @auraone/rubric-studio@0.2.0"
+            "npm install --global @auraone/rubric-studio@0.2.1"
         ),
     )
     parser.add_argument("--version", action="store_true", help="print version and exit")
@@ -26,7 +26,7 @@ def main() -> int:
         "Desktop release: "
         "https://github.com/auraoneai/rubric-studio-open/releases/tag/v0.2.0"
     )
-    print("Full CLI: npm install --global @auraone/rubric-studio@0.2.0")
+    print("Full CLI: npm install --global @auraone/rubric-studio@0.2.1")
     parser.print_help()
     return 0
 

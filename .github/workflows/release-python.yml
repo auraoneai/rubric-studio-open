@@ -1,0 +1,37 @@
+name: Release Python Distribution Guide
+
+on:
+  push:
+    tags:
+      - "python-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Build, verify, and publish
+    runs-on: ubuntu-latest
+    environment: pypi
+    defaults:
+      run:
+        working-directory: registries/pypi/rubric-studio
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install release tooling
+        run: python -m pip install --upgrade build pytest twine
+      - name: Test distribution guide
+        run: python -m pytest
+      - name: Build distributions
+        run: python -m build
+      - name: Verify distributions
+        run: python -m twine check --strict dist/*
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: registries/pypi/rubric-studio/dist

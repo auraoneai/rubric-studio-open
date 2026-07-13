@@ -38,7 +38,7 @@ archive. The export remains local and does not require an AuraOne account.
 ## Validate A JSON Bundle
 
 ```bash
-npx @auraone/rubric-studio@0.2.0 validate ./project-bundle.json
+npx @auraone/rubric-studio@0.2.1 validate ./project-bundle.json
 ```
 
 The npm companion validates the portable JSON project boundary. It does not

@@ -55,7 +55,7 @@ or hosted browser for the current release.
 Install the dependency-free project-bundle validator and release metadata API:
 
 ```bash
-npm install @auraone/rubric-studio@0.2.0
+npm install @auraone/rubric-studio@0.2.1
 npx @auraone/rubric-studio validate ./project-bundle.json
 ```
 
@@ -122,12 +122,12 @@ closed.
 
 The public source, browser build, npm metadata, and desktop source archive
 contain no private licensed font binary. Proofline uses system sans-serif and
-monospace fallbacks by default. An authorized branded deployment may provide
-licensed typography only from a host-owned stylesheet on an approved
-same-origin path; if it is absent or blocked, the public system fallback remains
-fully supported. Local capture tooling may use an isolated temporary loopback
-font boundary, but those binaries are never copied into public packages or
-release artifacts.
+monospace fallbacks by default. The canonical hosted browser loads licensed
+AuraOne typography through `/fonts/proofline-brand.css`, a same-origin proxy to
+the marketing-site font boundary. If it is absent or blocked, the public system
+fallback remains fully supported. Local capture tooling may use an isolated
+temporary loopback font boundary, but those binaries are never copied into
+public packages or release artifacts.
 
 ## Run Locally
 
@@ -170,7 +170,7 @@ Status verified on **July 13, 2026**:
   Gatekeeper accepted, checksum verified, and offline-install tested.
 - The hosted Browser editor is publicly reachable and was visually reverified
   after the final 1440 px toolbar-fit correction.
-- `@auraone/rubric-studio@0.2.0` is live on npm as the dependency-free
+- `@auraone/rubric-studio@0.2.1` is live on npm as the dependency-free
   JavaScript validator, CLI, and release metadata companion. It does not bundle
   the visual application.
 - Homebrew, Windows, Linux, and automatic updater channels are not published

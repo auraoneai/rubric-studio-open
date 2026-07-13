@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.3 - 2026-07-13
+
+- Track the `@auraone/rubric-studio` npm companion at `0.2.1`.
+- Keep the browser editor and desktop release guidance on the dedicated
+  Rubric Studio Open domains and repository.
+
 ## 0.0.2 - 2026-07-13
 
 - Clarify that the PyPI project is a package-name reservation and distribution

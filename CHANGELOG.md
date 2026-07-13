@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Load licensed AuraOne typography in the hosted browser through a same-origin
+  Vercel proxy without adding font binaries to the public repository or
+  desktop bundle.
+- Point desktop and npm release guidance at the dedicated public repository.
+
 ## 0.2.0 - 2026-07-12
 
 - Migrated the desktop and hosted workbench to the shared light-first Proofline

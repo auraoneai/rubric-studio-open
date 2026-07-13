@@ -8,7 +8,7 @@ editor or the full JavaScript validation CLI.
 Use one of the supported distributions:
 
 ```bash
-npm install --global @auraone/rubric-studio@0.2.0
+npm install --global @auraone/rubric-studio@0.2.1
 ```
 
 - Browser editor: `https://rubric-studio.auraone.ai`

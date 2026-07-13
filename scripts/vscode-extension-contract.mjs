@@ -37,9 +37,9 @@ const manifest = JSON.parse(readFileSync(join(root, 'vscode-extension/package.js
 [
   'Validate project',
   'Save current criterion',
-  'Prepare intake export',
-  'Show browser constraints',
-  'Open desktop-only sidecar note',
+  'Export local evidence summary',
+  'Show browser capabilities',
+  'Show execution contract',
 ].forEach((phrase) => {
   assert.ok(webview.includes(phrase) || extension.includes(phrase), `VS Code webview must expose ${phrase}`);
 });

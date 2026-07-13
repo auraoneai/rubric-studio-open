@@ -8,6 +8,19 @@ const VALIDATOR_SAMPLE_COUNT = 10_000;
 const DIFF_CRITERION_COUNT = 5_000;
 const SEARCH_CRITERION_COUNT = 2_500;
 
+function measureMedian<T>(operation: () => T) {
+  operation();
+  const samples: Array<{ duration: number; result: T }> = [];
+  for (let index = 0; index < 3; index += 1) {
+    const start = performance.now();
+    const result = operation();
+    samples.push({ duration: performance.now() - start, result });
+  }
+  samples.sort((left, right) => left.duration - right.duration);
+  const median = samples[1];
+  return { milliseconds: median.duration, result: median.result };
+}
+
 const validatorProject = {
   ...sampleProject,
   samples: Array.from({ length: VALIDATOR_SAMPLE_COUNT }, (_, index) => ({
@@ -16,26 +29,33 @@ const validatorProject = {
   })),
 };
 
-const validatorStart = performance.now();
-const issues = validateProject(validatorProject);
-const validatorMs = performance.now() - validatorStart;
+const { result: issues, milliseconds: validatorMs } = measureMedian(() =>
+  validateProject(validatorProject),
+);
 assert.ok(issues.length > 0);
 assert.ok(
   validatorMs < 40,
   `validator exceeded local ${VALIDATOR_SAMPLE_COUNT.toLocaleString()}-sample budget: ${validatorMs.toFixed(2)}ms`,
 );
 
-const diffProject = {
+const diffBaseline = {
   ...sampleProject,
   criteria: Array.from({ length: DIFF_CRITERION_COUNT }, (_, index) => ({
     ...sampleProject.criteria[index % sampleProject.criteria.length],
     id: `${sampleProject.criteria[index % sampleProject.criteria.length].id}-${index}`,
   })),
 };
+const diffProject = {
+  ...diffBaseline,
+  criteria: diffBaseline.criteria.map((criterion) => ({
+    ...criterion,
+    description: `${criterion.description} Measured performance fixture change.`,
+  })),
+};
 
-const diffStart = performance.now();
-const diff = semanticDiff(diffProject);
-const diffMs = performance.now() - diffStart;
+const { result: diff, milliseconds: diffMs } = measureMedian(() =>
+  semanticDiff(diffProject, diffBaseline),
+);
 assert.equal(diff.length, DIFF_CRITERION_COUNT);
 assert.ok(
   diffMs < 120,
@@ -50,14 +70,14 @@ const searchProjectFixture = {
   })),
 };
 
-const searchStart = performance.now();
-const searchResults = searchProject(searchProjectFixture, {
-  query: 'safety',
-  regex: false,
-  caseSensitive: false,
-  wholeWord: false,
-});
-const searchMs = performance.now() - searchStart;
+const { result: searchResults, milliseconds: searchMs } = measureMedian(() =>
+  searchProject(searchProjectFixture, {
+    query: 'safety',
+    regex: false,
+    caseSensitive: false,
+    wholeWord: false,
+  }),
+);
 assert.ok(searchResults.length > 0);
 assert.ok(
   searchMs < 80,

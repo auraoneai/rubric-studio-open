@@ -37,14 +37,14 @@ export const tourSteps: TourStep[] = [
   },
   {
     tab: 'diff',
-    title: 'Review semantic drift before commit',
-    body: 'Compare wording, score impact, branch variants, and merge back only when the changed behavior is clear.',
+    title: 'Review semantic drift locally',
+    body: 'Compare wording and deterministic fixture impact with a saved local checkpoint, then apply variants only when the changed behavior is clear.',
     outcome: 'Rubric changes become reviewable, reproducible diffs.',
   },
   {
     tab: 'export',
     title: 'Ship portable artifacts',
-    body: 'Export rubric files, judge cards, eval manifests, conformance badges, CI helpers, and AuraOne intake packets.',
+    body: 'Export rubric files, judge cards, eval manifests, conformance badges, CI helpers, and an unsigned local evidence ZIP.',
     outcome: 'The same rubric can move to OSS runners, papers, or expert review.',
   },
   {

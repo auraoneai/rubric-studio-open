@@ -21,7 +21,6 @@ const requiredScripts = [
   'test:e2e',
   'test:a11y',
   'test:product',
-  'test:desktop',
   'tauri:e2e',
   'tauri:check',
   'tauri:core:test',
@@ -53,6 +52,7 @@ assert.ok(tauriMain.includes('tauri_plugin_dialog::init()'), 'Tauri shell must r
 assert.ok(tauriMain.includes('deep_link::register'), 'Tauri shell must attach the deep-link event handler');
 assert.ok(tauriMain.includes('open_rubric_project_folder'), 'Tauri shell must expose rubric project folder opening');
 assert.ok(tauriMain.includes('create_rubric_project_from_template'), 'Tauri shell must expose starter project folder creation');
+assert.ok(tauriMain.includes('save_rubric_project_folder'), 'Tauri shell must expose atomic rubric project folder saving');
 assert.ok(deepLinkSource.includes('auraone://deep-link'), 'deep-link handler must emit the renderer event');
 assert.ok(deepLinkSource.includes('rubric-studio-open'), 'deep-link parser must recognize Rubric Studio Open');
 assert.ok(rendererDeepLinkSource.includes("listen<DeepLinkPayload>('auraone://deep-link'"), 'renderer must listen for deep-link events');
@@ -61,7 +61,7 @@ assert.ok(projectOpenSource.includes("@tauri-apps/plugin-dialog"), 'desktop proj
 assert.ok(projectOpenSource.includes('onDragDropEvent'), 'desktop project opener must handle project folder drops');
 assert.ok(projectOpenSource.includes('rso:recent-projects'), 'desktop project opener must persist recent projects');
 assert.ok(projectOpenSource.includes('create_rubric_project_from_template'), 'desktop project opener must create starter folders from the template');
-assert.ok(appSource.includes('Open Folder'), 'desktop shell must expose an Open Folder control');
+assert.ok(appSource.includes('aria-label="Open project folder"'), 'desktop shell must expose the native project folder control');
 assert.ok(appSource.includes('Open recent project'), 'desktop shell must expose recent project reopening');
 assert.ok(appSource.includes('New from Template'), 'desktop and browser shells must expose new-project-from-template');
 assert.ok(tauriCapability.permissions.includes('dialog:default'), 'desktop shell must allow the dialog folder picker');
@@ -84,8 +84,13 @@ const driverProbe = spawnSync('tauri-driver', ['--help'], {
   shell: process.platform === 'win32',
 });
 const driverOutput = `${driverProbe.stdout ?? ''}${driverProbe.stderr ?? ''}`.trim();
-const webdriverSupported = driverProbe.status === 0;
-const webdriverBlockedReason = webdriverSupported ? null : driverOutput || 'tauri-driver unavailable';
+const platformSupportsWebdriver = process.platform !== 'darwin';
+const webdriverSupported = driverProbe.status === 0 && platformSupportsWebdriver;
+const webdriverBlockedReason = webdriverSupported
+  ? null
+  : !platformSupportsWebdriver
+    ? 'tauri-driver does not provide a supported macOS WebDriver backend'
+    : driverOutput || 'tauri-driver unavailable';
 
 const result = {
   tauri_cli: tauriVersion,
@@ -130,7 +135,6 @@ function assertCanonicalCsp(csp) {
     'https://huggingface.co',
     'https://updates.auraone.ai',
     'https://updates2.auraone.ai',
-    'https://intake.auraone.ai',
     'https://o.auraone.ai',
     'https://sentry.io',
     "frame-src 'none'",

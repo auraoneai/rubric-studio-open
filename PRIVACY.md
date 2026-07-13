@@ -13,18 +13,24 @@ to rubric project files.
 
 ## Desktop Edition
 
-The desktop edition uses the OS keychain bridge for BYO provider keys. The
-keychain scope is limited to `byo-api-keys`; user-authored rubric content,
-samples, judge prompts, and export payloads are not stored as secrets.
+The desktop edition uses the shared Open Studio Platform OS keychain bridge for
+BYO provider keys and the generated Ed25519 intake install signing identity.
+Storage is limited to `byo-api-keys` and `intake-install-signing-key`; the
+signing scope accepts only the shared `ed25519-install-keypair-v1` identity.
+User-authored rubric content, samples, judge prompts, and export payloads are
+not stored as secrets.
 
 ## Telemetry
 
-Telemetry is off by default. When the user opts in, Rubric Studio Open may log
-anonymous install/session metadata, feature usage counts, surface mode, version,
-and error categories. Telemetry must not include rubric content, samples, judge
-prompts, provider API keys, or local file paths.
+Telemetry is off by default. This build exposes only a local telemetry preview;
+no network telemetry uploader is implemented. When the user opts into the
+preview, Rubric Studio Open may log anonymous install/session metadata, feature
+usage counts, surface mode, version, and error categories on the local device.
+Preview records use `local_preview`; consent-disabled records use `would_send`.
+Neither status means uploaded. Telemetry preview must not include rubric
+content, samples, judge prompts, provider API keys, or local file paths.
 
-Users can inspect the in-app transparent event log before enabling telemetry.
+Users can inspect the in-app local event preview before enabling it.
 
 ## Crash Reporting
 
@@ -39,13 +45,13 @@ The desktop updater checks signed AuraOne update endpoints. Update checks use
 the app version, target, architecture, and selected channel. The browser edition
 cannot install desktop updates and reports the update action as unavailable.
 
-## AuraOne Intake Export
+## Local Evidence Export
 
-The AuraOne intake export is explicit. It produces a local `.auraonepkg`
-manifest containing only the rubric, calibration set, judge card, and run
-manifest selected for export. Intake export never includes provider API keys,
-and user-authored content is sent only after the user confirms the export
-destination.
+Evidence export is explicit and local. It produces an unsigned ZIP containing a
+project bundle, imported gold labels, generated adapters, a manifest, and
+SHA-256 checksums. The package never includes provider API keys. Rubric Studio
+Open does not upload the archive, assign reviewers, or claim a cryptographic
+signature was created.
 
 ## Local Provider Calls
 

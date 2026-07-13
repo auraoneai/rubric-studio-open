@@ -116,7 +116,11 @@ export interface DiffResult {
   criterionId: string;
   label: string;
   severity: 'cosmetic' | 'substantive' | 'breaking';
+  changeType: 'added' | 'removed' | 'modified';
+  changedFields: string[];
   summary: string;
+  before: string;
+  after: string;
   passToFail: number;
   failToPass: number;
 }

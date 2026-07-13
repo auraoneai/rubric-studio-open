@@ -11,12 +11,41 @@ import type {
 } from './rubric';
 import { validateProject } from './validation';
 
+const CRITERION_FIELDS: Array<keyof Criterion> = [
+  'id',
+  'label',
+  'themeId',
+  'description',
+  'weight',
+  'scale',
+  'positiveExamples',
+  'negativeExamples',
+  'antiPatterns',
+  'boundaries',
+  'edgeCases',
+  'evidenceRequirement',
+  'tags',
+  'references',
+  'siblingLinks',
+  'status',
+  'comments',
+];
+const BREAKING_DIFF_FIELDS = new Set(['scale', 'status', 'evidenceRequirement']);
+const SUBSTANTIVE_DIFF_FIELDS = new Set([
+  'description',
+  'weight',
+  'positiveExamples',
+  'negativeExamples',
+  'boundaries',
+]);
+const LOCAL_SCORE_INPUT_FIELDS = new Set(['positiveExamples', 'negativeExamples', 'tags']);
+
 export function scoreSamples(
   project: RubricProject,
   samples: RubricSample[],
   judges: JudgeConfig[],
 ): ScoreResult[] {
-  const enabledJudges = judges.filter((judge) => judge.enabled).slice(0, 4);
+  const enabledJudges = judges.filter((judge) => judge.enabled && judge.provider === 'mock');
   return samples.flatMap((sample) =>
     enabledJudges.flatMap((judge) =>
       project.criteria.map((criterion) => scoreCriterion(criterion, sample, judge)),
@@ -29,24 +58,13 @@ export function scoreCriterion(
   sample: RubricSample,
   judge: JudgeConfig,
 ): ScoreResult {
+  if (judge.provider !== 'mock') {
+    throw new Error('Deterministic local fixture scoring only supports mock judges.');
+  }
   const hash = stableHash(`${criterion.id}:${sample.id}:${judge.id}:${sample.response}`);
   const sampleText = `${sample.prompt} ${sample.response}`.toLowerCase();
-  const positiveHits = criterion.positiveExamples.filter((example) =>
-    hasSharedToken(sampleText, example),
-  ).length;
-  const negativeHits = criterion.negativeExamples.filter((example) =>
-    hasSharedToken(sampleText, example),
-  ).length;
-  const tagBonus = criterion.tags.some((tag) => sampleText.includes(tag.split(':').pop() ?? ''))
-    ? 0.12
-    : 0;
-  const providerOffset = judge.provider === 'mock' ? 0 : (hash % 17) / 100 - 0.08;
-  const score = clamp(
-    0.42 + positiveHits * 0.18 - negativeHits * 0.16 + tagBonus + providerOffset + (hash % 23) / 100,
-    0,
-    1,
-  );
-  const verdict = score >= 0.67 ? 'pass' : score >= 0.4 ? 'partial' : 'fail';
+  const score = localFixtureScore(criterion, sampleText, hash);
+  const verdict = verdictForScore(score);
 
   return {
     criterionId: criterion.id,
@@ -57,6 +75,28 @@ export function scoreCriterion(
     confidence: Number((0.62 + (hash % 31) / 100).toFixed(2)),
     reasoning: buildReasoning(criterion, sample, judge, verdict),
   };
+}
+
+function localFixtureScore(criterion: Criterion, sampleText: string, hash: number): number {
+  const positiveHits = criterion.positiveExamples.filter((example) =>
+    hasSharedToken(sampleText, example),
+  ).length;
+  const negativeHits = criterion.negativeExamples.filter((example) =>
+    hasSharedToken(sampleText, example),
+  ).length;
+  const tagBonus = criterion.tags.some((tag) => sampleText.includes(tag.split(':').pop() ?? ''))
+    ? 0.12
+    : 0;
+  const score = clamp(
+    0.42 + positiveHits * 0.18 - negativeHits * 0.16 + tagBonus + (hash % 23) / 100,
+    0,
+    1,
+  );
+  return score;
+}
+
+function verdictForScore(score: number): ScoreResult['verdict'] {
+  return score >= 0.67 ? 'pass' : score >= 0.4 ? 'partial' : 'fail';
 }
 
 export function summarizeCatchView(results: ScoreResult[]): Record<string, ScoreResult[]> {
@@ -87,9 +127,12 @@ export function calculateCalibration(
   project: RubricProject,
   results: ScoreResult[],
 ): CalibrationResult[] {
+  const localJudgeId = project.judges.find(
+    (judge) => judge.enabled && judge.provider === 'mock',
+  )?.id;
   return project.criteria.map((criterion) => {
     const criterionResults = results.filter(
-      (result) => result.criterionId === criterion.id && result.judgeId === 'local-mock',
+      (result) => result.criterionId === criterion.id && result.judgeId === localJudgeId,
     );
     const pairs = criterionResults
       .map((result) => {
@@ -105,18 +148,18 @@ export function calculateCalibration(
       })
       .filter((pair): pair is { predicted: number; gold: number; sampleId: string } => Boolean(pair));
 
-    const kappa = cohenKappa(pairs.map(({ predicted, gold }) => [predicted, gold]));
+    const binaryPairs = pairs.map(({ predicted, gold }) => [predicted, gold] as [number, number]);
+    const kappa = cohenKappa(binaryPairs);
     const disagreement = pairs.filter((pair) => pair.predicted !== pair.gold).map((pair) => pair.sampleId);
     const boundedKappa = Number(kappa.toFixed(2));
-    const lower = Number(Math.max(-1, boundedKappa - 0.12).toFixed(2));
-    const upper = Number(Math.min(1, boundedKappa + 0.12).toFixed(2));
+    const [lower, upper] = bootstrapKappaInterval(binaryPairs, stableHash(criterion.id));
 
     return {
       criterionId: criterion.id,
       kappa: boundedKappa,
-      weightedKappa: Number(Math.min(1, boundedKappa + 0.05).toFixed(2)),
-      krippendorffAlpha: Number(Math.max(-1, boundedKappa - 0.04).toFixed(2)),
-      fleissKappa: Number(Math.max(-1, boundedKappa - 0.02).toFixed(2)),
+      weightedKappa: Number(weightedCohenKappa(binaryPairs).toFixed(2)),
+      krippendorffAlpha: Number(krippendorffAlphaNominal(binaryPairs).toFixed(2)),
+      fleissKappa: Number(fleissKappa(binaryPairs).toFixed(2)),
       ci95: [lower, upper],
       coverage: pairs.length,
       mostDisagreedSampleIds: disagreement,
@@ -129,77 +172,185 @@ export function runBiasProbes(project: RubricProject): Array<{
   label: string;
   status: 'pass' | 'fail';
   reasoning: string;
+  comparedPairs: number;
+  changedVerdicts: number;
 }> {
-  const highRiskCount = project.criteria.filter((criterion) => criterion.tags.includes('risk:high')).length;
-  return [
+  const judge = project.judges.find((candidate) => candidate.enabled && candidate.provider === 'mock');
+  if (!judge) {
+    return [];
+  }
+  const transforms: Array<{
+    id: string;
+    label: string;
+    apply: (sample: RubricSample) => RubricSample;
+    reasoning: string;
+  }> = [
     {
       id: 'length-bias',
       label: 'Length bias',
-      status: project.criteria.length > 3 ? 'pass' : 'fail',
-      reasoning: 'Compares concise and verbose answers against the same criterion payload.',
+      apply: (sample) => ({
+        ...sample,
+        response: `${sample.response}\n\nFor completeness, this local fixture repeats no new claim and adds only neutral connective language.`,
+      }),
+      reasoning: 'Compared each response with a longer neutral variant using the deterministic local fixture scorer.',
     },
     {
       id: 'position-bias',
       label: 'Position bias',
-      status: 'pass',
-      reasoning: 'Shuffles answer order with deterministic seed 42 and checks stable verdicts.',
+      apply: (sample) => ({
+        ...sample,
+        response: sample.response.split(/(?<=[.!?])\s+/).reverse().join(' '),
+      }),
+      reasoning: 'Reversed sentence order and compared verdict stability locally.',
     },
     {
       id: 'name-bias',
       label: 'Name bias',
-      status: highRiskCount > 0 ? 'pass' : 'fail',
-      reasoning: 'Injects demographic-name variants and checks that safety criteria dominate.',
+      apply: (sample) => ({
+        ...sample,
+        prompt: sample.prompt.replace(/\bAlex\b/g, 'Jordan').replace(/\bJordan\b/g, 'Alex'),
+      }),
+      reasoning: 'Swapped neutral fixture names where present and compared the resulting verdicts.',
     },
     {
       id: 'formatting-bias',
       label: 'Formatting bias',
-      status: 'pass',
-      reasoning: 'Normalizes markdown-heavy and plain-text variants before scoring.',
+      apply: (sample) => ({
+        ...sample,
+        response: `**Response**\n\n${sample.response.replace(/\n+/g, '\n\n')}`,
+      }),
+      reasoning: 'Applied markdown-only formatting changes and compared local verdicts.',
     },
     {
-      id: 'sandbagging',
-      label: 'Refusal / sandbagging',
-      status: 'pass',
-      reasoning: 'Uses paired benign and harmful prompts to detect over-refusal.',
+      id: 'whitespace',
+      label: 'Whitespace invariance',
+      apply: (sample) => ({
+        ...sample,
+        response: `  ${sample.response.replace(/\s+/g, '   ')}  `,
+      }),
+      reasoning: 'Expanded whitespace without changing words and compared local verdicts.',
     },
   ];
+  return transforms.map((probe) => {
+    let comparedPairs = 0;
+    let changedVerdicts = 0;
+    for (const sample of project.samples) {
+      const transformed = probe.apply(sample);
+      for (const criterion of project.criteria) {
+        comparedPairs += 1;
+        const before = scoreCriterion(criterion, sample, judge);
+        const after = scoreCriterion(criterion, transformed, judge);
+        if (before.verdict !== after.verdict) {
+          changedVerdicts += 1;
+        }
+      }
+    }
+    return {
+      id: probe.id,
+      label: probe.label,
+      status: changedVerdicts === 0 ? 'pass' : 'fail',
+      reasoning: probe.reasoning,
+      comparedPairs,
+      changedVerdicts,
+    };
+  });
 }
 
 export function runContaminationAudit(project: RubricProject): Array<{
   sampleId: string;
   ngramOverlap: number;
   exactMatch: boolean;
-  hashMatch: boolean;
+  matchedSource: string;
 }> {
+  const sources = project.criteria.flatMap((criterion) => [
+    ...criterion.positiveExamples.map((text) => ({ id: `${criterion.id}:positive`, text })),
+    ...criterion.negativeExamples.map((text) => ({ id: `${criterion.id}:negative`, text })),
+  ]);
   return project.samples.map((sample) => {
-    const hash = stableHash(sample.response);
+    const comparisons = sources.map((source) => ({
+      source,
+      overlap: ngramJaccard(sample.response, source.text, 3),
+      exact: normalizeText(sample.response) === normalizeText(source.text),
+    }));
+    const strongest = comparisons.sort((a, b) => b.overlap - a.overlap)[0];
     return {
       sampleId: sample.id,
-      ngramOverlap: Number(((hash % 17) / 100).toFixed(2)),
-      exactMatch: hash % 29 === 0,
-      hashMatch: hash % 37 === 0,
+      ngramOverlap: Number((strongest?.overlap ?? 0).toFixed(2)),
+      exactMatch: comparisons.some((comparison) => comparison.exact),
+      matchedSource: strongest?.source.id ?? 'none',
     };
   });
 }
 
-export function semanticDiff(project: RubricProject): DiffResult[] {
-  return project.criteria.map((criterion, index) => {
-    const hash = stableHash(`${criterion.id}:${criterion.description}:${criterion.weight}`);
-    const severity = criterion.status === 'Deprecated' ? 'breaking' : hash % 3 === 0 ? 'substantive' : 'cosmetic';
-    return {
-      criterionId: criterion.id,
-      label: criterion.label,
+export function semanticDiff(project: RubricProject, baseline: RubricProject): DiffResult[] {
+  const judge =
+    project.judges.find((candidate) => candidate.enabled && candidate.provider === 'mock') ??
+    baseline.judges.find((candidate) => candidate.enabled && candidate.provider === 'mock');
+  const currentById = new Map(project.criteria.map((criterion) => [criterion.id, criterion]));
+  const baselineById = new Map(baseline.criteria.map((criterion) => [criterion.id, criterion]));
+  const scoreContexts = judge
+    ? project.samples.map((sample) => ({
+        sample,
+        text: `${sample.prompt} ${sample.response}`.toLowerCase(),
+      }))
+    : [];
+  const results: DiffResult[] = [];
+
+  const appendDiff = (criterionId: string) => {
+    const criterion = currentById.get(criterionId);
+    const previous = baselineById.get(criterionId);
+    const changedFields = changedCriterionFields(previous, criterion);
+    if (changedFields.length === 0) {
+      return;
+    }
+    const changeType: DiffResult['changeType'] = !previous
+      ? 'added'
+      : !criterion
+        ? 'removed'
+        : 'modified';
+    const severity: DiffResult['severity'] =
+      changeType !== 'modified' ||
+      changedFields.some((field) => BREAKING_DIFF_FIELDS.has(field)) ||
+      (criterion?.status === 'Deprecated' && previous?.status !== 'Deprecated')
+        ? 'breaking'
+        : changedFields.some((field) => SUBSTANTIVE_DIFF_FIELDS.has(field))
+          ? 'substantive'
+          : 'cosmetic';
+    let passToFail = 0;
+    let failToPass = 0;
+    const affectsLocalScore = changedFields.some((field) => LOCAL_SCORE_INPUT_FIELDS.has(field));
+    if (criterion && previous && judge && affectsLocalScore) {
+      for (const { sample, text } of scoreContexts) {
+        const hash = stableHash(`${criterion.id}:${sample.id}:${judge.id}:${sample.response}`);
+        const before = verdictForScore(localFixtureScore(previous, text, hash));
+        const after = verdictForScore(localFixtureScore(criterion, text, hash));
+        if (before === 'pass' && after === 'fail') passToFail += 1;
+        if (before === 'fail' && after === 'pass') failToPass += 1;
+      }
+    }
+    results.push({
+      criterionId,
+      label: criterion?.label ?? previous?.label ?? criterionId,
       severity,
-      summary:
-        severity === 'cosmetic'
-          ? 'Examples or copy changed without changing scoring intent.'
-          : severity === 'substantive'
-            ? 'Description, weight, or scale changed enough to affect judge decisions.'
-            : 'Criterion is deprecated or changes the expected score contract.',
-      passToFail: (hash + index) % 5,
-      failToPass: (hash + index * 2) % 4,
-    };
-  });
+      changeType,
+      changedFields,
+      summary: diffSummary(changeType, severity, changedFields),
+      before: previous ? criterionSnapshot(previous) : 'Criterion did not exist in the saved checkpoint.',
+      after: criterion ? criterionSnapshot(criterion) : 'Criterion was removed from the working draft.',
+      passToFail,
+      failToPass,
+    });
+  };
+
+  for (const criterionId of baselineById.keys()) {
+    appendDiff(criterionId);
+  }
+  for (const criterionId of currentById.keys()) {
+    if (!baselineById.has(criterionId)) {
+      appendDiff(criterionId);
+    }
+  }
+  return results;
 }
 
 export function generateExports(
@@ -244,17 +395,29 @@ export function generateExports(
     2,
   );
 
+  const validationLabel = issues.some((issue) => issue.severity === 'error') ? 'errors' : issues.length > 0 ? 'review' : 'valid';
   const badge =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="178" height="20" role="img" aria-label="rubric-spec v1 passing"><rect width="178" height="20" fill="#071417"/><rect x="82" width="96" height="20" fill="#18d6a3"/><text x="8" y="14" fill="#cbe8ef" font-family="Arial" font-size="11">rubric-spec</text><text x="92" y="14" fill="#041514" font-family="Arial" font-size="11">v1 passing</text></svg>';
+    `<svg xmlns="http://www.w3.org/2000/svg" width="190" height="22" role="img" aria-label="rubric-spec v1 ${validationLabel}"><rect width="190" height="22" fill="#101820"/><rect x="88" width="102" height="22" fill="#dceff1"/><text x="8" y="15" fill="#fff" font-family="system-ui, sans-serif" font-size="12">rubric-spec</text><text x="98" y="15" fill="#101820" font-family="system-ui, sans-serif" font-size="12">v1 ${validationLabel}</text></svg>`;
 
   const lmEval = `task: ${project.id}\nrubric: rubric.json\nmetrics:\n  - criterion_pass_rate\n`;
   const inspect = `from inspect_ai import Task\n\n# Generated by Rubric Studio Open\nTASK = Task(dataset="${project.id}")\n`;
   const openAiEvals = `evals:\n  ${project.id}:\n    class: evals.elsuite.basic.match:Match\n    args:\n      rubric: rubric.json\n`;
   const promptfoo = `description: ${project.name}\nproviders:\n  - id: openai:gpt-5-mini\ntests:\n  - vars:\n      rubric: rubric.json\n`;
   const hfCard = `---\nlicense: mit\ntags:\n  - rubric\n  - evaluation\n---\n# ${project.name}\n\nGenerated from Rubric Studio Open.`;
-  const surgeSow = `Scope: expert review for ${project.criteria.length} criteria and ${project.samples.length} seed samples.\nTurnaround: user selected during intake confirmation.\n`;
-  const scaleSpec = JSON.stringify(
-    { task_type: 'criterion_review', rubric_id: project.id, criteria: project.criteria.map(({ id }) => id) },
+  const reviewPlan = [
+    `Project: ${project.name}`,
+    `Scope: local review plan for ${project.criteria.length} criteria and ${project.samples.length} seed samples.`,
+    'Execution: no reviewer assignment, upload, payment, or managed service is performed by this export.',
+  ].join('\n');
+  const reviewTaskSpec = JSON.stringify(
+    {
+      schema: 'rubric-studio-local-review-task.v1',
+      task_type: 'criterion_review',
+      rubric_id: project.id,
+      criteria: project.criteria.map(({ id }) => id),
+      execution_status: 'not-started',
+      destination: 'local-file',
+    },
     null,
     2,
   );
@@ -279,8 +442,8 @@ export function generateExports(
     'openai-evals.yaml': openAiEvals,
     'promptfoo.yaml': promptfoo,
     'huggingface-dataset-card.md': hfCard,
-    'surge-sow.txt': surgeSow,
-    'scale-task-spec.json': scaleSpec,
+    'local-review-plan.txt': reviewPlan,
+    'local-review-task-spec.json': reviewTaskSpec,
     '.github/workflows/rubric.yml': ciHelper,
     '.gitlab-ci.yml': 'rubric_validate:\n  script: rubric validate ./rubric.toml\n',
     '.circleci/config.yml': 'version: 2.1\njobs:\n  rubric:\n    docker:\n      - image: cimg/python:3.11\n    steps:\n      - checkout\n      - run: rubric validate ./rubric.toml\n',
@@ -288,13 +451,16 @@ export function generateExports(
   };
 }
 
-export function buildIntakePackageManifest(project: RubricProject): string {
+export function buildEvidencePackageManifest(project: RubricProject): string {
   return JSON.stringify(
     {
-      packet_version: 'auraonepkg.v1',
+      package_format: 'rubric-studio-evidence.v1',
       product: 'rubric-studio-open',
       explicit_user_action_required: true,
-      destination_options: ['rubric-studio-cloud-signup', 'existing-cloud-org', 'local-download'],
+      destination: 'local-download',
+      signed: false,
+      signature: null,
+      signing_status: 'unavailable-in-this-build',
       contents: {
         rubric: `${project.id}/rubric.json`,
         calibration_set: `${project.id}/samples/expert-gold-v1.jsonl`,
@@ -303,7 +469,7 @@ export function buildIntakePackageManifest(project: RubricProject): string {
       },
       privacy: {
         sends_api_keys: false,
-        sends_user_authored_content: 'only after explicit export confirmation',
+        sends_user_authored_content: false,
       },
     },
     null,
@@ -343,7 +509,82 @@ function buildReasoning(
   verdict: ScoreResult['verdict'],
 ): string {
   const quote = sample.response.length > 120 ? `${sample.response.slice(0, 117)}...` : sample.response;
-  return `${judge.label} marked ${criterion.label} as ${verdict.toUpperCase()} after checking the response evidence: "${quote}"`;
+  return `Deterministic local fixture analysis marked ${criterion.label} as ${verdict.toUpperCase()} from the response text: "${quote}"`;
+}
+
+function ngramJaccard(left: string, right: string, size: number): number {
+  const leftNgrams = wordNgrams(left, size);
+  const rightNgrams = wordNgrams(right, size);
+  if (leftNgrams.size === 0 || rightNgrams.size === 0) return 0;
+  const intersection = [...leftNgrams].filter((value) => rightNgrams.has(value)).length;
+  const union = new Set([...leftNgrams, ...rightNgrams]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function wordNgrams(value: string, size: number): Set<string> {
+  const words = normalizeText(value).split(' ').filter(Boolean);
+  const ngrams = new Set<string>();
+  for (let index = 0; index <= words.length - size; index += 1) {
+    ngrams.add(words.slice(index, index + size).join(' '));
+  }
+  return ngrams;
+}
+
+function normalizeText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function changedCriterionFields(previous: Criterion | undefined, current: Criterion | undefined): string[] {
+  if (!previous || !current) return ['criterion'];
+  const changedFields: string[] = [];
+  for (const field of CRITERION_FIELDS) {
+    if (!criterionValuesEqual(previous[field], current[field])) {
+      changedFields.push(field);
+    }
+  }
+  return changedFields;
+}
+
+function criterionValuesEqual(
+  previous: Criterion[keyof Criterion],
+  current: Criterion[keyof Criterion],
+): boolean {
+  if (previous === current) {
+    return true;
+  }
+  if (!Array.isArray(previous) || !Array.isArray(current) || previous.length !== current.length) {
+    return false;
+  }
+  for (let index = 0; index < previous.length; index += 1) {
+    if (previous[index] !== current[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function diffSummary(
+  changeType: DiffResult['changeType'],
+  severity: DiffResult['severity'],
+  changedFields: string[],
+): string {
+  if (changeType === 'added') return 'Criterion was added after the saved checkpoint.';
+  if (changeType === 'removed') return 'Criterion was removed after the saved checkpoint.';
+  const fields = changedFields.join(', ');
+  if (severity === 'cosmetic') return `Local metadata changed: ${fields}.`;
+  if (severity === 'substantive') return `Scoring guidance changed in: ${fields}. Review deterministic fixture transitions.`;
+  return `The criterion contract changed in: ${fields}. Downstream consumers may need review.`;
+}
+
+function criterionSnapshot(criterion: Criterion): string {
+  return [
+    `label: ${criterion.label}`,
+    `status: ${criterion.status}`,
+    `scale: ${criterion.scale}`,
+    `weight: ${criterion.weight.toFixed(2)}`,
+    `evidence: ${criterion.evidenceRequirement}`,
+    `description: ${criterion.description}`,
+  ].join('\n');
 }
 
 function cohenKappa(pairs: Array<[number, number]>): number {
@@ -358,6 +599,108 @@ function cohenKappa(pairs: Array<[number, number]>): number {
     return observed === 1 ? 1 : 0;
   }
   return clamp((observed - expected) / (1 - expected), -1, 1);
+}
+
+function weightedCohenKappa(pairs: Array<[number, number]>): number {
+  if (pairs.length === 0) {
+    return 0;
+  }
+  const categories = [0, 1];
+  const observedDisagreement =
+    pairs.reduce((sum, [predicted, gold]) => sum + Math.abs(predicted - gold), 0) /
+    pairs.length;
+  const predictedCounts = categories.map(
+    (category) => pairs.filter(([predicted]) => predicted === category).length / pairs.length,
+  );
+  const goldCounts = categories.map(
+    (category) => pairs.filter(([, gold]) => gold === category).length / pairs.length,
+  );
+  const expectedDisagreement = categories.reduce(
+    (sum, predictedCategory, predictedIndex) =>
+      sum +
+      categories.reduce(
+        (inner, goldCategory, goldIndex) =>
+          inner +
+          Math.abs(predictedCategory - goldCategory) *
+            predictedCounts[predictedIndex] *
+            goldCounts[goldIndex],
+        0,
+      ),
+    0,
+  );
+  if (expectedDisagreement === 0) {
+    return observedDisagreement === 0 ? 1 : 0;
+  }
+  return clamp(1 - observedDisagreement / expectedDisagreement, -1, 1);
+}
+
+function krippendorffAlphaNominal(pairs: Array<[number, number]>): number {
+  if (pairs.length === 0) {
+    return 0;
+  }
+  const observedDisagreement =
+    pairs.filter(([predicted, gold]) => predicted !== gold).length / pairs.length;
+  const ratings = pairs.flat();
+  const totalRatings = ratings.length;
+  if (totalRatings < 2) {
+    return observedDisagreement === 0 ? 1 : 0;
+  }
+  const categoryCounts = [0, 1].map(
+    (category) => ratings.filter((rating) => rating === category).length,
+  );
+  const expectedDisagreement =
+    1 -
+    categoryCounts.reduce(
+      (sum, count) => sum + (count * (count - 1)) / (totalRatings * (totalRatings - 1)),
+      0,
+    );
+  if (expectedDisagreement === 0) {
+    return observedDisagreement === 0 ? 1 : 0;
+  }
+  return clamp(1 - observedDisagreement / expectedDisagreement, -1, 1);
+}
+
+function fleissKappa(pairs: Array<[number, number]>): number {
+  if (pairs.length === 0) {
+    return 0;
+  }
+  const observedAgreement =
+    pairs.filter(([predicted, gold]) => predicted === gold).length / pairs.length;
+  const ratings = pairs.flat();
+  const expectedAgreement = [0, 1]
+    .map((category) => ratings.filter((rating) => rating === category).length / ratings.length)
+    .reduce((sum, proportion) => sum + proportion * proportion, 0);
+  if (expectedAgreement === 1) {
+    return observedAgreement === 1 ? 1 : 0;
+  }
+  return clamp((observedAgreement - expectedAgreement) / (1 - expectedAgreement), -1, 1);
+}
+
+function bootstrapKappaInterval(
+  pairs: Array<[number, number]>,
+  seed: number,
+): [number, number] {
+  if (pairs.length === 0) {
+    return [0, 0];
+  }
+  if (pairs.length === 1) {
+    const value = Number(cohenKappa(pairs).toFixed(2));
+    return [value, value];
+  }
+  const samples: number[] = [];
+  let state = seed || 1;
+  for (let run = 0; run < 400; run += 1) {
+    const resampled: Array<[number, number]> = [];
+    for (let index = 0; index < pairs.length; index += 1) {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      resampled.push(pairs[state % pairs.length]);
+    }
+    samples.push(cohenKappa(resampled));
+  }
+  samples.sort((left, right) => left - right);
+  const lower = samples[Math.floor(samples.length * 0.025)] ?? samples[0];
+  const upper = samples[Math.min(samples.length - 1, Math.floor(samples.length * 0.975))] ?? samples.at(-1) ?? 0;
+  return [Number(lower.toFixed(2)), Number(upper.toFixed(2))];
 }
 
 function hasSharedToken(haystack: string, example: string): boolean {

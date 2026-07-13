@@ -8,7 +8,7 @@ export type StudioActionCategory =
   | 'calibration'
   | 'diff'
   | 'export'
-  | 'git'
+  | 'checkpoint'
   | 'settings'
   | 'surface';
 
@@ -43,10 +43,10 @@ export const studioActions: StudioActionDefinition[] = [
   { label: 'Export: Inspect', category: 'export', defaultShortcut: 'Cmd/Ctrl-Alt-2' },
   { label: 'Export: OpenAI Evals', category: 'export', defaultShortcut: 'Cmd/Ctrl-Alt-3' },
   { label: 'Export: Promptfoo', category: 'export', defaultShortcut: 'Cmd/Ctrl-Alt-4' },
-  { label: 'Export: AuraOne intake package', category: 'export', defaultShortcut: 'Cmd/Ctrl-Alt-5' },
+  { label: 'Export: local evidence package', category: 'export', defaultShortcut: 'Cmd/Ctrl-Alt-5' },
   { label: 'Generate CI helper', category: 'export', defaultShortcut: 'Cmd/Ctrl-Alt-6' },
-  { label: 'Git init', category: 'git', defaultShortcut: 'Cmd/Ctrl-G' },
-  { label: 'Git commit', category: 'git', defaultShortcut: 'Cmd/Ctrl-Shift-G' },
+  { label: 'Create local checkpoint', category: 'checkpoint', defaultShortcut: 'Cmd/Ctrl-G' },
+  { label: 'Restore local checkpoint', category: 'checkpoint', defaultShortcut: 'Cmd/Ctrl-Shift-G' },
   { label: 'Open keyboard shortcuts', category: 'settings', defaultShortcut: 'Cmd/Ctrl-,' },
   { label: 'Switch to Authoring', category: 'navigation', defaultShortcut: 'Cmd/Ctrl-1' },
   { label: 'Switch to Preview', category: 'navigation', defaultShortcut: 'Cmd/Ctrl-2' },

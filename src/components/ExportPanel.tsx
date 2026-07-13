@@ -1,175 +1,218 @@
-import { useState } from 'react';
-import { ensureRubricIntakeInstallSigningKeypair } from '../domain/keychain';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Download, FileArchive, ShieldOff } from 'lucide-react';
+import { buildUnsignedEvidencePackage } from '../domain/packageArchive';
 import type { RubricProject, SurfaceMode } from '../domain/rubric';
-import { isVendorProgramExport } from '../domain/scaleWalls';
 
 export function ExportPanel({
   project,
   exports,
-  intakeManifest,
+  evidenceManifest,
   surface,
   activeArtifact,
+  validationIssueCount,
+  validationErrorCount,
 }: {
   project: RubricProject;
   exports: Record<string, string>;
-  intakeManifest: string;
+  evidenceManifest: string;
   surface: SurfaceMode;
   activeArtifact: string | null;
+  validationIssueCount: number;
+  validationErrorCount: number;
 }) {
   const [reviewers, setReviewers] = useState(3);
   const [turnaround, setTurnaround] = useState('5 business days');
-  const [destination, setDestination] = useState('local-download');
-  const [vendorExport, setVendorExport] = useState<{ name: string; content: string } | null>(null);
-  const [installKeyStatus, setInstallKeyStatus] = useState('not checked');
+  const [checksums, setChecksums] = useState<Record<string, string>>({});
+  const [packageStatus, setPackageStatus] = useState('');
+  const [packageError, setPackageError] = useState('');
   const exportEntries = Object.entries(exports);
-  const browserLocalOnly = surface === 'browser';
-  const effectiveDestination = browserLocalOnly ? 'local-download' : destination;
+  const packageBlocked = validationErrorCount > 0;
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all(
+      exportEntries.map(async ([name, content]) => [name, await sha256(content)] as const),
+    ).then((entries) => {
+      if (active) setChecksums(Object.fromEntries(entries));
+    });
+    return () => {
+      active = false;
+    };
+  }, [exports]);
 
   function downloadArtifact(name: string, content: string) {
-    const url = URL.createObjectURL(new Blob([content], { type: contentType(name) }));
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = name.replace(/\//g, '-');
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(new Blob([content], { type: contentType(name) }), name.replace(/\//g, '-'));
   }
 
-  async function downloadIntakePackage() {
-    const keypair = await ensureRubricIntakeInstallSigningKeypair(surface);
-    setInstallKeyStatus(`${keypair.algorithm} key ready`);
-    const manifest = JSON.stringify(
-      {
-        ...JSON.parse(intakeManifest),
-        intake_scope: {
-          reviewers,
-          turnaround,
-          destination: effectiveDestination,
-          sample_count: project.samples.length,
-          criterion_count: project.criteria.length,
-        },
-      },
-      null,
-      2,
-    );
-    downloadArtifact(`${project.id}.auraonepkg.manifest.json`, manifest);
-  }
-
-  function requestArtifactDownload(name: string, content: string) {
-    if (isVendorProgramExport(name)) {
-      setVendorExport({ name, content });
-      return;
+  async function downloadEvidencePackage() {
+    setPackageError('');
+    setPackageStatus('Creating checksums and ZIP archive...');
+    try {
+      const receipt = await buildUnsignedEvidencePackage(project, exports, {
+        reviewers,
+        turnaround,
+      });
+      downloadBlob(receipt.blob, receipt.filename);
+      setPackageStatus(
+        `Created ${receipt.filename} with ${receipt.manifest.artifacts.length} checksummed artifacts. Package is unsigned.`,
+      );
+    } catch (error) {
+      setPackageStatus('');
+      setPackageError(error instanceof Error ? error.message : 'Evidence package creation failed.');
     }
-    downloadArtifact(name, content);
-  }
-
-  function confirmVendorDownload() {
-    if (!vendorExport) {
-      return;
-    }
-    downloadArtifact(vendorExport.name, vendorExport.content);
-    setVendorExport(null);
   }
 
   return (
     <div className="rs-surface rs-export-surface">
       <header className="rs-surface-header">
-        <div className="rs-breadcrumb">
-          <span>Always-on artifacts</span>
-          <code>install signing key · {installKeyStatus}</code>
+        <div className="rs-view-identity">
+          <div className="rs-breadcrumb"><span>Export</span><b aria-hidden="true">/</b><code>rubric-studio-evidence.v1</code></div>
+          <span className={packageBlocked ? 'rs-view-state warning' : 'rs-view-state success'}>
+            {packageBlocked ? <AlertTriangle className="button-icon" aria-hidden="true" /> : <CheckCircle2 className="button-icon" aria-hidden="true" />}
+            {packageBlocked ? `${validationErrorCount} validation errors block packaging` : 'Local validation allows packaging'}
+          </span>
         </div>
         <div className="rs-header-actions">
-          <button className="ghost-button" type="button" onClick={() => setDestination('local-download')}>Local download</button>
-          <button className="intake-button" type="button" onClick={downloadIntakePackage}>
-            {browserLocalOnly ? 'Download AuraOne intake package' : 'Send to AuraOne for expert review →'}
-          </button>
+          <span className="rs-export-key-state">Signing: <strong>Unavailable · package stays unsigned</strong></span>
         </div>
       </header>
       <div className="rs-export-body">
         <section className="rs-export-main">
-          <div className="rs-eyebrow">Configure the bundle</div>
-          {activeArtifact === 'auraonepkg' ? <p className="success-chip export-command-status" role="status">Command selected AuraOne intake package export.</p> : null}
-          <div className="rs-intake-flow">
+          <div className="rs-section-heading">
+            <div>
+              <h2>Prepare a portable evidence package</h2>
+              <p>Review scope, resolve validation errors, then create a local ZIP with a manifest and SHA-256 checksums.</p>
+            </div>
+          </div>
+          <ol className="rs-export-progress" aria-label="Export progress">
+            <li className="complete"><CheckCircle2 className="button-icon" aria-hidden="true" /><span><strong>Review</strong><small>Project scope confirmed</small></span></li>
+            <li className={packageBlocked ? 'attention' : 'complete'}>
+              {packageBlocked ? <AlertTriangle className="button-icon" aria-hidden="true" /> : <CheckCircle2 className="button-icon" aria-hidden="true" />}
+              <span><strong>Validate</strong><small>{packageBlocked ? 'Resolve errors first' : `${validationIssueCount} review notes recorded`}</small></span>
+            </li>
+            <li className="active"><FileArchive className="button-icon" aria-hidden="true" /><span><strong>Package</strong><small>Local unsigned ZIP</small></span></li>
+          </ol>
+          {activeArtifact === 'evidence-package' ? (
+            <p className="success-chip export-command-status" role="status">Command selected the local evidence package.</p>
+          ) : null}
+          <div className="rs-package-scope">
             <label>
-              <strong><span>1</span> Confirm scope</strong>
-              <em>{project.samples.length} samples·{project.criteria.length} criteria</em>
-              <input type="number" min={1} max={50} value={reviewers} onChange={(event) => setReviewers(Number(event.target.value))} />
+              <span>Reviewers</span>
+              <strong>{project.samples.length} samples · {project.criteria.length} criteria</strong>
+              <input aria-label="Reviewer count" type="number" min={1} max={50} value={reviewers} onChange={(event) => setReviewers(Number(event.target.value))} />
             </label>
             <label>
-              <strong><span>2</span> Package</strong>
-              <em>rubric + calibration + judge card + manifest</em>
-              <select value={turnaround} onChange={(event) => setTurnaround(event.target.value)}><option>3 business days</option><option>5 business days</option><option>10 business days</option></select>
-            </label>
-            <label>
-              <strong><span>3</span> Destination</strong>
-              <em>{browserLocalOnly ? 'local download' : 'Cloud signup·existing org·local pkg'}</em>
-              <select value={effectiveDestination} disabled={browserLocalOnly} onChange={(event) => setDestination(event.target.value)}>
-                <option value="rubric-studio-cloud-signup">Cloud signup</option>
-                <option value="existing-cloud-org">Existing org upload</option>
-                <option value="local-download">Just give me the package</option>
+              <span>Target turnaround</span>
+              <strong>Recorded as package metadata only</strong>
+              <select value={turnaround} onChange={(event) => setTurnaround(event.target.value)}>
+                <option>3 business days</option>
+                <option>5 business days</option>
+                <option>10 business days</option>
               </select>
             </label>
+            <label>
+              <span>Destination</span>
+              <strong>No upload or managed service is performed</strong>
+              <input value="Local download" readOnly aria-label="Package destination" />
+            </label>
           </div>
-          <div className="rs-eyebrow rs-section-gap">Privacy receipt</div>
+          <div className="rs-section-heading compact rs-section-gap">
+            <div><h3>Validation receipt</h3><p>The package boundary and unsupported signing state are explicit before download.</p></div>
+          </div>
           <div className="rs-privacy-receipt">
-            <div><span>Sends API keys</span><strong className="good">false</strong></div>
-            <div><span>Sends user content</span><strong className="warn">only after explicit<br />export confirmation</strong></div>
-            <div><span>Telemetry</span><strong className="good">opt in · off</strong></div>
-            <div><span>Signing required</span><strong className="good">true</strong></div>
+            <div><CheckCircle2 className="button-icon" aria-hidden="true" /><span>API keys</span><strong>Never included</strong></div>
+            <div><CheckCircle2 className="button-icon" aria-hidden="true" /><span>Network</span><strong>No upload performed</strong></div>
+            <div><CheckCircle2 className="button-icon" aria-hidden="true" /><span>Checksums</span><strong>SHA-256 per artifact</strong></div>
+            <div><ShieldOff className="button-icon" aria-hidden="true" /><span>Signature</span><strong>Not produced</strong></div>
           </div>
-          <div className="rs-eyebrow rs-section-gap">Pack contents · auraonepkg.v1</div>
+          <div className="rs-package-action">
+            <div>
+              <FileArchive aria-hidden="true" />
+              <span>
+                <strong>{project.id}.rubric-evidence.zip</strong>
+                <small>{exportEntries.length + 2} source files · manifest · unsigned local archive</small>
+              </span>
+            </div>
+            <button
+              className="package-button"
+              type="button"
+              disabled={packageBlocked}
+              onClick={() => void downloadEvidencePackage()}
+            >
+              <Download className="button-icon" aria-hidden="true" />
+              Create evidence ZIP
+            </button>
+          </div>
+          {packageStatus ? <p className="success-chip" role="status">{packageStatus}</p> : null}
+          {packageError ? <p className="inline-error" role="alert">{packageError}</p> : null}
+          <div className="rs-section-heading compact rs-section-gap">
+            <div><h3>Package contents</h3><p>These core files are included alongside every adapter listed in the inspector.</p></div>
+          </div>
           <div className="rs-pack-table">
             {[
-              ['rubric', 'helpful-response-evaluation/rubric.json', '8.4 KB'],
-              ['calibration', 'helpful-response-evaluation/samples/expert-gold-v1.jsonl', '14 KB'],
-              ['judge_card', 'helpful-response-evaluation/judge-card.md', '3.2 KB'],
-              ['manifest', 'helpful-response-evaluation/eval-run-manifest.json', '1.1 KB'],
-            ].map(([kind, path, size]) => (
-              <div key={kind}><span>{kind}</span><code>{path}</code><small>{size}</small></div>
+              ['rubric', 'rubric.json'],
+              ['judge card', 'judge-card.md'],
+              ['run manifest', 'eval-run-manifest.json'],
+              ['conformance', 'conformance-badge.svg'],
+            ].map(([kind, name]) => (
+              <div key={kind}>
+                <span>{kind}</span>
+                <code>{name}</code>
+                <small>{new TextEncoder().encode(exports[name] ?? '').byteLength} B</small>
+                <code title={checksums[name] ? `SHA-256 ${checksums[name]}` : 'Computing SHA-256'}>
+                  {checksums[name] ? `sha256:${checksums[name].slice(0, 12)}...` : 'sha256:pending'}
+                </code>
+                <small>local ZIP</small>
+              </div>
             ))}
           </div>
-          <p className="rs-note">Every artifact maps to one CLI command: <code>rubric export</code> · <code>rubric badge</code> · <code>rubric judge-card</code> · <code>rubric manifest</code>.</p>
-          <pre className="export-preview rs-hidden-preview">{intakeManifest}</pre>
+          <p className="rs-note">The archive uses stored ZIP entries for broad compatibility. It is not cryptographically signed.</p>
+          <pre className="export-preview rs-hidden-preview">{evidenceManifest}</pre>
         </section>
         <aside className="rs-analysis-rail rs-export-rail">
-          <div className="rs-rail-block">
-            <div className="rs-eyebrow">Adapters</div>
-            <h2>{exportEntries.length} outputs</h2>
-            <p>Every adapter is regenerated on every export — no separate switches.</p>
+          <div className="rs-inspector-header">
+            <div><strong>Artifact adapters</strong><span>{exportEntries.length} outputs</span></div>
+          </div>
+          <div className="rs-rail-block rs-finding-summary">
+            <span className="rs-view-state success"><CheckCircle2 className="button-icon" aria-hidden="true" />Generated from current project</span>
+            <h2>One source, portable outputs.</h2>
+            <p>Each download is rebuilt locally from the current rubric. Clicking an adapter downloads that file only.</p>
           </div>
           {[
             ['Core', exportEntries.slice(0, 5)],
             ['Eval harnesses', exportEntries.slice(5, 9)],
             ['Datasets', exportEntries.slice(9, 10)],
-            ['Vendor handoff', exportEntries.slice(10, 12)],
+            ['Review handoff', exportEntries.slice(10, 12)],
             ['CI', exportEntries.slice(12)],
           ].map(([group, entries]) => (
             <div className="rs-artifact-group" key={group as string}>
-              <div className="rs-eyebrow">{group as string}</div>
+              <div className="rs-inspector-title"><span>{group as string}</span></div>
               {(entries as typeof exportEntries).map(([name, content]) => (
                 <button
                   key={name}
                   className={activeArtifact === name ? 'active-export' : ''}
                   type="button"
-                  onClick={() => requestArtifactDownload(name, content)}
+                  onClick={() => downloadArtifact(name, content)}
                 >
-                  <span>›</span>{name}
+                  <span aria-hidden="true">›</span>{name}
                 </button>
               ))}
             </div>
           ))}
-          {surface === 'browser' ? <p className="subtle">Browser export uses local download only and never proxies content through AuraOne.</p> : null}
+          <p className="subtle">{surface === 'browser' ? 'Browser mode creates the ZIP entirely in this page.' : 'Desktop mode creates the same local ZIP without uploading content.'}</p>
         </aside>
       </div>
-      {vendorExport ? (
-        <VendorProgramDialog
-          artifactName={vendorExport.name}
-          onCancel={() => setVendorExport(null)}
-          onDownload={confirmVendorDownload}
-          onIntake={downloadIntakePackage}
-        />
-      ) : null}
     </div>
   );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function contentType(name: string): string {
@@ -180,55 +223,8 @@ function contentType(name: string): string {
   return 'text/plain';
 }
 
-function VendorProgramDialog({
-  artifactName,
-  onCancel,
-  onDownload,
-  onIntake,
-}: {
-  artifactName: string;
-  onCancel: () => void;
-  onDownload: () => void;
-  onIntake: () => void;
-}) {
-  return (
-    <div className="modal-backdrop" role="presentation" onClick={onCancel}>
-      <section
-        className="studio-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="vendor-dialog-title"
-        aria-describedby="vendor-dialog-body"
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onCancel();
-        }}
-      >
-        <p className="eyebrow">Vendor handoff</p>
-        <h2 id="vendor-dialog-title">Sending this to a vendor?</h2>
-        <p id="vendor-dialog-body">
-          AuraOne Rubric Programs gives you managed expert reviewers: same vendors, one contract. You can still download {artifactName} locally.
-        </p>
-        <div className="inline-actions">
-          <button className="ghost-button" type="button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button className="glass-button" type="button" onClick={onDownload}>
-            Download {artifactName}
-          </button>
-          <button
-            className="glass-button primary"
-            type="button"
-            autoFocus
-            onClick={() => {
-              onIntake();
-              onCancel();
-            }}
-          >
-            Download AuraOne intake package
-          </button>
-        </div>
-      </section>
-    </div>
-  );
+async function sha256(content: string): Promise<string> {
+  if (!globalThis.crypto?.subtle) return 'unavailable';
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }

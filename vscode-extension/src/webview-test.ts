@@ -66,7 +66,7 @@ class TestDocument {
   readonly elements = new Map<string, TestElement>();
 
   constructor() {
-    ['root', 'files', 'commands', 'diagnostics', 'editor-title', 'validate', 'refresh', 'intake', 'save'].forEach((id) => {
+    ['root', 'files', 'commands', 'diagnostics', 'editor-title', 'validate', 'refresh', 'evidence', 'save'].forEach((id) => {
       this.elements.set(id, element('div', id));
     });
     this.elements.set('editor', textarea('editor'));
@@ -107,9 +107,9 @@ dispatchMessage({
   commands: [
     'Open first criterion',
     'Save current criterion',
-    'Show browser constraints',
-    'Open desktop-only sidecar note',
-    'Prepare intake export',
+    'Show browser capabilities',
+    'Show execution contract',
+    'Export local evidence summary',
   ],
   files: [
     criterionFile('/workspace/rubric/criteria/safety/safe-refusal.toml', 'safe-refusal', 'Safe refusal', 'Live', 1),
@@ -122,7 +122,7 @@ assert.equal(text('editor-title'), 'Safe refusal');
 assert.match(textareaValue('editor'), /id = "safe-refusal"/);
 assert.match(text('diagnostics'), /label . line 2/);
 assert.match(text('files'), /Safe refusal/);
-assert.match(text('commands'), /Show browser constraints/);
+assert.match(text('commands'), /Show browser capabilities/);
 
 buttonIn('files', 'Specificity').click();
 assertPost({ type: 'open', file: '/workspace/rubric/criteria/helpfulness/specificity.toml' });
@@ -151,26 +151,26 @@ assertPost({
   content: 'id = "safe-refusal"\nlabel = "Safe refusal updated"\n',
 });
 
-buttonIn('commands', 'Show browser constraints').click();
-assert.match(text('diagnostics'), /Browser constraints/);
-assert.match(text('diagnostics'), /cannot run Python sidecars/);
-assert.notDeepEqual(lastPost(), { type: 'executeCommand', command: 'Show browser constraints' });
+buttonIn('commands', 'Show browser capabilities').click();
+assert.match(text('diagnostics'), /Browser capabilities/);
+assert.match(text('diagnostics'), /gold calibration/);
+assert.notDeepEqual(lastPost(), { type: 'executeCommand', command: 'Show browser capabilities' });
 
-buttonIn('commands', 'Open desktop-only sidecar note').click();
-assert.match(text('diagnostics'), /Desktop sidecars/);
-assert.match(text('diagnostics'), /signed \.auraonepkg upload/);
-assert.notDeepEqual(lastPost(), { type: 'executeCommand', command: 'Open desktop-only sidecar note' });
+buttonIn('commands', 'Show execution contract').click();
+assert.match(text('diagnostics'), /Execution contract/);
+assert.match(text('diagnostics'), /does not score providers/);
+assert.notDeepEqual(lastPost(), { type: 'executeCommand', command: 'Show execution contract' });
 
 button('validate').click();
 assertPost({ type: 'validate' });
 button('refresh').click();
 assertPost({ type: 'refresh' });
-button('intake').click();
-assertPost({ type: 'executeCommand', command: 'Prepare intake export' });
+button('evidence').click();
+assertPost({ type: 'executeCommand', command: 'Export local evidence summary' });
 
-dispatchMessage({ type: 'intake', count: 2 });
-assert.match(text('diagnostics'), /Intake export preview/);
-assert.match(text('diagnostics'), /2 criteria are ready to package/);
+dispatchMessage({ type: 'evidence', count: 2, issueCount: 1 });
+assert.match(text('diagnostics'), /Local evidence summary/);
+assert.match(text('diagnostics'), /2 criterion files and 1 diagnostics/);
 
 console.log('Rubric Studio Open VS Code webview behavior passed.');
 
@@ -210,18 +210,14 @@ function dispatchMessage(data: unknown): void {
 
 function button(id: string): TestElement {
   const node = document.getElementById(id);
-  if (!node) {
-    throw new Error(`Expected #${id} to exist`);
-  }
+  assert.ok(node, `Expected #${id} to exist`);
   return node;
 }
 
 function buttonIn(id: string, label: string): TestElement {
   const rootNode = button(id);
   const match = find(rootNode, (node) => node.tagName === 'BUTTON' && node.textContent.includes(label));
-  if (!match) {
-    throw new Error(`Expected a button containing ${label}`);
-  }
+  assert.ok(match, `Expected a button containing ${label}`);
   return match;
 }
 

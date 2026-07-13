@@ -21,9 +21,9 @@ const webviewCommands = [
   'Validate project',
   'Open first criterion',
   'Save current criterion',
-  'Prepare intake export',
-  'Show browser constraints',
-  'Open desktop-only sidecar note',
+  'Export local evidence summary',
+  'Show browser capabilities',
+  'Show execution contract',
 ];
 
 const criterionSelector: vscode.DocumentSelector = [{ scheme: 'file', pattern: '**/criteria/**/*.toml' }];
@@ -78,9 +78,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('auraone.rubricStudio.exportIntake', async () => {
       const files = await readCriterionFiles();
       const issueCount = files.reduce((total, file) => total + file.diagnostics.length, 0);
-      await currentPanel?.webview.postMessage({ type: 'intake', count: files.length, issueCount });
+      await currentPanel?.webview.postMessage({ type: 'evidence', count: files.length, issueCount });
       await vscode.window.showInformationMessage(
-        `Rubric Studio Open prepared an intake manifest preview for ${files.length} criteria.`,
+        `Rubric Studio Open summarized ${files.length} local criterion files and ${issueCount} diagnostics. No archive, signature, or upload was produced.`,
       );
     }),
   );
@@ -139,9 +139,10 @@ async function handleWebviewMessage(
       await validateWorkspace(diagnostics);
       await postProject(currentPanel, diagnostics);
     }
-    if (message.command === 'Prepare intake export') {
+    if (message.command === 'Export local evidence summary') {
       const files = await readCriterionFiles();
-      await currentPanel?.webview.postMessage({ type: 'intake', count: files.length });
+      const issueCount = files.reduce((total, file) => total + file.diagnostics.length, 0);
+      await currentPanel?.webview.postMessage({ type: 'evidence', count: files.length, issueCount });
     }
   }
 }
@@ -372,23 +373,66 @@ function webviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string 
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource};">
   <title>Rubric Studio Open</title>
   <style>
-    :root { color-scheme: dark; }
-    body { margin: 0; background: #061113; color: #e8fbff; font-family: ui-sans-serif, system-ui; }
+    :root {
+      color-scheme: light;
+      --pl-canvas: #f5f7fa;
+      --pl-canvas-subtle: #f8fafc;
+      --pl-surface: #ffffff;
+      --pl-surface-inset: #eef2f6;
+      --pl-surface-hover: #f0f4f7;
+      --pl-surface-selected: #dceff1;
+      --pl-text-primary: #101820;
+      --pl-text-secondary: #3f4b59;
+      --pl-text-muted: #626f7e;
+      --pl-brand: #007582;
+      --pl-brand-hover: #006a75;
+      --pl-focus: #0b6cff;
+      --pl-border-subtle: #e3e8ee;
+      --pl-border-default: #d5dde6;
+      --pl-warning: #8b5b00;
+      --pl-danger: #b4233c;
+      --pl-info: #1769a6;
+      --pl-radius-sm: 6px;
+      --pl-radius-md: 8px;
+      --pl-font-ui: var(--pl-official-font-ui, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif);
+      --pl-font-mono: var(--pl-official-font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--pl-canvas); color: var(--pl-text-primary); font: 14px var(--pl-font-ui); letter-spacing: 0; }
     main { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
-    header { padding: 14px 16px; border-bottom: 1px solid rgba(134,244,226,.18); display: flex; gap: 12px; justify-content: space-between; align-items: center; }
-    section { padding: 18px; display: grid; grid-template-columns: 280px minmax(0, 1fr) 280px; gap: 14px; }
-    .panel { border: 1px solid rgba(134,244,226,.18); border-radius: 8px; background: rgba(12,31,36,.78); padding: 14px; min-width: 0; }
+    header { min-height: 56px; padding: 8px 16px; border-bottom: 1px solid var(--pl-border-default); background: var(--pl-surface); display: flex; gap: 12px; justify-content: space-between; align-items: center; }
+    header strong { font-size: 15px; }
+    section { min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr) 320px; }
+    .panel { min-width: 0; overflow: auto; border-right: 1px solid var(--pl-border-default); background: var(--pl-surface); padding: 14px; }
+    .panel:last-child { border-right: 0; border-left: 1px solid var(--pl-border-default); }
+    h2 { margin: 4px 0 12px; color: var(--pl-text-primary); font-size: 13px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
-    button { border: 0; border-radius: 8px; padding: 8px 11px; background: rgba(232,251,255,.08); color: #e8fbff; font-weight: 700; text-align: left; }
-    button.primary { background: linear-gradient(135deg,#34d9ff,#18d6a3); color: #031314; }
+    button { min-height: 40px; border: 1px solid var(--pl-border-default); border-radius: var(--pl-radius-sm); padding: 0 12px; background: var(--pl-surface); color: var(--pl-text-primary); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+    button:hover { background: var(--pl-surface-hover); }
+    button:focus-visible, textarea:focus-visible { outline: 2px solid var(--pl-focus); outline-offset: 2px; }
+    button.primary { border-color: var(--pl-brand); background: var(--pl-brand); color: #fff; }
+    button.primary:hover { background: var(--pl-brand-hover); }
     .file { width: 100%; margin: 4px 0; display: grid; gap: 3px; }
-    .file.active { outline: 2px solid #18d6a3; }
-    .file small, .subtle { color: #8fb8c0; }
-    textarea { width: 100%; min-height: 56vh; box-sizing: border-box; border: 1px solid rgba(134,244,226,.2); border-radius: 8px; background: #061113; color: #e8fbff; padding: 12px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .diagnostic { border-left: 3px solid #f0c857; padding: 8px; margin: 8px 0; background: rgba(255,255,255,.04); }
-    .diagnostic.error { border-left-color: #ff6b6b; }
-    .diagnostic.hint { border-left-color: #7fb7ff; }
-    @media (max-width: 960px) { section { grid-template-columns: 1fr; } textarea { min-height: 42vh; } }
+    .file.active { border-color: var(--pl-brand); background: var(--pl-surface-selected); color: var(--pl-brand-hover); }
+    .file small, .subtle { color: var(--pl-text-muted); }
+    textarea { width: 100%; min-height: 56vh; border: 1px solid var(--pl-border-default); border-radius: var(--pl-radius-md); background: var(--pl-canvas-subtle); color: var(--pl-text-primary); padding: 12px; font: 13px/20px var(--pl-font-mono); resize: vertical; }
+    .diagnostic { border: 1px solid var(--pl-border-default); border-left: 3px solid var(--pl-warning); border-radius: var(--pl-radius-sm); padding: 10px; margin: 8px 0; background: var(--pl-surface); }
+    .diagnostic p { margin: 4px 0 0; color: var(--pl-text-secondary); }
+    .diagnostic.error { border-left-color: var(--pl-danger); }
+    .diagnostic.hint { border-left-color: var(--pl-info); }
+    @media (max-width: 960px) {
+      section { grid-template-columns: 1fr; }
+      .panel, .panel:last-child { border: 0; border-bottom: 1px solid var(--pl-border-default); }
+      textarea { min-height: 42vh; }
+    }
+    @media (max-width: 639px) {
+      header { align-items: flex-start; flex-direction: column; }
+      button { min-height: 44px; }
+      .toolbar { width: 100%; }
+    }
+    @media (forced-colors: active) {
+      button, textarea, .panel, .diagnostic { border-color: CanvasText; }
+    }
   </style>
 </head>
 <body>
@@ -398,7 +442,7 @@ function webviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string 
       <div class="toolbar">
         <button id="validate" class="primary">Validate project</button>
         <button id="refresh">Refresh</button>
-        <button id="intake">Prepare intake export</button>
+        <button id="evidence">Evidence summary</button>
       </div>
     </header>
     <section>

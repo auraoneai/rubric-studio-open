@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   Command,
+  Download,
+  FileDiff,
   FilePlus2,
   FileText,
   FolderOpen,
-  GitCompare,
+  Menu,
   Play,
   Search,
   Settings,
@@ -13,7 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import {
-  buildIntakePackageManifest,
+  buildEvidencePackageManifest,
   calculateCalibration,
   generateExports,
   projectHealth,
@@ -38,7 +40,7 @@ import {
 } from './domain/platformTelemetry';
 import { searchProject, validateProject } from './domain/validation';
 import { auditStudioActions, defaultShortcutRows, studioActionCategory, studioActionLabels } from './domain/actions';
-import { actionForShortcut, shortcutForAction, type ShortcutRow } from './domain/shortcuts';
+import { actionForShortcut, isEditableShortcutTarget, shortcutForAction, type ShortcutRow } from './domain/shortcuts';
 import { classifyDeepLink, connectDesktopDeepLinks } from './domain/deepLink';
 import { tabs, tourSteps, type Tab, type TourStep } from './domain/navigation';
 import {
@@ -51,6 +53,8 @@ import {
   revealProjectPath,
   type RecentProject,
 } from './domain/projectOpen';
+import { persistProject, persistenceBackendLabel, type ProjectPersistenceReceipt } from './domain/persistence';
+import { cloneProject, readLocalCheckpoint, saveLocalCheckpoint } from './domain/checkpoint';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { BrowserProjectControls } from './components/BrowserProjectControls';
 import { PreviewPanel } from './components/PreviewPanel';
@@ -61,7 +65,12 @@ import { ExportPanel } from './components/ExportPanel';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AuthoringPanel } from './components/AuthoringPanel';
 import { DeleteCriterionDialog, TemplateProjectDialog } from './components/StudioDialogs';
-import { ApplicationMenu } from './components/ApplicationMenu';
+import {
+  loadRubricRelease,
+  RUBRIC_RELEASES_URL,
+  type ReleaseAvailability,
+} from './domain/releaseManifest';
+import { useOverlayFocus } from './components/useOverlayFocus';
 
 type Action =
   | { type: 'select'; criterionId: string }
@@ -82,7 +91,13 @@ type Action =
   | { type: 'toggleComments' }
   | { type: 'setSelectedSample'; sampleId: string }
   | { type: 'addSample'; sample: RubricSample }
+  | { type: 'replaceSamples'; samples: RubricSample[] }
   | { type: 'replaceProject'; project: RubricProject };
+
+function isHostedPreviewHost() {
+  if (typeof window === 'undefined') return false;
+  return /(^|\.)rubric-studio\.auraone\.ai$|\.vercel\.app$/.test(window.location.hostname);
+}
 
 interface StudioState {
   project: RubricProject;
@@ -99,12 +114,17 @@ type StudioPreferences = {
   visualMode: VisualMode;
   noNetworkMode: boolean;
 };
+type SaveState = {
+  status: 'idle' | 'saving' | 'saved' | 'error';
+  message: string;
+  receipt: ProjectPersistenceReceipt | null;
+};
 
 const tabIcons: Record<Tab, LucideIcon> = {
   authoring: SquarePen,
   preview: Play,
   calibration: SlidersHorizontal,
-  diff: GitCompare,
+  diff: FileDiff,
   export: FileText,
   settings: Settings,
 };
@@ -279,6 +299,14 @@ function reducer(state: StudioState, action: Action): StudioState {
         selectedSampleId: action.sample.id,
         project: { ...state.project, samples: [...state.project.samples, action.sample] },
       };
+    case 'replaceSamples':
+      return {
+        ...state,
+        selectedSampleId: action.samples.some((sample) => sample.id === state.selectedSampleId)
+          ? state.selectedSampleId
+          : action.samples[0]?.id ?? '',
+        project: { ...state.project, samples: action.samples },
+      };
     case 'replaceProject':
       return {
         ...state,
@@ -292,8 +320,9 @@ function reducer(state: StudioState, action: Action): StudioState {
 }
 
 export function App() {
-  const initialSurface = new URLSearchParams(window.location.search).get('surface') === 'browser' ? 'browser' : 'desktop';
-  const browserSurfaceLocked = initialSurface === 'browser';
+  const surfaceParam = new URLSearchParams(window.location.search).get('surface');
+  const initialSurface = surfaceParam === 'desktop' ? 'desktop' : surfaceParam === 'browser' || isHostedPreviewHost() ? 'browser' : 'desktop';
+  const browserSurfaceLocked = initialSurface === 'browser' && surfaceParam !== 'desktop';
   const [initialProject] = useState(readSavedProject);
   const [initialPreferences] = useState(readSavedPreferences);
   const initialCriterionId =
@@ -306,11 +335,14 @@ export function App() {
     selectedSampleId: initialProject.samples[0]?.id ?? '',
   });
   const [activeTab, setActiveTab] = useState<Tab>('authoring');
+  const [projectNavOpen, setProjectNavOpen] = useState(false);
   const [surface, setSurface] = useState<SurfaceMode>(initialSurface);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [wizardOpen, setWizardOpen] = useState(
-    () => new URLSearchParams(window.location.search).get('onboarding') === '1',
+    () =>
+      new URLSearchParams(window.location.search).get('onboarding') === '1' ||
+      localStorage.getItem('rso:onboarded') !== 'yes',
   );
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('safety');
@@ -327,37 +359,67 @@ export function App() {
   const [noNetworkMode, setNoNetworkMode] = useState(initialPreferences.noNetworkMode);
   const [shortcuts, setShortcuts] = useState<ShortcutRow[]>(readSavedShortcuts);
   const [recentCommands, setRecentCommands] = useState<string[]>([]);
-  const [toast, setToast] = useState('Saved');
+  const [toast, setToast] = useState('Ready');
   const [openedProjectPath, setOpenedProjectPath] = useState<string | null>(null);
+  const [baselineProject, setBaselineProject] = useState(() => readLocalCheckpoint(initialProject));
+  const [scoreResults, setScoreResults] = useState(() =>
+    scoreSamples(initialProject, initialProject.samples, initialProject.judges),
+  );
+  const [saveState, setSaveState] = useState<SaveState>({
+    status: 'idle',
+    message: `Ready to save in ${persistenceBackendLabel(initialSurface, null)}`,
+    receipt: null,
+  });
   const [authoringFocusRequest, setAuthoringFocusRequest] = useState<AuthoringFocusRequest | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>(readRecentProjects);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [deleteCriterionId, setDeleteCriterionId] = useState<string | null>(null);
   const [activeExportArtifact, setActiveExportArtifact] = useState<string | null>(null);
+  const [releaseAvailability, setReleaseAvailability] = useState<ReleaseAvailability>({
+    status: 'loading',
+    releaseUrl: RUBRIC_RELEASES_URL,
+  });
   const selectedCriterion = state.project.criteria.find((criterion) => criterion.id === state.selectedCriterionId);
   const deleteCriterion = state.project.criteria.find((criterion) => criterion.id === deleteCriterionId);
   const selectedSample = state.project.samples.find((sample) => sample.id === state.selectedSampleId) ?? state.project.samples[0];
   const issues = useMemo(() => validateProject(state.project), [state.project]);
-  const scoreResults = useMemo(() => scoreSamples(state.project, state.project.samples, state.project.judges), [state.project]);
   const calibration = useMemo(() => calculateCalibration(state.project, scoreResults), [state.project, scoreResults]);
-  const diff = useMemo(() => semanticDiff(state.project), [state.project]);
+  const diff = useMemo(() => semanticDiff(state.project, baselineProject), [state.project, baselineProject]);
   const exports = useMemo(() => generateExports(state.project, issues, calibration), [state.project, issues, calibration]);
   const health = useMemo(() => projectHealth(state.project), [state.project]);
   const searchResults = useMemo(
     () => searchProject(state.project, { query: searchQuery, regex, caseSensitive, wholeWord }),
     [state.project, searchQuery, regex, caseSensitive, wholeWord],
   );
-  const saveTimer = useRef<number | undefined>(undefined);
-  const scoreTimer = useRef<number | undefined>(undefined);
+  const saveTimer = useRef<number>();
+  const saveRequest = useRef(0);
+  const scoreTimer = useRef<number>();
 
   useEffect(() => {
     window.clearTimeout(saveTimer.current);
+    const requestId = saveRequest.current + 1;
+    saveRequest.current = requestId;
+    setSaveState((current) => ({
+      ...current,
+      status: 'saving',
+      message: `Saving to ${persistenceBackendLabel(surface, openedProjectPath)}...`,
+    }));
     saveTimer.current = window.setTimeout(() => {
-      localStorage.setItem('rso:project', JSON.stringify(state.project));
-      setToast('Autosaved to local project cache');
-    }, 250);
+      void persistProject(state.project, surface, openedProjectPath)
+        .then((receipt) => {
+          if (saveRequest.current !== requestId) return;
+          setSaveState({ status: 'saved', message: receipt.message, receipt });
+          setToast(receipt.message);
+        })
+        .catch((error) => {
+          if (saveRequest.current !== requestId) return;
+          const message = error instanceof Error ? error.message : 'Project autosave failed.';
+          setSaveState({ status: 'error', message, receipt: null });
+          setToast(message);
+        });
+    }, 450);
     return () => window.clearTimeout(saveTimer.current);
-  }, [state.project]);
+  }, [state.project, surface, openedProjectPath]);
 
   useEffect(() => {
     const audit = auditStudioActions(shortcuts);
@@ -380,13 +442,7 @@ export function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const editingText =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        target?.isContentEditable;
-      if (editingText && !event.metaKey && !event.ctrlKey) {
+      if (isEditableShortcutTarget(event.target)) {
         return;
       }
       const action = actionForShortcut(event, shortcuts);
@@ -435,8 +491,7 @@ export function App() {
           if (!active) {
             return;
           }
-          dispatch({ type: 'replaceProject', project: opened.project });
-          setOpenedProjectPath(opened.path);
+          installWorkingProject(opened.project, opened.path);
           setRecentProjects(readRecentProjects());
           setActiveTab('authoring');
           setToast(`Opened ${opened.project.name} from deep link`);
@@ -517,6 +572,53 @@ export function App() {
     runStudioAction(command);
   }
 
+  function installWorkingProject(project: RubricProject, path: string | null, useStoredCheckpoint = true) {
+    dispatch({ type: 'replaceProject', project });
+    setOpenedProjectPath(path);
+    setBaselineProject(useStoredCheckpoint ? readLocalCheckpoint(project) : cloneProject(project));
+    setScoreResults(scoreSamples(project, project.samples, project.judges));
+  }
+
+  async function saveProjectNow(): Promise<ProjectPersistenceReceipt> {
+    window.clearTimeout(saveTimer.current);
+    const requestId = saveRequest.current + 1;
+    saveRequest.current = requestId;
+    setSaveState({
+      status: 'saving',
+      message: `Saving to ${persistenceBackendLabel(surface, openedProjectPath)}...`,
+      receipt: null,
+    });
+    try {
+      const receipt = await persistProject(state.project, surface, openedProjectPath);
+      if (saveRequest.current === requestId) {
+        setSaveState({ status: 'saved', message: receipt.message, receipt });
+        setToast(receipt.message);
+      }
+      return receipt;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Project save failed.';
+      if (saveRequest.current === requestId) {
+        setSaveState({ status: 'error', message, receipt: null });
+        setToast(message);
+      }
+      throw error;
+    }
+  }
+
+  async function saveComparisonCheckpoint(): Promise<string> {
+    const receipt = await saveProjectNow();
+    const checkpoint = saveLocalCheckpoint(state.project);
+    setBaselineProject(checkpoint.project);
+    return `Saved local comparison checkpoint at ${formatShortTime(checkpoint.savedAt)} via ${receipt.backend}.`;
+  }
+
+  function restoreComparisonCheckpoint() {
+    const checkpoint = readLocalCheckpoint(baselineProject);
+    dispatch({ type: 'replaceProject', project: checkpoint });
+    setBaselineProject(cloneProject(checkpoint));
+    setScoreResults(scoreSamples(checkpoint, checkpoint.samples, checkpoint.judges));
+  }
+
   function runStudioAction(action: string) {
     let useDefaultToast = true;
     if (action === 'Command palette') setPaletteOpen(true);
@@ -534,8 +636,7 @@ export function App() {
       setDeleteCriterionId(selectedCriterion.id);
     }
     if (action === 'Save current project') {
-      localStorage.setItem('rso:project', JSON.stringify(state.project));
-      setToast('Saved current project');
+      void saveProjectNow();
       useDefaultToast = false;
     }
     if (action === 'New project from template') setTemplateDialogOpen(true);
@@ -572,12 +673,13 @@ export function App() {
       setToast(surface === 'browser' ? 'Desktop capabilities enabled' : 'Browser constraints enabled');
       useDefaultToast = false;
     }
-    if (action === 'Git init') {
-      setToast(surface === 'browser' ? 'Browser edition previews git actions; open desktop to initialize git.' : 'Initialized local git metadata');
+    if (action === 'Create local checkpoint') {
+      void saveComparisonCheckpoint().then(setToast).catch(() => undefined);
       useDefaultToast = false;
     }
-    if (action === 'Git commit') {
-      setToast(surface === 'browser' ? 'Browser edition previews git actions; open desktop to commit.' : 'Committed current rubric snapshot');
+    if (action === 'Restore local checkpoint') {
+      restoreComparisonCheckpoint();
+      setToast('Restored the working draft from the local comparison checkpoint.');
       useDefaultToast = false;
     }
     if (useDefaultToast) {
@@ -603,8 +705,8 @@ export function App() {
   async function createProjectFromTemplate(name: string) {
     setTemplateDialogOpen(false);
     if (surface === 'browser') {
-      dispatch({ type: 'replaceProject', project: { ...sampleProject, id: slugify(name), name } });
-      setOpenedProjectPath(null);
+      const project = cloneProject({ ...sampleProject, id: slugify(name), name });
+      installWorkingProject(project, null, false);
       setActiveTab('authoring');
       setToast('Created browser starter project in local storage');
       return;
@@ -614,8 +716,7 @@ export function App() {
       if (!opened) {
         return;
       }
-      dispatch({ type: 'replaceProject', project: opened.project });
-      setOpenedProjectPath(opened.path);
+      installWorkingProject(opened.project, opened.path, false);
       setRecentProjects(readRecentProjects());
       setActiveTab('authoring');
       setToast(`Created ${opened.project.name} from starter template`);
@@ -627,8 +728,7 @@ export function App() {
   async function openProjectPath(path: string, source: 'picker' | 'recent' | 'drop') {
     try {
       const opened = await openRubricProjectPath(path);
-      dispatch({ type: 'replaceProject', project: opened.project });
-      setOpenedProjectPath(opened.path);
+      installWorkingProject(opened.project, opened.path);
       setRecentProjects(readRecentProjects());
       setActiveTab('authoring');
       const sourceLabel = source === 'drop' ? 'drop' : source === 'recent' ? 'recent project' : 'folder picker';
@@ -656,10 +756,31 @@ export function App() {
     setActiveTab('preview');
     setScoreRunning(true);
     emit('preview.score.started', { surface, item_count: state.project.samples.length });
+    const nextResults = scoreSamples(state.project, state.project.samples, state.project.judges);
     scoreTimer.current = window.setTimeout(() => {
+      setScoreResults(nextResults);
       setScoreRunning(false);
-      setToast('Score run completed');
+      setToast(`Recomputed ${nextResults.length} deterministic local fixture scores`);
     }, 650);
+  }
+
+  async function checkDesktopRelease() {
+    if (noNetworkMode) {
+      setReleaseAvailability({
+        status: 'unavailable',
+        releaseUrl: RUBRIC_RELEASES_URL,
+        reason: 'No-network mode is active.',
+      });
+      return;
+    }
+    setToast('Checking verified desktop release metadata');
+    const availability = await loadRubricRelease();
+    setReleaseAvailability(availability);
+    setToast(
+      availability.status === 'available'
+        ? `Verified Rubric Studio Open ${availability.manifest.version}`
+        : 'Verified desktop release metadata is unavailable',
+    );
   }
 
   function cancelPreviewRun() {
@@ -688,43 +809,129 @@ export function App() {
   }
 
   return (
-    <main className="app-shell" data-surface={surface} data-theme={visualMode} data-tab={activeTab}>
+    <main
+      className="app-shell aura-ide-root pl-root"
+      data-surface={surface}
+      data-theme={visualMode}
+      data-pl-theme={visualMode === 'high-contrast' ? 'high-contrast' : 'light'}
+      data-tab={activeTab}
+    >
       <a className="skip-link" href="#main-panel">
         Skip to editor
       </a>
       <header className="topbar" role="banner">
         <div className="brand">
+          <button
+            className="ghost-button icon-only project-nav-trigger"
+            type="button"
+            aria-label="Open project navigation"
+            aria-expanded={projectNavOpen}
+            onClick={() => setProjectNavOpen(true)}
+          >
+            <Menu className="button-icon" aria-hidden="true" />
+          </button>
           <span className="app-icon" aria-hidden="true">
             <img className="app-logo" src="/favicon.svg" alt="" />
           </span>
           <div>
-            <h1>AuraOne <span>· Rubric Studio</span></h1>
-            <p>{surface === 'browser' ? 'Browser edition' : 'Desktop edition'} · local-first rubric IDE</p>
+            <h1>Rubric Studio</h1>
+            <p>AuraOne Open</p>
           </div>
         </div>
-        <div className="project-crumb" aria-label="Current project">
-          <span>local</span><span aria-hidden="true">/</span><strong>{state.project.name}</strong><em>{state.project.branch}</em>
-        </div>
-        <button className="studio-search" type="button" onClick={() => setPaletteOpen(true)}>
-          <Search className="button-icon" aria-hidden="true" />
-          <span>Search criteria, samples, commands...</span>
-          <kbd>⌘K</kbd>
+        <button
+          className="project-crumb"
+          type="button"
+          aria-label="Current project"
+          onClick={() => setProjectNavOpen(true)}
+        >
+          <span className="project-crumb-label">Project</span>
+          <strong>{state.project.name}</strong>
+          <em>v{state.project.version}</em>
         </button>
-        <ApplicationMenu shortcuts={shortcuts} onExecute={executeCommand} />
+        <nav className="tabbar" role="tablist" aria-label="Rubric Studio Open tabs" tabIndex={0}>
+          {tabs.map((tab) => {
+            const TabIcon = tabIcons[tab.id];
+            return (
+              <button
+                key={tab.id}
+                className={tab.id === activeTab ? 'tab active' : 'tab'}
+                type="button"
+                role="tab"
+                aria-selected={tab.id === activeTab}
+                aria-controls="main-panel"
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setProjectNavOpen(false);
+                  emit('tab.opened', { tab: tab.id });
+                }}
+              >
+                <TabIcon className="button-icon" aria-hidden="true" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
         <div className="top-actions">
+          <button
+            className="ghost-button icon-only studio-search"
+            type="button"
+            aria-label="Search criteria, samples, and commands"
+            title="Search criteria, samples, and commands (Command-K)"
+            onClick={() => setPaletteOpen(true)}
+          >
+            <Search className="button-icon" aria-hidden="true" />
+          </button>
           <div className="readiness-pill" aria-label={`Project readiness ${health.readiness}%`}>
-            <span aria-hidden="true" style={{ background: `conic-gradient(var(--rs-accent) ${health.readiness}%, var(--rs-line) 0)` }} />
-            <strong>{health.readiness}%</strong><small>Readiness</small>
+            <progress aria-hidden="true" max={100} value={health.readiness} />
+            <strong>{health.readiness}%</strong><small>ready</small>
           </div>
+          <span className={`save-readout ${saveState.status}`} role="status" aria-live="polite" title={saveState.message}>
+            <i aria-hidden="true" />
+            {saveState.status === 'saving' ? 'Saving' : saveState.status === 'error' ? 'Save failed' : 'Saved'}
+          </span>
+          {surface === 'browser' && releaseAvailability.status === 'available' ? (
+            <a
+              className="preview-download-link"
+              href={releaseAvailability.artifact.url}
+              title={`Verified ${releaseAvailability.artifact.format} for Rubric Studio Open ${releaseAvailability.manifest.version}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Download className="button-icon" aria-hidden="true" />
+              Download {releaseAvailability.manifest.version}
+            </a>
+          ) : surface === 'browser' && releaseAvailability.status === 'loading' ? (
+            <button
+              className="preview-download-link secondary"
+              type="button"
+              disabled={noNetworkMode}
+              title={noNetworkMode ? 'No-network mode is active' : 'Fetch verified release metadata'}
+              onClick={() => void checkDesktopRelease()}
+            >
+              <Download className="button-icon" aria-hidden="true" />
+              {noNetworkMode ? 'Offline' : 'Check desktop release'}
+            </button>
+          ) : surface === 'browser' && releaseAvailability.status === 'unavailable' ? (
+            <a
+              className="preview-download-link secondary"
+              href={releaseAvailability.releaseUrl}
+              title={releaseAvailability.reason}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Download className="button-icon" aria-hidden="true" />
+              View releases
+            </a>
+          ) : null}
           {surface === 'desktop' ? (
             <>
-              <button className="glass-button" type="button" onClick={() => void openProjectPicker()}>
+              <button className="solid-button" type="button" aria-label="Open project folder" onClick={() => void openProjectPicker()}>
                 <FolderOpen className="button-icon" aria-hidden="true" />
-                Open Folder
+                <span>Open</span>
               </button>
-              <button className="glass-button" type="button" aria-label="New from Template" onClick={() => setTemplateDialogOpen(true)}>
+              <button className="solid-button" type="button" aria-label="New from Template" onClick={() => setTemplateDialogOpen(true)}>
                 <FilePlus2 className="button-icon" aria-hidden="true" />
-                New
+                <span>New</span>
               </button>
               <label className="recent-picker">
                 <span>Recent</span>
@@ -747,19 +954,28 @@ export function App() {
               </label>
             </>
           ) : (
-            <button className="glass-button" type="button" aria-label="New from Template" onClick={() => setTemplateDialogOpen(true)}>
+            <button className="solid-button" type="button" aria-label="New from Template" onClick={() => setTemplateDialogOpen(true)}>
               <FilePlus2 className="button-icon" aria-hidden="true" />
-              New
+              <span>New</span>
             </button>
           )}
-          <span className="sync-readout"><i /> Synced · local</span>
+          <span className="sync-readout">
+            <i />
+            {saveState.message}
+          </span>
           <span className="user-token" aria-hidden="true">e</span>
           <BrowserProjectControls
             project={state.project}
             surface={surface}
+            persistenceMessage={saveState.message}
+            onStatus={(message, isError = false) => {
+              setToast(message);
+              if (isError) {
+                setSaveState({ status: 'error', message, receipt: null });
+              }
+            }}
             onImport={(project) => {
-              dispatch({ type: 'replaceProject', project });
-              setOpenedProjectPath(null);
+              installWorkingProject(project, null, false);
               setToast('Imported local project bundle');
             }}
           />
@@ -782,38 +998,18 @@ export function App() {
         </div>
       </header>
 
-      <nav className="tabbar" role="tablist" aria-label="Rubric Studio Open tabs">
-        {tabs.map((tab) => {
-          const TabIcon = tabIcons[tab.id];
-          const tabLabel = tab.label;
-          return (
-            <button
-              key={tab.id}
-              className={tab.id === activeTab ? 'tab active' : 'tab'}
-              type="button"
-              role="tab"
-              aria-selected={tab.id === activeTab}
-              aria-controls="main-panel"
-              onClick={() => {
-                setActiveTab(tab.id);
-                emit('tab.opened', { tab: tab.id });
-              }}
-            >
-              <TabIcon className="button-icon" aria-hidden="true" />
-              {tabLabel}
-              <span>{shortcutForAction(shortcuts, tab.action).replace('Cmd/Ctrl-', '')}</span>
-            </button>
-          );
-        })}
-      </nav>
-
       <div className="workspace">
         <ProjectSidebar
+          open={projectNavOpen}
+          onClose={() => setProjectNavOpen(false)}
           project={state.project}
           issues={issues.length}
           projectPath={openedProjectPath}
           selectedCriterionId={state.selectedCriterionId}
-          onSelect={(criterionId) => dispatch({ type: 'select', criterionId })}
+          onSelect={(criterionId) => {
+            dispatch({ type: 'select', criterionId });
+            setProjectNavOpen(false);
+          }}
           onRenameCriterion={(criterionId, label) => dispatch({ type: 'updateCriterion', criterionId, patch: { label, id: slugify(label) } })}
           onDuplicateCriterion={(criterionId) => dispatch({ type: 'duplicateCriterion', criterionId })}
           onDeleteCriterion={(criterionId) => setDeleteCriterionId(criterionId)}
@@ -821,6 +1017,14 @@ export function App() {
           onOpenContainingFolder={(path, label) => void openSidebarPath(path, label, 'containing')}
           onRevealInFileManager={(path, label) => void openSidebarPath(path, label, 'reveal')}
         />
+        {projectNavOpen ? (
+          <button
+            className="project-drawer-scrim"
+            type="button"
+            aria-label="Close project navigation"
+            onClick={() => setProjectNavOpen(false)}
+          />
+        ) : null}
         <section id="main-panel" className="main-panel" data-tab={activeTab} role="tabpanel" tabIndex={-1} aria-label={`${activeTab} panel`}>
           {activeTab === 'authoring' && selectedCriterion ? (
             <AuthoringPanel
@@ -849,6 +1053,7 @@ export function App() {
               onReorder={(draggedId, targetId) => dispatch({ type: 'reorderCriterion', draggedId, targetId })}
               onToggleTheme={(themeId) => dispatch({ type: 'toggleTheme', themeId })}
               onToggleComments={() => dispatch({ type: 'toggleComments' })}
+              saveStatus={saveState.message}
             />
           ) : null}
           {activeTab === 'preview' ? (
@@ -871,29 +1076,41 @@ export function App() {
             />
           ) : null}
           {activeTab === 'calibration' ? (
-            <CalibrationPanel project={state.project} calibration={calibration} surface={surface} />
+            <CalibrationPanel
+              project={state.project}
+              calibration={calibration}
+              onReplaceSamples={(samples) => {
+                const project = { ...state.project, samples };
+                dispatch({ type: 'replaceSamples', samples });
+                setScoreResults(scoreSamples(project, samples, project.judges));
+              }}
+            />
           ) : null}
           {activeTab === 'diff' ? (
             <DiffPanel
               project={state.project}
               diff={diff}
-              surface={surface}
               onApplyVariant={(criterionId, patch) => dispatch({ type: 'updateCriterion', criterionId, patch })}
+              onSaveCheckpoint={saveComparisonCheckpoint}
+              onRestoreCheckpoint={restoreComparisonCheckpoint}
             />
           ) : null}
           {activeTab === 'export' ? (
             <ExportPanel
               project={state.project}
               exports={exports}
-              intakeManifest={buildIntakePackageManifest(state.project)}
+              evidenceManifest={buildEvidencePackageManifest(state.project)}
               surface={surface}
               activeArtifact={activeExportArtifact}
+              validationIssueCount={issues.length}
+              validationErrorCount={issues.filter((issue) => issue.severity === 'error').length}
             />
           ) : null}
           {activeTab === 'settings' ? (
             <SettingsPanel
               project={state.project}
               surface={surface}
+              openedProjectPath={openedProjectPath}
               telemetryEnabled={telemetryEnabled}
               setTelemetryEnabled={setTelemetryPreference}
               crashReportingEnabled={crashReportingEnabled}
@@ -919,11 +1136,14 @@ export function App() {
         </section>
       </div>
 
-      <footer className="statusbar" role="contentinfo">
+      <footer className="statusbar" role="contentinfo" aria-live="polite">
         <div>
           <strong>{issues.length}</strong> issues · {health.issueCounts.error} errors · {health.issueCounts.warning} warnings · readiness {health.readiness}%
         </div>
-        <div>Git: {state.project.branch} · {openedProjectPath ? `folder ${openedProjectPath}` : 'sync local'} · {toast}</div>
+        <div>
+          {openedProjectPath ? `Folder: ${openedProjectPath}` : `Persistence: ${persistenceBackendLabel(surface, openedProjectPath)}`} ·
+          {' '}{noNetworkMode ? 'network blocked' : 'network available'} · updates {updateChannel} · {toast}
+        </div>
       </footer>
 
       {paletteOpen ? (
@@ -995,16 +1215,21 @@ function OnboardingTour(props: {
   onClose: () => void;
 }) {
   const isLast = props.step === props.total - 1;
+  const dialogRef = useOverlayFocus<HTMLElement>({
+    open: true,
+    onClose: props.onClose,
+    initialFocus: '.tour-card .primary',
+  });
   return (
     <div className="modal-backdrop tour-backdrop" role="presentation">
       <section
+        ref={dialogRef}
         className="tour-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="tour-title"
         aria-describedby="tour-body"
         onKeyDown={(event) => {
-          if (event.key === 'Escape') props.onClose();
           if (event.key === 'ArrowLeft') props.onPrevious();
           if (event.key === 'ArrowRight') {
             if (isLast) props.onClose();
@@ -1038,7 +1263,7 @@ function OnboardingTour(props: {
           <button className="ghost-button" type="button" disabled={props.step === 0} onClick={props.onPrevious}>
             Back
           </button>
-          <button className="glass-button primary" type="button" onClick={isLast ? props.onClose : props.onNext}>
+          <button className="solid-button primary" type="button" onClick={isLast ? props.onClose : props.onNext}>
             {isLast ? 'Finish tour' : 'Next'}
           </button>
         </div>
@@ -1056,6 +1281,11 @@ function CommandPalette(props: {
   onExecute: (command: string) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const dialogRef = useOverlayFocus<HTMLElement>({
+    open: true,
+    onClose: props.onClose,
+    initialFocus: '[aria-label="Command search"]',
+  });
   const sortedCommands = [
     ...props.recentCommands.filter((command) => props.commands.includes(command)),
     ...props.commands.filter((command) => !props.recentCommands.includes(command)),
@@ -1075,19 +1305,14 @@ function CommandPalette(props: {
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={props.onClose}>
-      <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(event) => event.stopPropagation()}>
         <input
-          autoFocus
           aria-label="Command search"
           aria-controls="command-palette-options"
           placeholder="Run a command..."
           value={props.query}
           onChange={(event) => props.setQuery(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              props.onClose();
-            }
             if (event.key === 'ArrowDown') {
               event.preventDefault();
               setActiveIndex((current) => (filtered.length === 0 ? 0 : (current + 1) % filtered.length));
@@ -1198,7 +1423,7 @@ function readSavedPreferences(): StudioPreferences {
       telemetryEnabled: parsed.telemetryEnabled === true,
       crashReportingEnabled: parsed.crashReportingEnabled === true,
       updateChannel: parsed.updateChannel === 'beta' ? 'beta' : 'stable',
-      visualMode: parsed.visualMode === 'dark' || parsed.visualMode === 'high-contrast' ? parsed.visualMode : 'light',
+      visualMode: parsed.visualMode === 'high-contrast' ? 'high-contrast' : 'light',
       noNetworkMode: parsed.noNetworkMode === true,
     };
   } catch {
@@ -1220,8 +1445,15 @@ function exportArtifactForAction(action: string): string | null {
     'Export: Inspect': 'inspect-task.py',
     'Export: OpenAI Evals': 'openai-evals.yaml',
     'Export: Promptfoo': 'promptfoo.yaml',
-    'Export: AuraOne intake package': 'auraonepkg',
+    'Export: local evidence package': 'evidence-package',
     'Generate CI helper': '.github/workflows/rubric.yml',
   };
   return artifacts[action] ?? null;
+}
+
+function formatShortTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }

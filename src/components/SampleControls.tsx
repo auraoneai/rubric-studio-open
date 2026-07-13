@@ -95,7 +95,7 @@ export function SampleControls({
           placeholder='{"id":"scratch-1","prompt":"...","response":"..."}'
         />
       </label>
-      <button className="glass-button" type="button" onClick={pasteScratch}>
+      <button className="solid-button" type="button" onClick={pasteScratch}>
         Add scratch
       </button>
       {error ? <div className="inline-error" role="alert">{error}</div> : null}

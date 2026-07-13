@@ -1,6 +1,12 @@
 # Telemetry
 
-Rubric Studio Open telemetry is opt-in only. The app must be useful with telemetry disabled.
+Rubric Studio Open telemetry preview is opt-in only. The app must be useful
+with telemetry preview disabled.
+
+No network uploader is implemented in this build. Opted-in events are retained
+locally with status `local_preview`; opted-out events recorded for consent
+transparency use status `would_send`. Neither status means an event was
+uploaded.
 
 ## Events
 
@@ -21,4 +27,7 @@ Telemetry must never include prompt text, response text, criterion text, reviewe
 
 ## Event log
 
-The app includes a privacy panel that shows every event that has been sent or would have been sent during the current session. Users can export the log to JSON, clear the queue, or disable telemetry.
+The app includes a privacy panel that shows the local event preview for the
+current session. The log clearly distinguishes `local_preview` from
+`would_send`, always reports the destination as local, and never claims an
+event was sent. Users can inspect the JSON or disable the preview.

@@ -1,9 +1,18 @@
 import { openRubricProjectFolder, type OpenedRubricProject } from './deepLink';
+import type { RubricProject } from './rubric';
 
 export interface RecentProject {
   name: string;
   path: string;
   lastOpenedAt: string;
+}
+
+export interface SavedRubricProject {
+  path: string;
+  savedAt: string;
+  filesWritten: number;
+  filesRemoved: number;
+  atomic: boolean;
 }
 
 const recentProjectsKey = 'rso:recent-projects';
@@ -75,6 +84,20 @@ export async function openRubricProjectPath(path: string): Promise<OpenedRubricP
   const opened = await openRubricProjectFolder(path);
   rememberProject(opened.project.name, opened.path);
   return opened;
+}
+
+export async function saveRubricProjectPath(
+  path: string,
+  project: RubricProject,
+): Promise<SavedRubricProject> {
+  if (!isDesktopShell()) {
+    throw new Error('Native project save is available only inside the Tauri desktop shell.');
+  }
+  const invoke = await loadTauriInvoke();
+  if (!invoke) {
+    throw new Error('Desktop project save bridge is unavailable.');
+  }
+  return invoke<SavedRubricProject>('save_rubric_project_folder', { path, project });
 }
 
 export async function revealProjectPath(path: string, mode: 'containing' | 'reveal'): Promise<string> {

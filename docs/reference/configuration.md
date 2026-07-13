@@ -29,4 +29,6 @@ include_samples_by_default = false
 - The app never writes API keys to `rubric.toml`.
 - Paths are project-relative.
 - Export adapters may add files under `exports/`, but they must not mutate source criteria.
-- `no_network = true` disables model-provider calls, telemetry upload, crash upload, update checks, and intake upload.
+- `no_network = true` disables model-provider calls, crash upload, update checks,
+  and intake upload. Telemetry remains a local-only preview because this build
+  has no telemetry uploader.

@@ -77,6 +77,17 @@ export function findShortcutConflicts(shortcuts: ShortcutRow[]): Array<{
     .map(([shortcut, actions]) => ({ shortcut, actions }));
 }
 
+export function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(
+    target.closest(
+      'input, textarea, select, [contenteditable="true"], [role="textbox"], .monaco-editor, .cm-editor, [data-code-editor]',
+    ),
+  );
+}
+
 function parseShortcut(shortcut: string): ParsedShortcut | null {
   const tokens = normalizeShortcut(shortcut).split('-').filter(Boolean);
   const keyToken = tokens[tokens.length - 1];

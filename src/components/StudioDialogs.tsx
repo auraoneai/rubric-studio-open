@@ -1,4 +1,5 @@
 import type { Criterion } from '../domain/rubric';
+import { useOverlayFocus } from './useOverlayFocus';
 
 export function TemplateProjectDialog({
   initialName,
@@ -9,9 +10,15 @@ export function TemplateProjectDialog({
   onCancel: () => void;
   onCreate: (name: string) => void;
 }) {
+  const dialogRef = useOverlayFocus<HTMLFormElement>({
+    open: true,
+    onClose: onCancel,
+    initialFocus: '[name="projectName"]',
+  });
   return (
     <div className="modal-backdrop" role="presentation" onClick={onCancel}>
       <form
+        ref={dialogRef}
         className="studio-dialog"
         role="dialog"
         aria-modal="true"
@@ -24,9 +31,6 @@ export function TemplateProjectDialog({
           const name = String(form.get('projectName') ?? '').trim() || initialName;
           onCreate(name);
         }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onCancel();
-        }}
       >
         <p className="eyebrow">Starter project</p>
         <h2 id="template-dialog-title">Create from template</h2>
@@ -35,13 +39,13 @@ export function TemplateProjectDialog({
         </p>
         <label className="field-label">
           <span>Project name</span>
-          <input name="projectName" autoFocus defaultValue={initialName} />
+          <input name="projectName" defaultValue={initialName} />
         </label>
         <div className="inline-actions">
           <button className="ghost-button" type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button className="glass-button primary" type="submit">
+          <button className="solid-button primary" type="submit">
             Create project
           </button>
         </div>
@@ -59,18 +63,21 @@ export function DeleteCriterionDialog({
   onCancel: () => void;
   onDelete: () => void;
 }) {
+  const dialogRef = useOverlayFocus<HTMLElement>({
+    open: true,
+    onClose: onCancel,
+    initialFocus: '.danger-button',
+  });
   return (
     <div className="modal-backdrop" role="presentation" onClick={onCancel}>
       <section
+        ref={dialogRef}
         className="studio-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-body"
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onCancel();
-        }}
       >
         <p className="eyebrow">Confirm deletion</p>
         <h2 id="delete-dialog-title">Delete {criterion.label}?</h2>
@@ -81,7 +88,7 @@ export function DeleteCriterionDialog({
           <button className="ghost-button" type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button className="danger-button" type="button" autoFocus onClick={onDelete}>
+          <button className="danger-button" type="button" onClick={onDelete}>
             Delete criterion
           </button>
         </div>

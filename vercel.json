@@ -5,7 +5,11 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "rewrites": [
     {
-      "source": "/((?!assets/|favicon.ico|favicon.svg|apple-touch-icon.png).*)",
+      "source": "/fonts/:path*",
+      "destination": "https://www.auraone.ai/fonts/:path*"
+    },
+    {
+      "source": "/((?!assets/|fonts/|favicon.ico|favicon.svg|apple-touch-icon.png).*)",
       "destination": "/index.html"
     }
   ],

@@ -14,6 +14,7 @@ const releaseSource = readFileSync(join(root, 'src/domain/releaseManifest.ts'), 
 const vscodeSource = readFileSync(join(root, 'vscode-extension/src/extension.ts'), 'utf8');
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 const tauriConfig = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'));
+const vercelConfig = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'));
 
 assert.equal(packageJson.dependencies['lucide-react'], '0.554.0');
 assert.ok(webviewChromeSource.includes("from 'lucide-react'"), 'webview must import lucide-react icons');
@@ -39,6 +40,15 @@ assert.ok(!vscodeSource.includes('linear-gradient'), 'VS Code webview must not u
 assert.ok(vscodeSource.includes('--pl-canvas: #f5f7fa'), 'VS Code webview must use Proofline semantic values');
 assert.ok(html.includes('rel="icon" href="/favicon.ico"'), 'browser edition must expose the ICO favicon');
 assert.ok(html.includes('rel="icon" href="/favicon.svg"'), 'browser edition must expose the SVG favicon');
+assert.ok(html.includes('href="/fonts/proofline-brand.css"'), 'hosted browser edition must request the official font boundary');
+assert.deepEqual(
+  vercelConfig.rewrites[0],
+  {
+    source: '/fonts/:path*',
+    destination: 'https://www.auraone.ai/fonts/:path*',
+  },
+  'hosted fonts must proxy through the canonical AuraOne marketing boundary',
+);
 assert.ok(html.includes('boot-splash'), 'app shell must include a first-paint splash screen');
 assert.ok(html.includes('role="status"'), 'first-paint splash must expose status semantics');
 assert.ok(html.includes('aria-live="polite"'), 'first-paint splash status must be polite for assistive tech');

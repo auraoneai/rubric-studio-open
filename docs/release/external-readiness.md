@@ -11,10 +11,10 @@ release paths and the channels that remain intentionally unavailable.
 | Channel | Status | Evidence |
 | --- | --- | --- |
 | Browser editor | Live | `https://rubric-studio.auraone.ai` |
-| GitHub Release | Live | `rubric-studio-open-v0.2.0` |
+| GitHub Release | Live | `v0.2.0` in `auraoneai/rubric-studio-open` |
 | macOS Apple silicon DMG | Live | `Rubric.Studio.Open_0.2.0_aarch64.dmg` |
-| npm companion | Live | `@auraone/rubric-studio@0.2.0` |
-| Source | Live | AuraFoundry release tag and public source repository |
+| npm companion | Live | `@auraone/rubric-studio@0.2.1` |
+| Source | Live | `auraoneai/rubric-studio-open` |
 | Documentation | Live | `https://docs.rubricstudio.auraone.ai` and this docs tree |
 
 The public DMG has SHA-256:

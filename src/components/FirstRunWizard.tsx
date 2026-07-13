@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { configureProviderKey } from '../domain/keychain';
 import { detectOllama } from '../domain/ollama';
 import { providerModelOptions, type JudgeConfig, type SurfaceMode } from '../domain/rubric';
+import { useOverlayFocus } from './useOverlayFocus';
 
 export function FirstRunWizard({
   judges,
@@ -29,6 +30,11 @@ export function FirstRunWizard({
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Record<string, string>>({});
   const setupJudges = judges.filter((judge) => judge.provider !== 'mock');
+  const dialogRef = useOverlayFocus<HTMLElement>({
+    open: true,
+    onClose: onSkip,
+    initialFocus: '.wizard .primary',
+  });
 
   async function configureJudge(judge: JudgeConfig) {
     if (judge.provider === 'ollama') {
@@ -70,14 +76,15 @@ export function FirstRunWizard({
   }
 
   return (
-    <div className="modal-backdrop">
-      <section className="wizard wide" role="dialog" aria-modal="true" aria-label="First-run wizard">
-        <div className="app-icon large rubric-brand-mark" aria-hidden="true">a</div>
-        <h2>Sixty seconds to first value</h2>
+    <div className="modal-backdrop" role="presentation">
+      <section ref={dialogRef} className="wizard wide" role="dialog" aria-modal="true" aria-label="First-run wizard">
+        <div className="app-icon large rubric-brand-mark" aria-hidden="true">A</div>
+        <h2>Start locally. Connect only when you choose.</h2>
         <div className="wizard-steps">
-          <div><strong>1. Look at the rubric</strong><span>A helpful-response project is preloaded with themes, criteria, samples, and judges.</span></div>
-          <div><strong>2. Optional BYO keys</strong><span>Remote keys stay in the OS keychain on desktop and in session memory in browser edition.</span></div>
-          <div><strong>3. Score this sample</strong><span>The local mock judge works immediately; configured providers unlock direct model scoring.</span></div>
+          <div><strong>1. Open a local project</strong><span>The starter rubric is ready now; desktop can open a folder and browser uses local storage.</span></div>
+          <div><strong>2. Review the network boundary</strong><span>Authoring, validation, mock scoring, diff, and local export work without an account or network call.</span></div>
+          <div><strong>3. Run the workflow</strong><span>Author a criterion, score the included sample, calibrate evidence, and review the semantic diff.</span></div>
+          <div><strong>4. Export evidence</strong><span>Downloads remain local. Provider calls happen only after an explicit action, and evidence packages are clearly unsigned.</span></div>
         </div>
         <div className="key-setup" aria-label="BYO key setup">
           {setupJudges.map((judge) => (
@@ -121,7 +128,7 @@ export function FirstRunWizard({
                   onChange={(event) => setKeyDrafts((current) => ({ ...current, [judge.id]: event.target.value }))}
                 />
               )}
-              <button className="glass-button" type="button" onClick={() => configureJudge(judge)}>
+              <button className="solid-button" type="button" onClick={() => configureJudge(judge)}>
                 {judge.provider === 'ollama' ? 'Detect local judge' : judge.keyConfigured ? 'Rotate key' : 'Configure key'}
               </button>
               {status[judge.id] ? <span className={judge.keyConfigured ? 'success-chip' : 'inline-error'}>{status[judge.id]}</span> : null}
@@ -129,13 +136,13 @@ export function FirstRunWizard({
           ))}
         </div>
         <div className="wizard-consent">
-          <label className="switch"><span>Telemetry</span><input type="checkbox" checked={telemetryEnabled} onChange={(event) => onTelemetryChange(event.target.checked)} /></label>
+          <label className="switch"><span>Telemetry preview</span><input type="checkbox" checked={telemetryEnabled} onChange={(event) => onTelemetryChange(event.target.checked)} /></label>
           <label className="switch"><span>Crash reports</span><input type="checkbox" checked={crashReportingEnabled} onChange={(event) => onCrashReportingChange(event.target.checked)} /></label>
         </div>
-        <p className="subtle">Both reporting switches are off by default. Neither sends rubric content, samples, judge prompts, or API keys.</p>
+        <p className="subtle" role="note">Telemetry preview and crash reporting are off by default. No telemetry uploader is configured; preview events stay local and are not sent. Provider keys are optional, and onboarding never sends rubric content, samples, judge prompts, or API keys.</p>
         <div className="inline-actions">
           <button className="ghost-button" type="button" onClick={onSkip}>Skip</button>
-          <button className="glass-button primary" type="button" onClick={onStart}>Start tour</button>
+          <button className="solid-button primary" type="button" onClick={onStart}>Start tour</button>
         </div>
       </section>
     </div>

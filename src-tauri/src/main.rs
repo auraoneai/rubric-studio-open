@@ -29,15 +29,6 @@ fn semantic_diff(
 
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
-fn build_intake_manifest(
-    project_id: String,
-    payload_json: String,
-) -> rubric_studio_open_core::IntakeManifest {
-    rubric_studio_open_core::build_intake_manifest(project_id, payload_json)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
 fn platform_keychain_status() -> rubric_studio_open_core::KeychainStatus {
     rubric_studio_open_core::keychain_status()
 }
@@ -113,6 +104,16 @@ fn create_rubric_project_from_template(
 
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
+fn save_rubric_project_folder(
+    path: std::path::PathBuf,
+    project: rubric_studio_open_core::RubricProjectFile,
+) -> Result<rubric_studio_open_core::SavedRubricProject, rubric_studio_open_core::ProjectOpenFailure>
+{
+    rubric_studio_open_core::save_rubric_project_folder(path, project)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
 fn reveal_project_path(path: std::path::PathBuf, reveal: bool) -> Result<String, String> {
     let canonical = path
         .canonicalize()
@@ -177,7 +178,6 @@ fn main() {
             validate_project,
             mock_score,
             semantic_diff,
-            build_intake_manifest,
             platform_keychain_status,
             platform_keychain_set,
             platform_keychain_get,
@@ -185,6 +185,7 @@ fn main() {
             platform_reliability_status,
             open_rubric_project_folder,
             create_rubric_project_from_template,
+            save_rubric_project_folder,
             reveal_project_path
         ])
         .run(tauri::generate_context!())

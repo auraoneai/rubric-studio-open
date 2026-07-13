@@ -20,8 +20,8 @@
     post({ type: 'refresh' });
   });
 
-  bind('intake', function () {
-    post({ type: 'executeCommand', command: 'Prepare intake export' });
+  bind('evidence', function () {
+    post({ type: 'executeCommand', command: 'Export local evidence summary' });
   });
 
   bind('save', function () {
@@ -47,8 +47,8 @@
     if (message.type === 'commands') {
       renderCommands(message.commands || []);
     }
-    if (message.type === 'intake') {
-      renderIntake(message);
+    if (message.type === 'evidence') {
+      renderEvidence(message);
     }
   });
 
@@ -105,12 +105,18 @@
           saveActiveFile();
           return;
         }
-        if (command === 'Show browser constraints') {
-          renderNote('Browser constraints', 'The browser surface cannot run Python sidecars, local git, or OS keychain storage. Provider calls must use BYO keys directly from the client.');
+        if (command === 'Show browser capabilities') {
+          renderNote(
+            'Browser capabilities',
+            'The browser studio supports authoring, verified local persistence, deterministic fixture analysis, gold calibration, checkpoint comparison, unsigned ZIP export, and explicit BYO provider calls. Native folder writes and OS keychain storage remain desktop-only.',
+          );
           return;
         }
-        if (command === 'Open desktop-only sidecar note') {
-          renderNote('Desktop sidecars', 'Calibration, bias probes, contamination audit, semantic diff sidecars, signed .auraonepkg upload, and local git operations remain desktop-owned.');
+        if (command === 'Show execution contract') {
+          renderNote(
+            'Execution contract',
+            'This VS Code surface edits and validates criterion TOML files. It does not score providers, assign reviewers, create signatures, run source-control commands, or upload project content.',
+          );
           return;
         }
         post({ type: 'executeCommand', command: command });
@@ -150,11 +156,13 @@
     });
   }
 
-  function renderIntake(message) {
+  function renderEvidence(message) {
     renderNote(
-      'Intake export preview',
+      'Local evidence summary',
       (message.count || 0) +
-        ' criteria are ready to package. The VS Code surface previews the manifest; desktop owns signed .auraonepkg upload.',
+        ' criterion files and ' +
+        (message.issueCount || 0) +
+        ' diagnostics were read from this workspace. This summary is not an archive, signature, provider run, or upload.',
     );
   }
 

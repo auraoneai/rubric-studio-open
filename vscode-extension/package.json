@@ -1,19 +1,25 @@
 {
-  "name": "rubric-studio-open-vscode",
+  "name": "rubric-studio",
   "displayName": "Rubric Studio Open",
   "publisher": "auraone",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "private": false,
+  "description": "Author, validate, and export Rubric Studio Open projects from VS Code.",
   "repository": {
     "type": "git",
     "url": "https://github.com/auraoneai/rubric-studio-open.git"
   },
+  "homepage": "https://rubricstudio.auraone.ai/",
+  "bugs": {
+    "url": "https://github.com/auraoneai/rubric-studio-open/issues"
+  },
   "files": [
-    "dist/extension.js",
-    "dist/validator.js",
-    "media/**",
-    "LICENSE"
+    "dist",
+    "media",
+    "README.md",
+    "LICENSE",
+    "package.json"
   ],
   "engines": {
     "vscode": "^1.92.0"
@@ -41,7 +47,7 @@
       },
       {
         "command": "auraone.rubricStudio.exportIntake",
-        "title": "Rubric Studio Open: Prepare Intake Export"
+        "title": "Rubric Studio Open: Export Local Evidence Summary"
       }
     ],
     "keybindings": [
@@ -58,12 +64,11 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run build",
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "typescript": "^6.0.3",
-    "@types/node": "^25.9.1"
+    "typescript": "^5.5.0",
+    "@types/node": "^20.17.9"
   }
 }

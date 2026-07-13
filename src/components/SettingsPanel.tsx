@@ -1,26 +1,26 @@
 import { useEffect, useState } from 'react';
-import { configureProviderKey, getKeychainStatus, type KeychainStatus } from '../domain/keychain';
+import { AuraTelemetryEventLog } from '@auraone/aura-ide-kit';
+import { CircleAlert, CircleCheck, DownloadCloud, LoaderCircle, WifiOff } from 'lucide-react';
+import {
+  configureProviderKey,
+  ensureRubricIntakeInstallSigningKeypair,
+  getKeychainStatus,
+  rubricIntakeInstallSigningKeypairKey,
+  type KeychainStatus,
+} from '../domain/keychain';
 import { detectOllama, type OllamaStatus } from '../domain/ollama';
-import { toAuraTelemetryEvents, type AuraTelemetryEvent, type TelemetryLogEntry } from '../domain/platformTelemetry';
+import { toAuraTelemetryEvents, type TelemetryLogEntry } from '../domain/platformTelemetry';
 import { checkForPlatformUpdate, getReliabilityStatus, type ReliabilityStatus, type UpdateCheckResult } from '../domain/reliability';
 import { providerModelOptions, type JudgeConfig, type RubricProject, type SurfaceMode } from '../domain/rubric';
 import { findShortcutConflicts, normalizeShortcut, type ShortcutRow } from '../domain/shortcuts';
+import { runOperationalDiagnostics, type DiagnosticRow } from '../domain/diagnostics';
 
-export type VisualMode = 'dark' | 'light' | 'high-contrast';
+export type VisualMode = 'light' | 'high-contrast';
 export type UpdateChannel = 'stable' | 'beta';
-type DiagnosticSeverity = 'ok' | 'blocked' | 'action';
-
-interface DiagnosticRow {
-  id: string;
-  label: string;
-  status: DiagnosticSeverity;
-  message: string;
-  action: string;
-}
-
 export function SettingsPanel(props: {
   project: RubricProject;
   surface: SurfaceMode;
+  openedProjectPath: string | null;
   telemetryEnabled: boolean;
   setTelemetryEnabled: (value: boolean) => void;
   crashReportingEnabled: boolean;
@@ -50,13 +50,19 @@ export function SettingsPanel(props: {
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
   const [keychainStatus, setKeychainStatus] = useState<KeychainStatus | null>(null);
+  const [intakeIdentityStatus, setIntakeIdentityStatus] = useState(
+    props.surface === 'browser'
+      ? 'Unavailable in browser; no key generated'
+      : 'Checking desktop keychain',
+  );
   const [reliabilityStatus, setReliabilityStatus] = useState<ReliabilityStatus | null>(null);
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const [diagnosticsRunAt, setDiagnosticsRunAt] = useState('');
+  const [diagnosticsChecking, setDiagnosticsChecking] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticRow[]>([]);
   const shortcutConflicts = findShortcutConflicts(props.shortcuts);
-  const diagnostics = operationalDiagnostics(props.surface);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,9 +77,43 @@ export function SettingsPanel(props: {
           setKeychainStatus({
             service: 'rubric-studio-open',
             backend: 'unavailable',
-            allowed_scopes: ['byo-api-keys'],
+            allowed_scopes: props.surface === 'browser'
+              ? ['byo-api-keys']
+              : ['byo-api-keys', 'intake-install-signing-key'],
             stores_user_content: false,
           });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.surface]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (props.surface === 'browser') {
+      setIntakeIdentityStatus('Unavailable in browser; no key generated');
+      return () => {
+        cancelled = true;
+      };
+    }
+    void ensureRubricIntakeInstallSigningKeypair(props.surface)
+      .then((keypair) => {
+        if (!cancelled) {
+          setIntakeIdentityStatus(
+            `Ed25519 identity stored in the OS keychain · created ${new Date(
+              keypair.created_at,
+            ).toLocaleDateString()}`,
+          );
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setIntakeIdentityStatus(
+            error instanceof Error
+              ? error.message
+              : 'Intake identity is unavailable.',
+          );
         }
       });
     return () => {
@@ -98,6 +138,10 @@ export function SettingsPanel(props: {
       cancelled = true;
     };
   }, [props.surface, props.crashReportingEnabled, props.updateChannel]);
+
+  useEffect(() => {
+    void recheckDiagnostics();
+  }, [props.surface, props.openedProjectPath, props.project.id]);
 
   async function configureJudge(judge: JudgeConfig) {
     if (judge.provider === 'mock') {
@@ -160,14 +204,29 @@ export function SettingsPanel(props: {
     }
   }
 
+  async function recheckDiagnostics() {
+    setDiagnosticsChecking(true);
+    try {
+      const checks = await runOperationalDiagnostics({
+        surface: props.surface,
+        project: props.project,
+        openedProjectPath: props.openedProjectPath,
+      });
+      setDiagnostics(checks);
+      setDiagnosticsRunAt(new Date().toISOString());
+    } finally {
+      setDiagnosticsChecking(false);
+    }
+  }
+
   return (
     <div className="rs-surface rs-settings-surface">
       <header className="rs-settings-hero">
         <div className="rs-eyebrow">Settings</div>
-        <h2>How this studio behaves on this machine.</h2>
+        <h2>Studio behavior</h2>
       </header>
       <div className="rs-settings-body">
-        <aside className="rs-settings-nav">
+        <aside className="rs-settings-nav" tabIndex={0} aria-label="Settings sections">
           {settingsNav.map(([item, id], index) => (
             <button
               key={item}
@@ -185,7 +244,9 @@ export function SettingsPanel(props: {
               <span>01</span>
               <div>
                 <h3>BYO provider keys</h3>
-                <p>Desktop routes keys through the OS keychain bridge — never plaintext in project files.</p>
+                <p>{props.surface === 'browser'
+                  ? 'Browser keys remain in session memory and are used only for an explicit direct provider run.'
+                  : 'Desktop routes keys through the OS keychain bridge; never plaintext in project files.'}</p>
               </div>
             </header>
         {props.project.judges.map((judge) => (
@@ -221,7 +282,7 @@ export function SettingsPanel(props: {
                 onChange={(event) => setKeyDrafts((current) => ({ ...current, [judge.id]: event.target.value }))}
               />
             ) : <input aria-label={`${judge.label} key storage auto-detect`} value="auto-detect" disabled readOnly />}
-            <button className="glass-button configure-key-button" type="button" onClick={() => configureJudge(judge)}>
+            <button className="solid-button configure-key-button" type="button" onClick={() => configureJudge(judge)}>
               {judge.provider === 'ollama' ? 'Detect Ollama' : judge.keyConfigured ? 'Rotate key' : 'Configure key'}
             </button>
             {keyErrors[judge.id] ? <span className="inline-error" role="alert">{keyErrors[judge.id]}</span> : null}
@@ -247,6 +308,8 @@ export function SettingsPanel(props: {
             <div><dt>Backend</dt><dd>{keychainStatus?.backend ?? 'detecting'}</dd></div>
             <div><dt>Allowed scope</dt><dd>{keychainStatus?.allowed_scopes.join(', ') ?? 'byo-api-keys'}</dd></div>
             <div><dt>User content</dt><dd>{keychainStatus?.stores_user_content ? 'allowed' : 'blocked'}</dd></div>
+            <div><dt>Intake identity</dt><dd>{intakeIdentityStatus}</dd></div>
+            <div><dt>Intake key scope</dt><dd>{rubricIntakeInstallSigningKeypairKey.scope}</dd></div>
           </dl>
         </div>
       </section>
@@ -256,7 +319,7 @@ export function SettingsPanel(props: {
           <div><h3>Theme & contrast</h3><p>Studio matches OS by default; pick a forced mode if you prefer.</p></div>
         </header>
         <div className="segmented" role="radiogroup" aria-label="Visual mode">
-          {(['dark', 'light', 'high-contrast'] as const).map((mode) => (
+          {(['light', 'high-contrast'] as const).map((mode) => (
             <button
               key={mode}
               className={props.visualMode === mode ? 'active' : ''}
@@ -270,16 +333,14 @@ export function SettingsPanel(props: {
           ))}
         </div>
       </section>
-        </section>
-      </div>
       <div className="rs-settings-extra">
-      <section className="glass-panel" id="settings-telemetry">
-        <div className="panel-title"><div><p>Telemetry</p><h2>Transparent event log</h2></div><label className="switch"><span>Opt in</span><input type="checkbox" checked={props.telemetryEnabled} onChange={(event) => props.setTelemetryEnabled(event.target.checked)} /></label></div>
-        <p className="subtle">Collected only when opted in: anonymous install hash, feature usage counts, and error rates. Never rubric content, samples, judge prompts, or API keys.</p>
+      <section className="surface-panel" id="settings-telemetry">
+        <div className="panel-title"><div><p>Telemetry preview</p><h2>Local preview, not sent</h2></div><label className="switch"><span>Preview opt-in</span><input type="checkbox" checked={props.telemetryEnabled} onChange={(event) => props.setTelemetryEnabled(event.target.checked)} /></label></div>
+        <p className="subtle">No telemetry uploader is configured in this build. Opted-in records are labeled local preview; opted-out records are labeled would send. Neither status means uploaded. The preview never includes rubric content, samples, judge prompts, or API keys.</p>
         <AuraTelemetryEventLog events={toAuraTelemetryEvents(props.telemetryLog)} />
-        <pre className="export-preview" tabIndex={0} aria-label="Transparent telemetry event log JSON">{JSON.stringify(props.telemetryLog, null, 2)}</pre>
+        <pre className="export-preview" tabIndex={0} aria-label="Local telemetry preview JSON, not sent">{JSON.stringify(props.telemetryLog, null, 2)}</pre>
       </section>
-      <section className="glass-panel" id="settings-network">
+      <section className="surface-panel" id="settings-network">
         <div className="panel-title">
           <div><p>Network</p><h2>No-network mode</h2></div>
           <label className="switch">
@@ -294,16 +355,17 @@ export function SettingsPanel(props: {
         <p className="subtle">When enabled, Rubric Studio Open keeps authoring, validation, mock scoring, diffing, and local exports available while provider scoring and update checks fail closed.</p>
         <pre className="export-preview" tabIndex={0} aria-label="No-network status JSON">{JSON.stringify({
           enabled: props.noNetworkMode,
-          disables: ['provider-scoring', 'update-checks', 'telemetry-upload', 'crash-upload', 'intake-upload'],
+          disables: ['provider-scoring', 'update-checks', 'crash-upload'],
+          telemetry_delivery: 'local-preview-only-no-uploader',
           local_features_available: ['authoring', 'validation', 'mock-scoring', 'diff', 'local-export'],
           sends_user_authored_content: false,
         }, null, 2)}</pre>
       </section>
-      <section className="glass-panel" id="settings-recovery">
+      <section className="surface-panel" id="settings-recovery">
         <div className="panel-title">
           <div><p>Diagnostics</p><h2>Operational recovery</h2></div>
-          <button className="glass-button" type="button" onClick={() => setDiagnosticsRunAt(new Date().toISOString())}>
-            Recheck
+          <button className="solid-button" type="button" disabled={diagnosticsChecking} onClick={() => void recheckDiagnostics()}>
+            {diagnosticsChecking ? 'Checking...' : 'Recheck'}
           </button>
         </div>
         <div className="diagnostic-grid" aria-label="Operational diagnostics">
@@ -320,10 +382,10 @@ export function SettingsPanel(props: {
           checked_at: diagnosticsRunAt || 'not-run-this-session',
           surface: props.surface,
           checks: diagnostics,
-          recovery_states_covered: ['sidecar-crash', 'git-conflict', 'disk-full', 'missing-dependency'],
+          checks_executed: diagnostics.map((row) => row.id),
         }, null, 2)}</pre>
       </section>
-      <section className="glass-panel" id="settings-reliability">
+      <section className="surface-panel" id="settings-reliability">
         <div className="panel-title">
           <div><p>Reliability</p><h2>Crash reports and updates</h2></div>
           <label className="switch"><span>Crash reports</span><input type="checkbox" checked={props.crashReportingEnabled} onChange={(event) => props.setCrashReportingEnabled(event.target.checked)} /></label>
@@ -337,11 +399,16 @@ export function SettingsPanel(props: {
           </select>
         </label>
         <div className="inline-actions">
-          <button className="glass-button" type="button" onClick={checkForUpdates} disabled={updateChecking}>
+          <button className="solid-button" type="button" onClick={checkForUpdates} disabled={updateChecking}>
             {updateChecking ? 'Checking...' : props.noNetworkMode ? 'No-network active' : 'Check for updates'}
           </button>
-          {updateCheck ? <span className="success-chip" role="status">{updateCheck.status}</span> : null}
         </div>
+        <UpdateState
+          checking={updateChecking}
+          result={updateCheck}
+          noNetworkMode={props.noNetworkMode}
+          channel={props.updateChannel}
+        />
         <pre className="export-preview" tabIndex={0} aria-label="Reliability status JSON">{JSON.stringify({
           crash_reporting_enabled: reliabilityStatus?.crash.enabled ?? props.crashReportingEnabled,
           crash_provider: reliabilityStatus?.crash.provider ?? 'sentry',
@@ -360,7 +427,7 @@ export function SettingsPanel(props: {
           sends_user_authored_content: reliabilityStatus?.crash.sends_user_authored_content ?? false,
         }, null, 2)}</pre>
       </section>
-      <section className="glass-panel" id="settings-shortcuts">
+      <section className="surface-panel" id="settings-shortcuts">
         <div className="panel-title"><div><p>Shortcuts</p><h2>Remappable controls</h2></div></div>
         {shortcutConflicts.length > 0 ? (
           <div className="inline-error shortcut-conflict" role="alert">
@@ -381,74 +448,80 @@ export function SettingsPanel(props: {
         ))}
       </section>
       </div>
+        </section>
+      </div>
     </div>
   );
 }
 
-function operationalDiagnostics(surface: SurfaceMode): DiagnosticRow[] {
-  if (surface === 'browser') {
-    return [
-      {
-        id: 'sidecar-crash',
-        label: 'Sidecar crash',
-        status: 'blocked',
-        message: 'Python sidecars are disabled in Browser Edition, so calibration, bias, and contamination workers cannot start here.',
-        action: 'Open the desktop app to restart sidecars with the bundled runtime.',
-      },
-      {
-        id: 'git-conflict',
-        label: 'Git conflict',
-        status: 'blocked',
-        message: 'Browser Edition previews semantic diffs but cannot open a three-way local git conflict view.',
-        action: 'Export the project bundle or open the desktop app to resolve conflicts.',
-      },
-      {
-        id: 'disk-full',
-        label: 'Disk full',
-        status: 'action',
-        message: 'Browser writes can fail when local storage or the File System Access target is full.',
-        action: 'Download a valid bundle, clear space, then retry import/export.',
-      },
-      {
-        id: 'missing-dependency',
-        label: 'Missing dependency',
-        status: 'ok',
-        message: 'Browser Edition needs no Python, git, or OS keychain dependency for local authoring.',
-        action: 'Use the desktop app when a project needs sidecars, libgit2, or OS keychain storage.',
-      },
-    ];
+function UpdateState({
+  checking,
+  result,
+  noNetworkMode,
+  channel,
+}: {
+  checking: boolean;
+  result: UpdateCheckResult | null;
+  noNetworkMode: boolean;
+  channel: UpdateChannel;
+}) {
+  if (checking) {
+    return (
+      <div className="update-state info" role="status">
+        <LoaderCircle className="button-icon update-spinner" aria-hidden="true" />
+        <div><strong>Checking for signed updates</strong><p>{channel} channel · verifying release metadata and signature.</p></div>
+      </div>
+    );
   }
+  if (noNetworkMode) {
+    return (
+      <div className="update-state blocked" role="status">
+        <WifiOff className="button-icon" aria-hidden="true" />
+        <div><strong>Update checks are blocked</strong><p>No-network mode is active. Re-enable networking to check the {channel} channel.</p></div>
+      </div>
+    );
+  }
+  if (!result) {
+    return (
+      <div className="update-state neutral" role="status">
+        <DownloadCloud className="button-icon" aria-hidden="true" />
+        <div><strong>Update status not checked</strong><p>{channel} channel · signed packages only.</p></div>
+      </div>
+    );
+  }
+  if (result.status === 'current') {
+    return (
+      <div className="update-state success" role="status">
+        <CircleCheck className="button-icon" aria-hidden="true" />
+        <div><strong>Rubric Studio Open is current</strong><p>{channel} channel · checked {formatCheckedAt(result.checked_at)}.</p></div>
+      </div>
+    );
+  }
+  if (result.status === 'available') {
+    return (
+      <div className="update-state review" role="status">
+        <DownloadCloud className="button-icon" aria-hidden="true" />
+        <div>
+          <strong>Version {result.version} is available</strong>
+          <p>{result.body || 'A signed update is ready.'} Restart after the updater finishes installing.</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="update-state danger" role="alert">
+      <CircleAlert className="button-icon" aria-hidden="true" />
+      <div>
+        <strong>{result.status === 'unavailable' ? 'Updates unavailable on this surface' : 'Update check failed'}</strong>
+        <p>{result.reason}</p>
+      </div>
+    </div>
+  );
+}
 
-  return [
-    {
-      id: 'sidecar-crash',
-      label: 'Sidecar crash',
-      status: 'ok',
-      message: 'Desktop sidecars restart through the Rust core lifecycle with user-visible recovery guidance.',
-      action: 'Restart the failed sidecar, then rerun the calibration, bias, or contamination job.',
-    },
-    {
-      id: 'git-conflict',
-      label: 'Git conflict',
-      status: 'action',
-      message: 'Conflicts open in the local project folder for a three-way merge instead of rewriting files silently.',
-      action: 'Resolve conflict markers, rerun semantic diff, then commit.',
-    },
-    {
-      id: 'disk-full',
-      label: 'Disk full',
-      status: 'action',
-      message: 'Project saves and exports should stop with a clear local-storage or filesystem error.',
-      action: 'Free disk space, choose another export folder, then retry.',
-    },
-    {
-      id: 'missing-dependency',
-      label: 'Missing dependency',
-      status: 'action',
-      message: 'Desktop diagnostics identify missing sidecar runtimes, git support, and provider dependencies.',
-      action: 'Install the prompted dependency or continue with mock/offline features.',
-    },
-  ];
+function formatCheckedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
 function isConfigurableProvider(
@@ -477,26 +550,4 @@ function labelForModel(provider: keyof typeof providerModelOptions, model: strin
   if (trimmed === 'gemini-3-pro-preview') return 'Gemini 3 Pro';
   if (trimmed.startsWith('gemini-')) return `Gemini ${trimmed.replace(/^gemini-/, '')}`;
   return trimmed;
-}
-
-function AuraTelemetryEventLog({ events }: { events: AuraTelemetryEvent[] }) {
-  if (events.length === 0) {
-    return (
-      <div className="telemetry-event-list" aria-label="Transparent telemetry events">
-        <p className="subtle">No telemetry events recorded this session.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="telemetry-event-list" role="list" aria-label="Transparent telemetry events">
-      {events.map((event) => (
-        <article key={event.id} className="metric-row compact" role="listitem">
-          <strong>{event.name}</strong>
-          <span>{event.destination}</span>
-          <small>{event.timestamp}</small>
-        </article>
-      ))}
-    </div>
-  );
 }

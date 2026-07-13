@@ -3,9 +3,14 @@ use sha2::{Digest, Sha256};
 
 mod project;
 
+const KEYCHAIN_SERVICE: &str = "rubric-studio-open";
+const PROVIDER_KEY_SCOPE: &str = "byo-api-keys";
+const INTAKE_INSTALL_SIGNING_KEY_SCOPE: &str = "intake-install-signing-key";
+const INTAKE_INSTALL_SIGNING_KEY_IDENTIFIER: &str = "ed25519-install-keypair-v1";
+
 pub use project::{
-    create_rubric_project_from_template, open_rubric_project_folder, OpenedRubricProject,
-    ProjectOpenFailure,
+    create_rubric_project_from_template, open_rubric_project_folder, save_rubric_project_folder,
+    OpenedRubricProject, ProjectOpenFailure, RubricProjectFile, SavedRubricProject,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -48,15 +53,6 @@ pub struct DiffOutput {
     pub criterion_id: String,
     pub severity: String,
     pub summary: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct IntakeManifest {
-    pub packet_version: String,
-    pub product: String,
-    pub content_hash: String,
-    pub sends_api_keys: bool,
-    pub explicit_user_action_required: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -298,23 +294,13 @@ pub fn semantic_diff(
         .collect()
 }
 
-pub fn build_intake_manifest(project_id: String, payload_json: String) -> IntakeManifest {
-    IntakeManifest {
-        packet_version: "auraonepkg.v1".into(),
-        product: format!("rubric-studio-open/{project_id}"),
-        content_hash: sha256_hex(&payload_json),
-        sends_api_keys: false,
-        explicit_user_action_required: true,
-    }
-}
-
 pub fn keychain_status() -> KeychainStatus {
     KeychainStatus {
-        service: "rubric-studio-open".into(),
+        service: KEYCHAIN_SERVICE.into(),
         backend: keychain_backend_label().into(),
         allowed_scopes: vec![
-            "byo-api-keys".into(),
-            "intake-install-signing-key".into(),
+            PROVIDER_KEY_SCOPE.into(),
+            INTAKE_INSTALL_SIGNING_KEY_SCOPE.into(),
         ],
         stores_user_content: false,
     }
@@ -328,7 +314,7 @@ pub fn prepare_keychain_set(
     if secret.trim().len() < 8 {
         return Err(KeychainFailure {
             field: "secret".into(),
-            message: "Provider key must be at least eight characters.".into(),
+            message: "Keychain secret must be at least eight characters.".into(),
             secret_redacted: true,
         });
     }
@@ -485,9 +471,12 @@ fn validate_keychain_key(key: &KeychainKey) -> Result<(), KeychainFailure> {
         ("scope", &key.scope),
         ("identifier", &key.identifier),
     ] {
-        if value.is_empty()
-            || !value
-                .chars()
+        let mut characters = value.chars();
+        let starts_with_alphanumeric = characters
+            .next()
+            .is_some_and(|character| character.is_ascii_alphanumeric());
+        if !starts_with_alphanumeric
+            || !characters
                 .all(|character| character.is_ascii_alphanumeric() || "-_.".contains(character))
         {
             return Err(KeychainFailure {
@@ -497,19 +486,33 @@ fn validate_keychain_key(key: &KeychainKey) -> Result<(), KeychainFailure> {
             });
         }
     }
-    if key.service != "rubric-studio-open" {
+    if key.service != KEYCHAIN_SERVICE {
         return Err(KeychainFailure {
             field: "service".into(),
             message: "Keychain service must be rubric-studio-open.".into(),
             secret_redacted: true,
         });
     }
-    if key.scope != "byo-api-keys" && key.scope != "intake-install-signing-key" {
-        return Err(KeychainFailure {
-            field: "scope".into(),
-            message: "Rubric Studio Open only stores BYO provider keys and intake install signing keys in the OS keychain.".into(),
-            secret_redacted: true,
-        });
+    match key.scope.as_str() {
+        PROVIDER_KEY_SCOPE => {}
+        INTAKE_INSTALL_SIGNING_KEY_SCOPE
+            if key.identifier == INTAKE_INSTALL_SIGNING_KEY_IDENTIFIER => {}
+        INTAKE_INSTALL_SIGNING_KEY_SCOPE => {
+            return Err(KeychainFailure {
+                field: "identifier".into(),
+                message:
+                    "Intake install signing keys must use the shared Ed25519 install identity."
+                        .into(),
+                secret_redacted: true,
+            });
+        }
+        _ => {
+            return Err(KeychainFailure {
+                field: "scope".into(),
+                message: "Rubric Studio Open only stores BYO provider keys and its intake install signing identity in the OS keychain.".into(),
+                secret_redacted: true,
+            });
+        }
     }
     Ok(())
 }
@@ -609,28 +612,19 @@ mod tests {
     }
 
     #[test]
-    fn intake_manifest_never_contains_keys() {
-        let manifest = build_intake_manifest("demo".into(), "{\"rubric\":true}".into());
-
-        assert!(!manifest.sends_api_keys);
-        assert!(manifest.explicit_user_action_required);
-        assert_eq!(manifest.content_hash.len(), 64);
-    }
-
-    #[test]
-    fn keychain_bridge_accepts_only_byo_api_keys_and_redacts_secret() {
+    fn keychain_bridge_accepts_provider_keys_and_redacts_secret() {
         let receipt = prepare_keychain_set(
             KeychainKey {
-                service: "rubric-studio-open".into(),
-                scope: "byo-api-keys".into(),
+                service: KEYCHAIN_SERVICE.into(),
+                scope: PROVIDER_KEY_SCOPE.into(),
                 identifier: "openai-gpt-5-mini".into(),
             },
             "sk-test-value".into(),
         )
         .unwrap();
 
-        assert_eq!(receipt.service, "rubric-studio-open");
-        assert_eq!(receipt.scope, "byo-api-keys");
+        assert_eq!(receipt.service, KEYCHAIN_SERVICE);
+        assert_eq!(receipt.scope, PROVIDER_KEY_SCOPE);
         assert_eq!(receipt.identifier_hash.len(), 16);
         assert!(receipt.native_bridge_required);
         assert!(!receipt.stores_user_content);
@@ -638,25 +632,29 @@ mod tests {
     }
 
     #[test]
-    fn keychain_bridge_accepts_intake_install_signing_keys() {
+    fn keychain_bridge_accepts_shared_intake_install_signing_identity() {
         let status = keychain_status();
-        assert!(
-            status
-                .allowed_scopes
-                .contains(&"intake-install-signing-key".to_string())
+        assert_eq!(
+            status.allowed_scopes,
+            vec![
+                PROVIDER_KEY_SCOPE.to_string(),
+                INTAKE_INSTALL_SIGNING_KEY_SCOPE.to_string(),
+            ]
         );
 
         let receipt = prepare_keychain_set(
             KeychainKey {
-                service: "rubric-studio-open".into(),
-                scope: "intake-install-signing-key".into(),
-                identifier: "ed25519-install-keypair-v1".into(),
+                service: KEYCHAIN_SERVICE.into(),
+                scope: INTAKE_INSTALL_SIGNING_KEY_SCOPE.into(),
+                identifier: INTAKE_INSTALL_SIGNING_KEY_IDENTIFIER.into(),
             },
             "{\"algorithm\":\"Ed25519\",\"private_key\":\"secret\",\"public_key\":\"pub\"}".into(),
         )
         .unwrap();
 
-        assert_eq!(receipt.scope, "intake-install-signing-key");
+        assert_eq!(receipt.service, KEYCHAIN_SERVICE);
+        assert_eq!(receipt.scope, INTAKE_INSTALL_SIGNING_KEY_SCOPE);
+        assert_eq!(receipt.identifier_hash.len(), 16);
         assert!(!receipt.stores_user_content);
     }
 
@@ -664,7 +662,7 @@ mod tests {
     fn keychain_bridge_rejects_user_content_scope() {
         let error = prepare_keychain_set(
             KeychainKey {
-                service: "rubric-studio-open".into(),
+                service: KEYCHAIN_SERVICE.into(),
                 scope: "project-content".into(),
                 identifier: "rubric-body".into(),
             },
@@ -674,6 +672,50 @@ mod tests {
 
         assert_eq!(error.field, "scope");
         assert!(error.secret_redacted);
+    }
+
+    #[test]
+    fn keychain_bridge_rejects_invalid_service_and_identifiers() {
+        let invalid_keys = [
+            (
+                KeychainKey {
+                    service: "another-app".into(),
+                    scope: PROVIDER_KEY_SCOPE.into(),
+                    identifier: "openai-gpt-5-mini".into(),
+                },
+                "service",
+            ),
+            (
+                KeychainKey {
+                    service: KEYCHAIN_SERVICE.into(),
+                    scope: PROVIDER_KEY_SCOPE.into(),
+                    identifier: "openai/key".into(),
+                },
+                "identifier",
+            ),
+            (
+                KeychainKey {
+                    service: KEYCHAIN_SERVICE.into(),
+                    scope: PROVIDER_KEY_SCOPE.into(),
+                    identifier: "-openai-key".into(),
+                },
+                "identifier",
+            ),
+            (
+                KeychainKey {
+                    service: KEYCHAIN_SERVICE.into(),
+                    scope: INTAKE_INSTALL_SIGNING_KEY_SCOPE.into(),
+                    identifier: "another-install-key".into(),
+                },
+                "identifier",
+            ),
+        ];
+
+        for (key, expected_field) in invalid_keys {
+            let error = prepare_keychain_set(key, "secret-value".into()).unwrap_err();
+            assert_eq!(error.field, expected_field);
+            assert!(error.secret_redacted);
+        }
     }
 
     #[test]

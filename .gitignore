@@ -2,4 +2,6 @@ dist/
 node_modules/
 src-tauri/target/
 src-tauri/gen/
+!src-tauri/icons/
+!src-tauri/icons/*.png
 vscode-extension/dist/

@@ -6,20 +6,37 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const appSource = readFileSync(join(root, 'src/App.tsx'), 'utf8');
-const applicationMenuSource = readFileSync(join(root, 'src/components/ApplicationMenu.tsx'), 'utf8');
-const webviewChromeSource = `${appSource}\n${applicationMenuSource}`;
+const webviewChromeSource = appSource;
 const styles = readFileSync(join(root, 'src/styles.css'), 'utf8');
+const redesign = readFileSync(join(root, 'src/redesign.css'), 'utf8');
+const mainSource = readFileSync(join(root, 'src/main.tsx'), 'utf8');
+const releaseSource = readFileSync(join(root, 'src/domain/releaseManifest.ts'), 'utf8');
+const vscodeSource = readFileSync(join(root, 'vscode-extension/src/extension.ts'), 'utf8');
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 const tauriConfig = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'));
 
 assert.equal(packageJson.dependencies['lucide-react'], '0.554.0');
 assert.ok(webviewChromeSource.includes("from 'lucide-react'"), 'webview must import lucide-react icons');
-assert.ok(applicationMenuSource.includes('const menuIcons'), 'top application menu must use the shared icon registry');
-assert.ok(applicationMenuSource.includes('role="menu"'), 'top application menu must expose menu semantics');
-assert.ok(applicationMenuSource.includes('role="menuitem"'), 'top application menu actions must expose menuitem semantics');
 assert.ok(appSource.includes('const tabIcons'), 'bottom navigation tabs must use the shared icon registry');
 assert.ok(webviewChromeSource.includes('aria-hidden="true"'), 'decorative icons must stay out of the accessible name');
 assert.ok(styles.includes('.button-icon'), 'shared icon sizing CSS is required for visual consistency');
+assert.ok(mainSource.includes("import '@auraone/proofline-oss/styles.css'"), 'Rubric Studio must import Proofline styles');
+assert.ok(mainSource.includes("import '@auraone/aura-ide-kit/styles.css'"), 'Rubric Studio must import Aura IDE Kit styles');
+assert.ok(!mainSource.includes('reference-fonts.css'), 'private/reference font bundles must not load');
+assert.ok(!existsSync(join(root, 'src/reference-fonts.css')), 'private/reference font bundle must be removed');
+assert.ok(redesign.includes('--rs-paper: var(--pl-canvas)'), 'Rubric compatibility tokens must map to Proofline semantics');
+assert.ok(!/(^|\n)\s*--pl-[\w-]+\s*:/.test(`${styles}\n${redesign}`), 'local CSS must not redefine Proofline semantic tokens');
+assert.ok(!/font-size:\s*(?:9|10|11)px/.test(`${styles}\n${redesign}`), 'visible CSS text must not use 9-11px sizes');
+assert.ok(!/text-transform:\s*uppercase/.test(`${styles}\n${redesign}`), 'ordinary UI labels must not be forced uppercase');
+assert.ok(!/(?:linear|radial|conic)-gradient|backdrop-filter/.test(`${styles}\n${redesign}`), 'Rubric UI must not use gradients or glass effects');
+assert.ok(!/glass-|intake-button|rs-intake-flow/.test(`${styles}\n${redesign}\n${appSource}`), 'legacy glass and intake class names must be removed');
+assert.ok(redesign.includes('@media (max-width: 639px)'), 'Proofline compact mobile breakpoint is required');
+assert.ok(redesign.includes('min-height: var(--pl-control-mobile)'), 'mobile controls must use the 44px Proofline target');
+assert.ok(!appSource.includes('releases/download/v0.1.0'), 'hosted preview must not hard-code a release artifact');
+assert.ok(releaseSource.includes('release-manifest.json'), 'hosted preview must consume release metadata');
+assert.ok(releaseSource.includes('artifact.verified'), 'hosted preview must require verified artifacts');
+assert.ok(!vscodeSource.includes('linear-gradient'), 'VS Code webview must not use decorative gradients');
+assert.ok(vscodeSource.includes('--pl-canvas: #f5f7fa'), 'VS Code webview must use Proofline semantic values');
 assert.ok(html.includes('rel="icon" href="/favicon.ico"'), 'browser edition must expose the ICO favicon');
 assert.ok(html.includes('rel="icon" href="/favicon.svg"'), 'browser edition must expose the SVG favicon');
 assert.ok(html.includes('boot-splash'), 'app shell must include a first-paint splash screen');
@@ -94,13 +111,9 @@ assert.deepEqual(
 const requiredIcons = [
   'FileText',
   'SquarePen',
-  'Eye',
-  'BookOpen',
   'Play',
-  'Wrench',
-  'HelpCircle',
   'Command',
-  'GitCompare',
+  'FileDiff',
   'Settings',
 ];
 

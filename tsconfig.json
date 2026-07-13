@@ -10,8 +10,19 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "types": ["node", "vite/client"],
+    "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@auraone/aura-ide-kit": [
+        "packages/aura-ide-kit/src/index.ts"
+      ],
+      "@auraone/platform-contracts": [
+        "packages/platform-contracts/src/index.ts"
+      ],
+      "@auraone/proofline-oss": [
+        "packages/proofline-oss/src/index.ts"
+      ]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,

@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { ChevronDown, FileText, Plus, X } from 'lucide-react';
 import type { RubricProject } from '../domain/rubric';
+import { useOverlayFocus } from './useOverlayFocus';
 
 type ContextTarget =
   | { kind: 'root'; label: string; path: string | null; canCreateCriterion: boolean }
@@ -7,9 +9,11 @@ type ContextTarget =
   | { kind: 'criterion'; label: string; criterionId: string; path: string | null }
   | { kind: 'sample'; label: string; path: string | null }
   | { kind: 'judge'; label: string; path: string | null }
-  | { kind: 'git'; label: string; path: string | null };
+  | { kind: 'checkpoint'; label: string; path: string | null };
 
 export function ProjectSidebar({
+  open,
+  onClose,
   project,
   issues,
   projectPath,
@@ -22,6 +26,8 @@ export function ProjectSidebar({
   onOpenContainingFolder,
   onRevealInFileManager,
 }: {
+  open: boolean;
+  onClose: () => void;
   project: RubricProject;
   issues: number;
   projectPath: string | null;
@@ -36,6 +42,12 @@ export function ProjectSidebar({
 }) {
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const compactDrawer = window.matchMedia('(max-width: 820px)').matches;
+  const sidebarRef = useOverlayFocus<HTMLElement>({
+    open: open && compactDrawer,
+    onClose,
+    initialFocus: '.sidebar-close',
+  });
 
   useEffect(() => {
     if (!contextTarget) {
@@ -94,183 +106,112 @@ export function ProjectSidebar({
   }
 
   return (
-    <aside className="sidebar" aria-label="Project sidebar" onClick={() => setContextTarget(null)}>
+    <aside ref={sidebarRef} className={open ? 'sidebar is-open' : 'sidebar'} aria-label="Project sidebar" onClick={() => setContextTarget(null)}>
       <div className="sidebar-header">
-        <h2 className="rs-product-heading">Rubric Studio Open</h2>
-        <p>Project</p>
-        <strong>{project.name}</strong>
-        <small>v{project.version} · {project.criteria.length} criteria · {project.samples.length} samples</small>
-      </div>
-      <div className="tree-group" role="tree" aria-label="Rubric criteria files">
-        <button
-          className="tree-root"
-          type="button"
-          role="treeitem"
-          aria-expanded="true"
-          aria-level={1}
-          aria-haspopup="menu"
-          onKeyDown={(event) =>
-            openKeyboardContextMenu(event, { kind: 'root', label: 'rubric/', path: projectPath, canCreateCriterion: true })
-          }
-          onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'rubric/', path: projectPath, canCreateCriterion: true })}
-        >
-          Rubric
+        <div>
+          <p>Project</p>
+          <strong>{project.name}</strong>
+          <small>v{project.version} · local project</small>
+        </div>
+        <button className="ghost-button icon-only sidebar-close" type="button" aria-label="Close project navigation" onClick={onClose}>
+          <X className="button-icon" aria-hidden="true" />
         </button>
-        {project.themes.map((theme) => (
-          <Fragment key={theme.id}>
-            <button
-              className="tree-folder"
-              type="button"
-              role="treeitem"
-              aria-expanded="true"
-              aria-level={2}
-              aria-haspopup="menu"
-              onKeyDown={(event) =>
-                openKeyboardContextMenu(event, {
-                  kind: 'theme',
-                  label: theme.label,
-                  themeId: theme.id,
-                  path: projectFilePath('themes', `${theme.id}.md`),
-                })
-              }
-              onContextMenu={(event) =>
-                openContextMenu(event, {
-                  kind: 'theme',
-                  label: theme.label,
-                  themeId: theme.id,
-                  path: projectFilePath('themes', `${theme.id}.md`),
-                })
-              }
-            >
-              <span>▾ {theme.label}</span>
-              <em>{project.criteria.filter((criterion) => criterion.themeId === theme.id).length}</em>
-            </button>
-            {project.criteria
-              .filter((criterion) => criterion.themeId === theme.id)
-              .map((criterion) => (
-                <button
-                  key={criterion.id}
-                  className={criterion.id === selectedCriterionId ? 'tree-file active' : 'tree-file'}
-                  type="button"
-                  role="treeitem"
-                  aria-level={3}
-                  aria-label={`${criterion.id}.toml ${criterion.label}`}
-                  aria-current={criterion.id === selectedCriterionId ? 'true' : undefined}
-                  aria-haspopup="menu"
-                  onClick={() => onSelect(criterion.id)}
-                  onKeyDown={(event) =>
-                    openKeyboardContextMenu(event, {
-                      kind: 'criterion',
-                      label: criterion.label,
-                      criterionId: criterion.id,
-                      path: projectFilePath('criteria', criterion.themeId, `${criterion.id}.toml`),
-                    })
-                  }
-                  onContextMenu={(event) =>
-                    openContextMenu(event, {
-                      kind: 'criterion',
-                      label: criterion.label,
-                      criterionId: criterion.id,
-                      path: projectFilePath('criteria', criterion.themeId, `${criterion.id}.toml`),
-                    })
-                  }
-                >
-                  <span className={criterion.status === 'Live' ? 'tree-status live' : criterion.status === 'Draft' ? 'tree-status draft' : 'tree-status'} aria-hidden="true" />
-                  <span className="tree-file-main">{criterion.label}</span>
-                  <small>{criterion.scale} · w{criterion.weight.toFixed(2)}</small>
-                </button>
-              ))}
-          </Fragment>
-        ))}
       </div>
       <div className="tree-group">
-        <button
-          className="tree-root"
-          type="button"
-          aria-expanded="true"
-          aria-haspopup="menu"
-          onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'root', label: 'samples/', path: projectFilePath('samples'), canCreateCriterion: false })}
-          onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'samples/', path: projectFilePath('samples'), canCreateCriterion: false })}
-        >
-          Samples
-        </button>
-        {project.samples.map((sample) => (
-          <button
-            key={sample.id}
-            className="tree-file"
-            type="button"
-            aria-label={`Sample file ${sample.id}`}
-            aria-haspopup="menu"
-            onKeyDown={(event) =>
-              openKeyboardContextMenu(event, {
-                kind: 'sample',
-                label: `${sample.id}.jsonl`,
-                path: projectFilePath('samples', `${sample.id}.jsonl`),
-              })
-            }
-            onContextMenu={(event) =>
-              openContextMenu(event, {
-                kind: 'sample',
-                label: `${sample.id}.jsonl`,
-                path: projectFilePath('samples', `${sample.id}.jsonl`),
-              })
-            }
-          >
-            <span className="tree-status" aria-hidden="true" />
-            <span className="tree-file-main">{sample.id}</span>
+        <div className="tree-section-heading">
+          <span>Criteria</span>
+          <button className="ghost-button icon-only" type="button" aria-label="New criterion" onClick={() => onNewCriterion(project.themes[0].id)}>
+            <Plus className="button-icon" aria-hidden="true" />
           </button>
-        ))}
+        </div>
+        <div className="criteria-tree" role="tree" aria-label="Rubric criteria files">
+          {project.themes.map((theme) => (
+            <Fragment key={theme.id}>
+              <button
+                className="tree-folder"
+                type="button"
+                role="treeitem"
+                aria-expanded="true"
+                aria-level={2}
+                aria-haspopup="menu"
+                onKeyDown={(event) =>
+                  openKeyboardContextMenu(event, {
+                    kind: 'theme',
+                    label: theme.label,
+                    themeId: theme.id,
+                    path: projectFilePath('themes', `${theme.id}.md`),
+                  })
+                }
+                onContextMenu={(event) =>
+                  openContextMenu(event, {
+                    kind: 'theme',
+                    label: theme.label,
+                    themeId: theme.id,
+                    path: projectFilePath('themes', `${theme.id}.md`),
+                  })
+                }
+              >
+                <span><ChevronDown className="button-icon" aria-hidden="true" />{theme.label}</span>
+                <em>{project.criteria.filter((criterion) => criterion.themeId === theme.id).length}</em>
+              </button>
+              {project.criteria
+                .filter((criterion) => criterion.themeId === theme.id)
+                .map((criterion) => (
+                  <button
+                    key={criterion.id}
+                    className={criterion.id === selectedCriterionId ? 'tree-file active' : 'tree-file'}
+                    type="button"
+                    role="treeitem"
+                    aria-level={3}
+                    aria-label={`${criterion.id}.toml ${criterion.label}`}
+                    aria-current={criterion.id === selectedCriterionId ? 'true' : undefined}
+                    aria-haspopup="menu"
+                    onClick={() => onSelect(criterion.id)}
+                    onKeyDown={(event) =>
+                      openKeyboardContextMenu(event, {
+                        kind: 'criterion',
+                        label: criterion.label,
+                        criterionId: criterion.id,
+                        path: projectFilePath('criteria', criterion.themeId, `${criterion.id}.toml`),
+                      })
+                    }
+                    onContextMenu={(event) =>
+                      openContextMenu(event, {
+                        kind: 'criterion',
+                        label: criterion.label,
+                        criterionId: criterion.id,
+                        path: projectFilePath('criteria', criterion.themeId, `${criterion.id}.toml`),
+                      })
+                    }
+                  >
+                    <span className={criterion.status === 'Live' ? 'tree-status live' : criterion.status === 'Draft' ? 'tree-status draft' : 'tree-status'} aria-hidden="true" />
+                    <span className="tree-file-main">
+                      <strong>{criterion.label}</strong>
+                      <small>{criterion.scale} · weight {criterion.weight.toFixed(2)}</small>
+                    </span>
+                  </button>
+                ))}
+            </Fragment>
+          ))}
+        </div>
       </div>
-      <div className="tree-group">
-        <button
-          className="tree-root"
-          type="button"
-          aria-expanded="true"
-          aria-haspopup="menu"
-          onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'root', label: 'judges/', path: projectFilePath('judges'), canCreateCriterion: false })}
-          onContextMenu={(event) => openContextMenu(event, { kind: 'root', label: 'judges/', path: projectFilePath('judges'), canCreateCriterion: false })}
-        >
-          Judges
-        </button>
-        {project.judges.map((judge) => (
-          <button
-            key={judge.id}
-            className="tree-file"
-            type="button"
-            aria-label={`${judge.enabled ? 'Enabled' : 'Disabled'} judge ${judge.label}`}
-            aria-haspopup="menu"
-            onKeyDown={(event) =>
-              openKeyboardContextMenu(event, {
-                kind: 'judge',
-                label: `${judge.id}.toml`,
-                path: projectFilePath('judges', `${judge.id}.toml`),
-              })
-            }
-            onContextMenu={(event) =>
-              openContextMenu(event, {
-                kind: 'judge',
-                label: `${judge.id}.toml`,
-                path: projectFilePath('judges', `${judge.id}.toml`),
-              })
-            }
-          >
-            <span className={judge.enabled ? 'tree-status live' : 'tree-status'} aria-hidden="true" />
-            <span className="tree-file-main">{judge.id}</span>
-          </button>
-        ))}
+      <div className="project-resources" aria-label="Project resources">
+        <div><FileText className="button-icon" aria-hidden="true" /><span>Samples</span><strong>{project.samples.length}</strong></div>
+        <div><span className="resource-judge-icon" aria-hidden="true">J</span><span>Judges enabled</span><strong>{project.judges.filter((judge) => judge.enabled).length}/{project.judges.length}</strong></div>
+        <div><span className={issues === 0 ? 'resource-status ok' : 'resource-status warn'} aria-hidden="true" /><span>Validation</span><strong>{issues === 0 ? 'Pass' : `${issues} issues`}</strong></div>
       </div>
       <div
-        className="git-card"
+        className="checkpoint-card"
         role="button"
         tabIndex={0}
         aria-haspopup="menu"
-        aria-label="Git status"
-        onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'git', label: '.git/', path: projectFilePath('.git') })}
-        onContextMenu={(event) => openContextMenu(event, { kind: 'git', label: '.git/', path: projectFilePath('.git') })}
+        aria-label="Local comparison checkpoint"
+        onKeyDown={(event) => openKeyboardContextMenu(event, { kind: 'checkpoint', label: '.rubric/', path: projectFilePath('.rubric') })}
+        onContextMenu={(event) => openContextMenu(event, { kind: 'checkpoint', label: '.rubric/', path: projectFilePath('.rubric') })}
       >
-        <span>.git/</span>
-        <strong>{project.branch}</strong>
-        <small>{issues} changed validation signals</small>
+        <span>.rubric/</span>
+        <strong>Local checkpoint</strong>
+        <small>{issues} current validation signals</small>
       </div>
       {contextTarget ? (
         <div

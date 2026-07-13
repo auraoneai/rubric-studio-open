@@ -1,21 +1,21 @@
 import type { Criterion, DiffResult, RubricProject } from './rubric';
 
-export interface CriterionVariantBranch {
-  branchName: string;
+export interface CriterionVariantWorkspace {
+  workspaceName: string;
   criterionId: string;
   label: string;
   originalDescription: string;
   proposedDescription: string;
-  commitMessage: string;
+  checkpointNote: string;
   passToFailDelta: number;
   failToPassDelta: number;
 }
 
-export function createCriterionVariantBranch(
+export function createCriterionVariantWorkspace(
   project: RubricProject,
   diff: DiffResult[],
   preferredCriterionId?: string,
-): CriterionVariantBranch | null {
+): CriterionVariantWorkspace | null {
   const targetDiff =
     diff.find((item) => item.criterionId === preferredCriterionId) ??
     diff.find((item) => item.severity !== 'cosmetic') ??
@@ -29,20 +29,20 @@ export function createCriterionVariantBranch(
   }
   const proposedDescription = buildVariantDescription(criterion);
   return {
-    branchName: `try/${criterion.id}-variant`,
+    workspaceName: `${criterion.label} local variant`,
     criterionId: criterion.id,
     label: criterion.label,
     originalDescription: criterion.description,
     proposedDescription,
-    commitMessage: `Try variant for ${criterion.label}`,
+    checkpointNote: `Apply local variant for ${criterion.label}`,
     passToFailDelta: targetDiff.severity === 'breaking' ? 2 : 1,
     failToPassDelta: targetDiff.severity === 'cosmetic' ? 0 : 1,
   };
 }
 
 export function buildVariantDescription(criterion: Criterion): string {
-  const boundary = 'Variant boundary: score only observable evidence in the response, and ignore style differences that do not change criterion satisfaction.';
-  return criterion.description.includes('Variant boundary:')
+  const boundary = 'Local variant boundary: score only observable evidence in the response, and ignore style differences that do not change criterion satisfaction.';
+  return criterion.description.includes('Local variant boundary:')
     ? criterion.description
     : `${criterion.description.trim()}\n\n${boundary}`;
 }

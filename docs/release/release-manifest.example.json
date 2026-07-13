@@ -1,0 +1,16 @@
+{
+  "product": "rubric-studio-open",
+  "version": "0.2.0",
+  "publishedAt": "2026-07-13T00:00:00.000Z",
+  "releaseUrl": "https://github.com/auraoneai/rubric-studio-open/releases/tag/v0.2.0",
+  "artifacts": [
+    {
+      "platform": "macos",
+      "architecture": "aarch64",
+      "format": "dmg",
+      "url": "https://github.com/auraoneai/rubric-studio-open/releases/download/v0.2.0/Rubric.Studio.Open_0.2.0_aarch64.dmg",
+      "sha256": "7dcb7de67835947b421089eab5fc244bcd8f75d503ebc7e763921c229c68f23d",
+      "verified": true
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -9,6 +10,16 @@ pub struct OpenedRubricProject {
     pub path: String,
     pub opened_at: String,
     pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedRubricProject {
+    pub path: String,
+    pub saved_at: String,
+    pub files_written: usize,
+    pub files_removed: usize,
+    pub atomic: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -131,13 +142,30 @@ pub fn open_rubric_project_folder(
             format!("rubric.toml could not be read: {error}"),
         )
     })?;
-    let manifest = toml::from_str::<toml::Value>(&manifest_source).map_err(|error| {
+    let manifest = manifest_source.parse::<toml::Value>().map_err(|error| {
         project_open_failure(
             "rubric.toml",
             format!("rubric.toml is invalid TOML: {error}"),
         )
     })?;
     let paths = manifest.get("paths");
+
+    let collapsed_themes = manifest
+        .get("studio")
+        .and_then(|studio| studio.get("collapsed_themes"))
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_string)
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let mut themes = read_themes(&project_root, paths)?;
+    for theme in &mut themes {
+        theme.collapsed = collapsed_themes.contains(&theme.id);
+    }
 
     let project = RubricProjectFile {
         id: manifest
@@ -156,12 +184,21 @@ pub fn open_rubric_project_folder(
             .and_then(toml::Value::as_str)
             .unwrap_or("0.1.0")
             .into(),
-        branch: "main".into(),
-        themes: read_themes(&project_root, paths)?,
+        branch: manifest
+            .get("studio")
+            .and_then(|studio| studio.get("branch"))
+            .and_then(toml::Value::as_str)
+            .unwrap_or("main")
+            .into(),
+        themes,
         criteria: read_criteria(&project_root, paths)?,
         samples: read_samples(&project_root, paths)?,
         judges: read_judges(&project_root, paths)?,
-        comments_visible: true,
+        comments_visible: manifest
+            .get("studio")
+            .and_then(|studio| studio.get("comments_visible"))
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true),
     };
 
     if project.criteria.is_empty() {
@@ -176,6 +213,134 @@ pub fn open_rubric_project_folder(
         path: project_root.to_string_lossy().into_owned(),
         opened_at: current_unix_timestamp_string(),
         source: "desktop-folder".into(),
+    })
+}
+
+pub fn save_rubric_project_folder(
+    path: PathBuf,
+    project: RubricProjectFile,
+) -> Result<SavedRubricProject, ProjectOpenFailure> {
+    validate_project_file(&project)?;
+    let project_root = path.canonicalize().map_err(|error| {
+        project_open_failure("path", format!("Project path is not readable: {error}"))
+    })?;
+    if !project_root.is_dir() {
+        return Err(project_open_failure(
+            "path",
+            "Project path must be an opened project folder.",
+        ));
+    }
+
+    let manifest_path = project_root.join("rubric.toml");
+    ensure_safe_existing_file(&project_root, &manifest_path, "rubric.toml")?;
+    let manifest_source = std::fs::read_to_string(&manifest_path).map_err(|error| {
+        project_open_failure(
+            "rubric.toml",
+            format!("rubric.toml could not be read before save: {error}"),
+        )
+    })?;
+    let mut manifest = manifest_source.parse::<toml::Value>().map_err(|error| {
+        project_open_failure(
+            "rubric.toml",
+            format!("rubric.toml is invalid TOML: {error}"),
+        )
+    })?;
+    let paths = manifest.get("paths").cloned();
+
+    update_manifest(&mut manifest, &project)?;
+    let manifest_output = toml::to_string_pretty(&manifest).map_err(|error| {
+        project_open_failure(
+            "rubric.toml",
+            format!("rubric.toml could not be serialized: {error}"),
+        )
+    })?;
+
+    let themes_root = path_from_manifest(&project_root, paths.as_ref(), "themes", "themes")?;
+    let criteria_root =
+        path_from_manifest(&project_root, paths.as_ref(), "criteria", "criteria")?;
+    let samples_root = path_from_manifest(&project_root, paths.as_ref(), "samples", "samples")?;
+    let judges_root = path_from_manifest(&project_root, paths.as_ref(), "judges", "judges")?;
+    for directory in [&themes_root, &criteria_root, &samples_root, &judges_root] {
+        ensure_directory_inside(&project_root, directory)?;
+    }
+
+    let mut desired_themes = BTreeSet::new();
+    let mut desired_criteria = BTreeSet::new();
+    let mut desired_samples = BTreeSet::new();
+    let mut desired_judges = BTreeSet::new();
+    let mut writes = Vec::new();
+
+    writes.push((manifest_path, manifest_output));
+    for theme in &project.themes {
+        let path = themes_root.join(format!("{}.md", theme.id));
+        desired_themes.insert(path.clone());
+        writes.push((
+            path,
+            format!(
+                "# {}\n\n{}\n",
+                theme.label.trim(),
+                theme.description.trim()
+            ),
+        ));
+    }
+    for criterion in &project.criteria {
+        let directory = criteria_root.join(&criterion.theme_id);
+        ensure_directory_inside(&project_root, &directory)?;
+        let path = directory.join(format!("{}.toml", criterion.id));
+        desired_criteria.insert(path.clone());
+        writes.push((path, serialize_criterion(criterion)?));
+    }
+
+    let samples_path = samples_root.join("project-samples.jsonl");
+    desired_samples.insert(samples_path.clone());
+    let samples_output = project
+        .samples
+        .iter()
+        .map(|sample| {
+            serde_json::to_string(sample).map_err(|error| {
+                project_open_failure(
+                    "samples",
+                    format!("Sample {} could not be serialized: {error}", sample.id),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n");
+    writes.push((
+        samples_path,
+        if samples_output.is_empty() {
+            String::new()
+        } else {
+            format!("{samples_output}\n")
+        },
+    ));
+
+    for judge in &project.judges {
+        let path = judges_root.join(format!("{}.toml", judge.id));
+        desired_judges.insert(path.clone());
+        writes.push((path, serialize_judge(judge)?));
+    }
+
+    for (target, contents) in &writes {
+        atomic_write(&project_root, target, contents.as_bytes())?;
+    }
+
+    let files_removed = remove_stale_managed_files(
+        &project_root,
+        [
+            (&themes_root, "md", &desired_themes),
+            (&criteria_root, "toml", &desired_criteria),
+            (&samples_root, "jsonl", &desired_samples),
+            (&judges_root, "toml", &desired_judges),
+        ],
+    )?;
+
+    Ok(SavedRubricProject {
+        path: project_root.to_string_lossy().into_owned(),
+        saved_at: current_unix_timestamp_string(),
+        files_written: writes.len(),
+        files_removed,
+        atomic: true,
     })
 }
 
@@ -226,7 +391,7 @@ fn read_criteria(
                 format!("Criterion file could not be read: {error}"),
             )
         })?;
-        let value = toml::from_str::<toml::Value>(&source).map_err(|error| {
+        let value = source.parse::<toml::Value>().map_err(|error| {
             project_open_failure(
                 "criteria",
                 format!("Criterion file is invalid TOML: {error}"),
@@ -314,7 +479,7 @@ fn read_judges(
         let source = std::fs::read_to_string(&file).map_err(|error| {
             project_open_failure("judges", format!("Judge file could not be read: {error}"))
         })?;
-        let value = toml::from_str::<toml::Value>(&source).map_err(|error| {
+        let value = source.parse::<toml::Value>().map_err(|error| {
             project_open_failure("judges", format!("Judge file is invalid TOML: {error}"))
         })?;
         judges.push(JudgeFile {
@@ -361,9 +526,26 @@ fn collect_files(
                 )
             })?
             .path();
-        if path.is_dir() {
+        let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
+            project_open_failure(
+                "path",
+                format!("Project folder entry metadata could not be read: {error}"),
+            )
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(project_open_failure(
+                "path",
+                format!(
+                    "Project folders cannot contain symlinked managed files or directories: {}",
+                    path.display()
+                ),
+            ));
+        }
+        if metadata.is_dir() {
             collect_files(&path, extension, files)?;
-        } else if path.extension().and_then(|value| value.to_str()) == Some(extension) {
+        } else if metadata.is_file()
+            && path.extension().and_then(|value| value.to_str()) == Some(extension)
+        {
             files.push(path);
         }
     }
@@ -422,7 +604,457 @@ fn path_from_manifest(
         ));
     }
 
-    Ok(root.join(relative_path))
+    let candidate = root.join(relative_path);
+    if candidate.exists() {
+        let metadata = std::fs::symlink_metadata(&candidate).map_err(|error| {
+            project_open_failure(
+                format!("paths.{key}"),
+                format!("Configured project path could not be inspected: {error}"),
+            )
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(project_open_failure(
+                format!("paths.{key}"),
+                "Project path overrides cannot point through symlinks.",
+            ));
+        }
+        let canonical = candidate.canonicalize().map_err(|error| {
+            project_open_failure(
+                format!("paths.{key}"),
+                format!("Configured project path could not be resolved: {error}"),
+            )
+        })?;
+        if !canonical.starts_with(root) {
+            return Err(project_open_failure(
+                format!("paths.{key}"),
+                "Project path overrides must resolve inside the opened folder.",
+            ));
+        }
+    }
+
+    Ok(candidate)
+}
+
+fn validate_project_file(project: &RubricProjectFile) -> Result<(), ProjectOpenFailure> {
+    if project.id.trim().is_empty() || project.name.trim().is_empty() {
+        return Err(project_open_failure(
+            "project",
+            "Project id and name are required before saving.",
+        ));
+    }
+    let mut theme_ids = BTreeSet::new();
+    for theme in &project.themes {
+        validate_managed_id("theme", &theme.id)?;
+        if !theme_ids.insert(theme.id.as_str()) {
+            return Err(project_open_failure(
+                "themes",
+                format!("Theme id {} is duplicated.", theme.id),
+            ));
+        }
+    }
+    let mut criterion_ids = BTreeSet::new();
+    for criterion in &project.criteria {
+        validate_managed_id("criterion", &criterion.id)?;
+        if !theme_ids.contains(criterion.theme_id.as_str()) {
+            return Err(project_open_failure(
+                "criteria",
+                format!(
+                    "Criterion {} references missing theme {}.",
+                    criterion.id, criterion.theme_id
+                ),
+            ));
+        }
+        if !criterion_ids.insert(criterion.id.as_str()) {
+            return Err(project_open_failure(
+                "criteria",
+                format!("Criterion id {} is duplicated.", criterion.id),
+            ));
+        }
+    }
+    let mut sample_ids = BTreeSet::new();
+    for sample in &project.samples {
+        if sample.id.trim().is_empty() || !sample_ids.insert(sample.id.as_str()) {
+            return Err(project_open_failure(
+                "samples",
+                "Sample ids must be present and unique.",
+            ));
+        }
+    }
+    let mut judge_ids = BTreeSet::new();
+    for judge in &project.judges {
+        validate_managed_id("judge", &judge.id)?;
+        if !judge_ids.insert(judge.id.as_str()) {
+            return Err(project_open_failure(
+                "judges",
+                format!("Judge id {} is duplicated.", judge.id),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_managed_id(field: &str, value: &str) -> Result<(), ProjectOpenFailure> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "-_.".contains(character))
+        || value == "."
+        || value == ".."
+    {
+        return Err(project_open_failure(
+            field,
+            format!(
+                "{field} id must use 1-128 ASCII letters, numbers, dashes, underscores, or periods."
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn update_manifest(
+    manifest: &mut toml::Value,
+    project: &RubricProjectFile,
+) -> Result<(), ProjectOpenFailure> {
+    let table = manifest.as_table_mut().ok_or_else(|| {
+        project_open_failure("rubric.toml", "rubric.toml must contain a TOML table.")
+    })?;
+    table.insert("name".into(), toml::Value::String(project.name.clone()));
+    table.insert(
+        "version".into(),
+        toml::Value::String(project.version.clone()),
+    );
+
+    let project_table = table
+        .entry("project")
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+        .as_table_mut()
+        .ok_or_else(|| {
+            project_open_failure("rubric.toml", "[project] must be a TOML table.")
+        })?;
+    project_table.insert("id".into(), toml::Value::String(project.id.clone()));
+
+    let studio = table
+        .entry("studio")
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+        .as_table_mut()
+        .ok_or_else(|| {
+            project_open_failure("rubric.toml", "[studio] must be a TOML table.")
+        })?;
+    studio.insert(
+        "branch".into(),
+        toml::Value::String(project.branch.clone()),
+    );
+    studio.insert(
+        "comments_visible".into(),
+        toml::Value::Boolean(project.comments_visible),
+    );
+    studio.insert(
+        "collapsed_themes".into(),
+        toml::Value::Array(
+            project
+                .themes
+                .iter()
+                .filter(|theme| theme.collapsed)
+                .map(|theme| toml::Value::String(theme.id.clone()))
+                .collect(),
+        ),
+    );
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct CriterionDiskFile<'a> {
+    id: &'a str,
+    label: &'a str,
+    theme: &'a str,
+    description: &'a str,
+    weight: f64,
+    scale: &'a str,
+    status: &'a str,
+    evidence_requirement: &'a str,
+    tags: &'a [String],
+    references: &'a [String],
+    sibling_links: &'a [String],
+    positive_examples: &'a [String],
+    negative_examples: &'a [String],
+    anti_patterns: &'a [String],
+    boundaries: &'a str,
+    edge_cases: &'a [String],
+    comments: &'a [String],
+}
+
+fn serialize_criterion(criterion: &CriterionFile) -> Result<String, ProjectOpenFailure> {
+    toml::to_string_pretty(&CriterionDiskFile {
+        id: &criterion.id,
+        label: &criterion.label,
+        theme: &criterion.theme_id,
+        description: &criterion.description,
+        weight: criterion.weight,
+        scale: &criterion.scale,
+        status: &criterion.status,
+        evidence_requirement: &criterion.evidence_requirement,
+        tags: &criterion.tags,
+        references: &criterion.references,
+        sibling_links: &criterion.sibling_links,
+        positive_examples: &criterion.positive_examples,
+        negative_examples: &criterion.negative_examples,
+        anti_patterns: &criterion.anti_patterns,
+        boundaries: &criterion.boundaries,
+        edge_cases: &criterion.edge_cases,
+        comments: &criterion.comments,
+    })
+    .map_err(|error| {
+        project_open_failure(
+            "criteria",
+            format!("Criterion {} could not be serialized: {error}", criterion.id),
+        )
+    })
+}
+
+#[derive(Serialize)]
+struct JudgeDiskFile<'a> {
+    id: &'a str,
+    label: &'a str,
+    provider: &'a str,
+    model: &'a str,
+    enabled: bool,
+    key_required: bool,
+}
+
+fn serialize_judge(judge: &JudgeFile) -> Result<String, ProjectOpenFailure> {
+    toml::to_string_pretty(&JudgeDiskFile {
+        id: &judge.id,
+        label: &judge.label,
+        provider: &judge.provider,
+        model: &judge.model,
+        enabled: judge.enabled,
+        key_required: judge.provider != "mock" && judge.provider != "ollama",
+    })
+    .map_err(|error| {
+        project_open_failure(
+            "judges",
+            format!("Judge {} could not be serialized: {error}", judge.id),
+        )
+    })
+}
+
+fn ensure_directory_inside(root: &Path, directory: &Path) -> Result<(), ProjectOpenFailure> {
+    if !directory.starts_with(root) {
+        return Err(project_open_failure(
+            "path",
+            "Managed project directories must stay inside the opened project folder.",
+        ));
+    }
+    let relative = directory.strip_prefix(root).map_err(|_| {
+        project_open_failure(
+            "path",
+            "Managed project directory could not be resolved against its root.",
+        )
+    })?;
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(segment) = component else {
+            return Err(project_open_failure(
+                "path",
+                "Managed project directories cannot contain special path segments.",
+            ));
+        };
+        current.push(segment);
+        if current.exists() {
+            let metadata = std::fs::symlink_metadata(&current).map_err(|error| {
+                project_open_failure(
+                    "path",
+                    format!("Managed directory could not be inspected: {error}"),
+                )
+            })?;
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(project_open_failure(
+                    "path",
+                    format!(
+                        "Managed project directory is not a regular folder: {}",
+                        current.display()
+                    ),
+                ));
+            }
+            let canonical = current.canonicalize().map_err(|error| {
+                project_open_failure(
+                    "path",
+                    format!("Managed directory could not be resolved: {error}"),
+                )
+            })?;
+            if !canonical.starts_with(root) {
+                return Err(project_open_failure(
+                    "path",
+                    "Managed project directory resolves outside the opened project folder.",
+                ));
+            }
+        } else {
+            std::fs::create_dir(&current).map_err(|error| {
+                project_open_failure(
+                    "path",
+                    format!(
+                        "Managed project directory {} could not be created: {error}",
+                        current.display()
+                    ),
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn ensure_safe_existing_file(
+    root: &Path,
+    path: &Path,
+    field: &str,
+) -> Result<(), ProjectOpenFailure> {
+    if !path.starts_with(root) {
+        return Err(project_open_failure(
+            field,
+            "Managed project file must stay inside the opened project folder.",
+        ));
+    }
+    if path.exists() {
+        let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+            project_open_failure(
+                field,
+                format!("Managed project file could not be inspected: {error}"),
+            )
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(project_open_failure(
+                field,
+                format!("Managed project file is not a regular file: {}", path.display()),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn atomic_write(root: &Path, target: &Path, contents: &[u8]) -> Result<(), ProjectOpenFailure> {
+    let parent = target.parent().ok_or_else(|| {
+        project_open_failure("path", "Managed project file has no parent directory.")
+    })?;
+    ensure_directory_inside(root, parent)?;
+    ensure_safe_existing_file(root, target, "path")?;
+    let filename = target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("project-file");
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let temporary = parent.join(format!(
+        ".{filename}.rso-tmp-{}-{nonce}",
+        std::process::id()
+    ));
+    let result = (|| {
+        let mut file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(|error| {
+                project_open_failure(
+                    "path",
+                    format!("Atomic save temporary file could not be created: {error}"),
+                )
+            })?;
+        file.write_all(contents).map_err(|error| {
+            project_open_failure(
+                "path",
+                format!("Atomic save temporary file could not be written: {error}"),
+            )
+        })?;
+        file.sync_all().map_err(|error| {
+            project_open_failure(
+                "path",
+                format!("Atomic save temporary file could not be flushed: {error}"),
+            )
+        })?;
+        replace_file_atomically(&temporary, target).map_err(|error| {
+            project_open_failure(
+                "path",
+                format!("Atomic save could not replace {}: {error}", target.display()),
+            )
+        })?;
+        sync_directory(parent);
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    result
+}
+
+#[cfg(not(target_os = "windows"))]
+fn replace_file_atomically(source: &Path, target: &Path) -> std::io::Result<()> {
+    std::fs::rename(source, target)
+}
+
+#[cfg(target_os = "windows")]
+fn replace_file_atomically(source: &Path, target: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
+
+    let source_wide = source
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let target_wide = target
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let result = unsafe {
+        MoveFileExW(
+            source_wide.as_ptr(),
+            target_wide.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(unix)]
+fn sync_directory(directory: &Path) {
+    if let Ok(handle) = std::fs::File::open(directory) {
+        let _ = handle.sync_all();
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_directory(_directory: &Path) {}
+
+fn remove_stale_managed_files<const N: usize>(
+    root: &Path,
+    groups: [(&Path, &str, &BTreeSet<PathBuf>); N],
+) -> Result<usize, ProjectOpenFailure> {
+    let mut removed = 0;
+    for (directory, extension, desired) in groups {
+        for path in sorted_files(directory, extension)? {
+            if desired.contains(&path) {
+                continue;
+            }
+            ensure_safe_existing_file(root, &path, "path")?;
+            std::fs::remove_file(&path).map_err(|error| {
+                project_open_failure(
+                    "path",
+                    format!("Stale managed file {} could not be removed: {error}", path.display()),
+                )
+            })?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
 }
 
 fn unique_template_path(parent: &Path, slug: &str) -> Result<PathBuf, ProjectOpenFailure> {
@@ -605,8 +1237,8 @@ const TEMPLATE_README: &str = r#"# Helpful Response Evaluation
 This starter project is deliberately domain-neutral and safe for public tests.
 
 Use it to exercise project sidebar loading, criterion authoring, local mock judge
-scoring, gold-set calibration, semantic diff examples, export, and intake
-packaging.
+scoring, gold-set calibration, local checkpoint comparison, and unsigned local
+evidence packaging.
 "#;
 
 const TEMPLATE_GITIGNORE: &str = r#".rubric/
@@ -739,15 +1371,14 @@ mod tests {
 
     #[test]
     fn manifest_paths_stay_inside_project_root() {
-        let manifest = toml::from_str::<toml::Value>(
-            r#"
+        let manifest = r#"
 [paths]
 themes = "themes"
 criteria = "criteria/safety"
 samples = "samples"
 judges = "judges"
-"#,
-        )
+"#
+        .parse::<toml::Value>()
         .unwrap();
         let paths = manifest.get("paths");
         let root = Path::new("/project/root");
@@ -769,13 +1400,14 @@ judges = "judges"
             "criteria/../outside",
             "./criteria",
         ] {
-            let manifest_source = format!(
+            let manifest = format!(
                 r#"
 [paths]
 criteria = "{configured}"
 "#
-            );
-            let manifest = toml::from_str::<toml::Value>(&manifest_source).unwrap();
+            )
+            .parse::<toml::Value>()
+            .unwrap();
             let error = path_from_manifest(
                 Path::new("/project/root"),
                 manifest.get("paths"),
@@ -820,5 +1452,92 @@ criteria = "../outside"
         assert!(error.message.contains("cannot use"));
 
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn saves_opened_project_atomically_and_round_trips_managed_files() {
+        let parent = std::env::temp_dir().join(format!(
+            "rubric-studio-open-save-test-{}-{}",
+            std::process::id(),
+            current_unix_timestamp_string()
+        ));
+        std::fs::create_dir_all(&parent).unwrap();
+        let opened =
+            create_rubric_project_from_template(parent.clone(), "Save Round Trip".into()).unwrap();
+        let root = PathBuf::from(&opened.path);
+        std::fs::write(root.join("criteria/stale.toml"), "id = \"stale\"").unwrap();
+
+        let mut project = opened.project;
+        project.branch = "checkpoint-local".into();
+        project.comments_visible = false;
+        project.themes[0].collapsed = true;
+        project.criteria[0].description = "Persisted reviewer-visible behavior.".into();
+        project.criteria[0].comments.push("Saved local note.".into());
+        project.criteria.pop();
+        project.samples[0]
+            .gold_scores
+            .insert("safe-refusal".into(), 0.25);
+
+        let receipt = save_rubric_project_folder(root.clone(), project.clone()).unwrap();
+        let reopened = open_rubric_project_folder(root.clone()).unwrap();
+
+        assert!(receipt.atomic);
+        assert!(receipt.files_written >= 5);
+        assert!(receipt.files_removed >= 1);
+        assert!(!root.join("criteria/stale.toml").exists());
+        assert_eq!(reopened.project.branch, "checkpoint-local");
+        assert!(!reopened.project.comments_visible);
+        assert!(reopened.project.themes[0].collapsed);
+        assert_eq!(reopened.project.criteria.len(), project.criteria.len());
+        assert_eq!(
+            reopened.project.criteria[0].description,
+            "Persisted reviewer-visible behavior."
+        );
+        assert_eq!(
+            reopened.project.criteria[0].comments,
+            vec!["Saved local note.".to_string()]
+        );
+        assert_eq!(
+            reopened.project.samples[0]
+                .gold_scores
+                .get("safe-refusal"),
+            Some(&0.25)
+        );
+        assert!(std::fs::read_dir(&root)
+            .unwrap()
+            .filter_map(Result::ok)
+            .all(|entry| !entry.file_name().to_string_lossy().contains(".rso-tmp-")));
+
+        std::fs::remove_dir_all(parent).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_rejects_symlinked_managed_directory() {
+        use std::os::unix::fs::symlink;
+
+        let parent = std::env::temp_dir().join(format!(
+            "rubric-studio-open-save-symlink-test-{}-{}",
+            std::process::id(),
+            current_unix_timestamp_string()
+        ));
+        let outside = parent.with_extension("outside");
+        std::fs::create_dir_all(&parent).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let opened =
+            create_rubric_project_from_template(parent.clone(), "Symlink Save".into()).unwrap();
+        let root = PathBuf::from(&opened.path);
+        std::fs::remove_dir_all(root.join("criteria")).unwrap();
+        symlink(&outside, root.join("criteria")).unwrap();
+
+        let error = save_rubric_project_folder(root, opened.project).unwrap_err();
+
+        assert!(
+            error.message.contains("symlink")
+                || error.message.contains("regular folder")
+                || error.message.contains("inside")
+        );
+        std::fs::remove_dir_all(parent).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
     }
 }

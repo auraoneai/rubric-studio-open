@@ -1,8 +1,15 @@
+import {
+  createTauriKeychainApi,
+  ensureIntakeInstallSigningKeypair,
+  intakeInstallSigningKeypairKey,
+  type IntakeInstallSigningKeypair,
+  type TauriInvoke,
+} from '@auraone/platform-contracts';
 import type { JudgeConfig, SurfaceMode } from './rubric';
 
 export interface KeychainKey {
   service: string;
-  scope: 'byo-api-keys' | 'intake-install-signing-key';
+  scope: 'byo-api-keys';
   identifier: string;
 }
 
@@ -22,35 +29,17 @@ export interface KeychainStatus {
   stores_user_content: boolean;
 }
 
-export interface IntakeInstallSigningKeypair {
-  algorithm: 'Ed25519';
-  public_key: string;
-  private_key: string;
-  created_at: string;
-}
-
-interface PlatformKeychainKey {
-  service: string;
-  scope: KeychainKey['scope'];
-  identifier: string;
-}
-
-interface PlatformKeychainApi {
-  set(key: PlatformKeychainKey, value: string): Promise<void>;
-  get(key: PlatformKeychainKey): Promise<string | null>;
-  delete(key: PlatformKeychainKey): Promise<void>;
-  list(service: string, scope: PlatformKeychainKey['scope']): Promise<string[]>;
-}
-
-type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
-
 const browserKeyPrefix = 'rso:key';
 const browserSecretPrefix = 'rso:secret';
+const providerKeyScope = 'byo-api-keys';
+export const rubricIntakeInstallSigningKeypairKey =
+  intakeInstallSigningKeypairKey('rubric-studio-open');
+const desktopAllowedScopes = [providerKeyScope, rubricIntakeInstallSigningKeypairKey.scope];
 
 export function keychainKeyForJudge(judge: JudgeConfig): KeychainKey {
   return {
     service: 'rubric-studio-open',
-    scope: 'byo-api-keys',
+    scope: providerKeyScope,
     identifier: slugKeychainIdentifier(`${judge.provider}-${judge.id}`),
   };
 }
@@ -97,21 +86,6 @@ export async function configureProviderKey(
   });
 }
 
-export async function ensureRubricIntakeInstallSigningKeypair(
-  surface: SurfaceMode,
-): Promise<IntakeInstallSigningKeypair> {
-  if (surface === 'browser') {
-    return ensureIntakeInstallSigningKeypair(browserKeychainApi(), 'rubric-studio-open', createBrowserIntakeKeypair);
-  }
-
-  const invoke = await loadTauriInvoke();
-  if (!invoke || window.__TAURI_INTERNALS__ === undefined) {
-    throw new Error('Desktop keychain bridge is available only inside the Tauri desktop shell.');
-  }
-
-  return ensureIntakeInstallSigningKeypair(tauriKeychainApi(invoke), 'rubric-studio-open', createBrowserIntakeKeypair);
-}
-
 export function readBrowserProviderSecret(judge: JudgeConfig): string | null {
   return sessionStorage.getItem(browserProviderSecretKey(judge));
 }
@@ -121,7 +95,7 @@ export async function getKeychainStatus(surface: SurfaceMode): Promise<KeychainS
     return {
       service: 'rubric-studio-open',
       backend: 'browser-session-memory',
-      allowed_scopes: ['byo-api-keys', 'intake-install-signing-key'],
+      allowed_scopes: [providerKeyScope],
       stores_user_content: false,
     };
   }
@@ -130,81 +104,32 @@ export async function getKeychainStatus(surface: SurfaceMode): Promise<KeychainS
     return {
       service: 'rubric-studio-open',
       backend: 'desktop-keychain-bridge-unavailable-in-browser-preview',
-      allowed_scopes: ['byo-api-keys', 'intake-install-signing-key'],
+      allowed_scopes: [...desktopAllowedScopes],
       stores_user_content: false,
     };
   }
   return invoke<KeychainStatus>('platform_keychain_status');
 }
 
-function browserKeychainApi(): PlatformKeychainApi {
-  return {
-    async set(key, value) {
-      sessionStorage.setItem(browserSecretKey(key), value);
-    },
-    async get(key) {
-      return sessionStorage.getItem(browserSecretKey(key));
-    },
-    async delete(key) {
-      sessionStorage.removeItem(browserSecretKey(key));
-    },
-    async list(service, scope) {
-      const prefix = `${browserSecretPrefix}:${service}:${scope}:`;
-      return Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.key(index))
-        .filter((key): key is string => Boolean(key?.startsWith(prefix)))
-        .map((key) => key.slice(prefix.length));
-    },
-  };
-}
-
-function tauriKeychainApi(invoke: TauriInvoke): PlatformKeychainApi {
-  return {
-    async set(key, value) {
-      await invoke('platform_keychain_set', { key, value, secret: true });
-    },
-    async get(key) {
-      return invoke<string | null>('platform_keychain_get', { key, secret: true });
-    },
-    async delete() {
-      throw new Error('Rubric Studio Open does not expose install key deletion.');
-    },
-    async list() {
-      return [];
-    },
-  };
-}
-
-function createBrowserIntakeKeypair(): IntakeInstallSigningKeypair {
-  const key = intakeInstallSigningKeypairKey('rubric-studio-open');
-  return {
-    algorithm: 'Ed25519',
-    public_key: `${key.service}:${key.identifier}:public`,
-    private_key: `${key.service}:${key.identifier}:private`,
-    created_at: new Date().toISOString(),
-  };
-}
-
-async function ensureIntakeInstallSigningKeypair(
-  keychain: PlatformKeychainApi,
-  service: string,
-  createKeypair: () => IntakeInstallSigningKeypair,
+export async function ensureRubricIntakeInstallSigningKeypair(
+  surface: SurfaceMode,
 ): Promise<IntakeInstallSigningKeypair> {
-  const key = intakeInstallSigningKeypairKey(service);
-  const existing = await keychain.get(key);
-  if (existing) {
-    return JSON.parse(existing) as IntakeInstallSigningKeypair;
+  if (surface === 'browser') {
+    throw new Error(
+      'Intake install signing is available only in the desktop app; the browser source build generates no key.',
+    );
   }
-  const next = createKeypair();
-  await keychain.set(key, JSON.stringify(next));
-  return next;
-}
-
-function intakeInstallSigningKeypairKey(service: string): PlatformKeychainKey {
-  return {
-    service,
-    scope: 'intake-install-signing-key',
-    identifier: 'auraonepkg-install-signing-key',
-  };
+  const invoke = await loadTauriInvoke();
+  if (!invoke || window.__TAURI_INTERNALS__ === undefined) {
+    throw new Error(
+      'The desktop keychain bridge is unavailable, so no intake install signing key was generated.',
+    );
+  }
+  return ensureIntakeInstallSigningKeypair(
+    createTauriKeychainApi(invoke),
+    'rubric-studio-open',
+    generateEd25519Keypair,
+  );
 }
 
 async function loadTauriInvoke(): Promise<TauriInvoke | null> {
@@ -234,10 +159,6 @@ function browserProviderSecretKey(judge: JudgeConfig): string {
   return `${browserSecretPrefix}:${judge.provider}:${judge.id}`;
 }
 
-function browserSecretKey(key: PlatformKeychainKey): string {
-  return `${browserSecretPrefix}:${key.service}:${key.scope}:${key.identifier}`;
-}
-
 function stableHash(value: string): string {
   let hash = 0x811c9dc5;
   for (const character of value) {
@@ -245,4 +166,33 @@ function stableHash(value: string): string {
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(16).padStart(16, '0');
+}
+
+async function generateEd25519Keypair(): Promise<IntakeInstallSigningKeypair> {
+  const generated = await globalThis.crypto.subtle.generateKey(
+    { name: 'Ed25519' },
+    true,
+    ['sign', 'verify'],
+  );
+  if (!('publicKey' in generated)) {
+    throw new Error('The runtime did not return an Ed25519 keypair.');
+  }
+  const [publicKey, privateKey] = await Promise.all([
+    globalThis.crypto.subtle.exportKey('spki', generated.publicKey),
+    globalThis.crypto.subtle.exportKey('pkcs8', generated.privateKey),
+  ]);
+  return {
+    algorithm: 'Ed25519',
+    public_key: encodeBase64(publicKey),
+    private_key: encodeBase64(privateKey),
+    created_at: new Date().toISOString(),
+  };
+}
+
+function encodeBase64(value: ArrayBuffer): string {
+  let binary = '';
+  for (const byte of new Uint8Array(value)) {
+    binary += String.fromCharCode(byte);
+  }
+  return globalThis.btoa(binary);
 }

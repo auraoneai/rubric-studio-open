@@ -1,60 +1,14 @@
-export interface TelemetryEvent {
-  event_id: string;
-  event_name: string;
-  timestamp: string;
-  session_id: string;
-  app: {
-    flagship: string;
-    version: string;
-    channel: string;
-  };
-  device: {
-    install_id: string;
-    os: "darwin" | "windows" | "linux";
-    os_version: string;
-    arch: "x86_64" | "aarch64";
-  };
-  payload: Record<string, string | number | boolean>;
-}
+import type { AuraTelemetryEvent } from "@auraone/aura-ide-kit";
+import {
+  TelemetryEventLog,
+  createTelemetryEvent,
+  type TelemetryLogEntry,
+  type TelemetryLogStatus,
+  type TelemetryEvent,
+} from "@auraone/platform-contracts";
 
-export interface TelemetryLogEntry {
-  event: TelemetryEvent;
-  recorded_at: string;
-  status: "sent" | "local";
-  validation: {
-    valid: boolean;
-    errors: string[];
-  };
-}
-
-export interface AuraTelemetryEvent {
-  id: string;
-  name: string;
-  timestamp: string;
-  optedIn: boolean;
-  destination: string;
-  payloadPreview: Record<string, unknown>;
-}
-
-export class TelemetryEventLog {
-  #entries: TelemetryLogEntry[] = [];
-
-  record(event: TelemetryEvent, optedIn: boolean): TelemetryLogEntry {
-    const validation = validateTelemetryEvent(event);
-    const entry: TelemetryLogEntry = {
-      event,
-      recorded_at: new Date().toISOString(),
-      status: optedIn && validation.valid ? "sent" : "local",
-      validation,
-    };
-    this.#entries.push(entry);
-    return entry;
-  }
-
-  list(): TelemetryLogEntry[] {
-    return [...this.#entries];
-  }
-}
+export { TelemetryEventLog };
+export type { TelemetryEvent, TelemetryLogEntry, TelemetryLogStatus };
 
 const installId = "123e4567-e89b-42d3-a456-426614174000";
 const sessionId = "123e4567-e89b-42d3-a456-426614174001";
@@ -63,12 +17,12 @@ export function createRubricPlatformTelemetryEvent(
   featureId: string,
   payload: Record<string, string | number | boolean>,
 ): TelemetryEvent {
-  return {
-    event_name: "feature_used",
-    event_id: createUuid(),
+  return createTelemetryEvent({
+    eventName: "feature_used",
+    eventId: createUuid(),
     timestamp: new Date().toISOString(),
-    session_id: sessionId,
-    app: { flagship: "rubric-studio-open", version: "0.1.0", channel: "stable" },
+    sessionId,
+    app: { flagship: "rubric-studio-open", version: "0.2.0", channel: "stable" },
     device: {
       install_id: installId,
       os: platformOs(),
@@ -79,16 +33,19 @@ export function createRubricPlatformTelemetryEvent(
       feature_id: normalizeFeatureId(featureId),
       ...payload,
     },
-  };
+  });
 }
 
-export function toAuraTelemetryEvents(entries: readonly TelemetryLogEntry[]): AuraTelemetryEvent[] {
+export function toAuraTelemetryEvents(
+  entries: readonly TelemetryLogEntry[],
+): AuraTelemetryEvent[] {
   return entries.map((entry) => ({
     id: entry.event.event_id,
     name: entry.event.event_name,
     timestamp: entry.recorded_at,
-    optedIn: entry.status === "sent",
-    destination: entry.status === "sent" ? "telemetry" : "local",
+    optedIn: entry.status === "local_preview",
+    destination: "local",
+    deliveryStatus: entry.status,
     payloadPreview: {
       validation: entry.validation.valid ? "valid" : entry.validation.errors,
       ...entry.event.payload,
@@ -115,15 +72,4 @@ function platformArch(): "x86_64" | "aarch64" {
 function createUuid(): string {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return "123e4567-e89b-42d3-a456-426614174002";
-}
-
-function validateTelemetryEvent(event: TelemetryEvent): TelemetryLogEntry["validation"] {
-  const errors = [
-    event.event_id ? "" : "event_id is required",
-    event.event_name ? "" : "event_name is required",
-    event.timestamp ? "" : "timestamp is required",
-    event.session_id ? "" : "session_id is required",
-    event.app?.flagship === "rubric-studio-open" ? "" : "flagship must be rubric-studio-open",
-  ].filter(Boolean);
-  return { valid: errors.length === 0, errors };
 }

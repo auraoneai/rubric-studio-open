@@ -19,7 +19,7 @@ The app may contact these destinations only when the relevant feature is enabled
 | --- | --- | --- |
 | Model provider endpoint | BYO model scoring | Off until key configured |
 | `updates.auraone.ai` | Signed update checks | Release-channel dependent |
-| `o.auraone.ai/v1/events` | Opt-in telemetry | Off |
+| `o.auraone.ai/v1/events` | Reserved telemetry endpoint; no uploader is implemented in this build | Unused |
 | Sentry project endpoint | Opt-in crash reporting | Off |
 | `intake.auraone.ai/v1/packets/` | Explicit AuraOne intake export | Off |
 

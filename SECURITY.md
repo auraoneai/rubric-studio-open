@@ -43,7 +43,7 @@ The desktop CSP currently allows:
 | `https://huggingface.co` | Hugging Face export/model integration. | User-initiated. |
 | `https://updates.auraone.ai`, `https://updates2.auraone.ai` | Signed update checks. | Release-channel dependent. |
 | `https://intake.auraone.ai` | Explicit AuraOne intake export. | Off until user sends. |
-| `https://o.auraone.ai` | Opt-in telemetry. | Off by default. |
+| `https://o.auraone.ai` | Reserved telemetry endpoint; no uploader is implemented in this build. | Unused. |
 | `https://sentry.io` | Opt-in crash reporting. | Off by default. |
 
 ## Supported versions

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Download, FolderDown, FolderUp, MoreHorizontal, Upload } from 'lucide-react';
 import { browserFolderArtifacts, projectFromBrowserFolder } from '../domain/browserFolder';
 import type { RubricProject, SurfaceMode, ValidationIssue } from '../domain/rubric';
 import { validateProject } from '../domain/validation';
@@ -12,10 +13,14 @@ export function BrowserProjectControls({
   project,
   surface,
   onImport,
+  persistenceMessage,
+  onStatus,
 }: {
   project: RubricProject;
   surface: SurfaceMode;
   onImport: (project: RubricProject) => void;
+  persistenceMessage: string;
+  onStatus: (message: string, isError?: boolean) => void;
 }) {
   const [error, setError] = useState<ImportErrorState | null>(null);
   const [status, setStatus] = useState('');
@@ -23,6 +28,14 @@ export function BrowserProjectControls({
   useEffect(() => {
     setError(null);
   }, [project.id, project.name]);
+
+  useEffect(() => {
+    if (!status) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setStatus(''), 3_500);
+    return () => window.clearTimeout(timer);
+  }, [status]);
 
   function exportProject(filename = `${project.id}.rubric-project.json`) {
     const payload = JSON.stringify(
@@ -40,6 +53,17 @@ export function BrowserProjectControls({
     anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
+    updateStatus(`Downloaded ${filename}.`);
+  }
+
+  function updateStatus(message: string) {
+    setStatus(message);
+    onStatus(message);
+  }
+
+  function updateError(next: ImportErrorState) {
+    setError(next);
+    onStatus(next.message, true);
   }
 
   async function importProject(file: File | undefined) {
@@ -50,9 +74,9 @@ export function BrowserProjectControls({
     try {
       const text = await file.text();
       const parsed = JSON.parse(text) as { project?: RubricProject };
-      if (!parsed.project?.id || !Array.isArray(parsed.project.criteria)) {
-        setError({
-          message: `Invalid project bundle. Choose a Rubric Studio Open JSON export with a project and criteria. First check ${fileName}: line ${lineForText(text, '"project"')}.`,
+      if (!isRubricProjectShape(parsed.project)) {
+        updateError({
+          message: `Invalid project bundle. Choose a Rubric Studio Open JSON export with complete project, theme, criterion, sample, and judge arrays. First check ${fileName}: line ${lineForText(text, '"project"')}.`,
           recovery: true,
         });
         return;
@@ -60,7 +84,7 @@ export function BrowserProjectControls({
       const issues = validateProject(parsed.project);
       const errors = issues.filter((issue) => issue.severity === 'error');
       if (errors.length > 0) {
-        setError({
+        updateError({
           message: `Project bundle has ${errors.length} schema errors. Fix the bundle and import again. ${schemaPointer(errors[0], text, fileName)}`,
           recovery: true,
         });
@@ -68,8 +92,9 @@ export function BrowserProjectControls({
       }
       setError(null);
       onImport(parsed.project);
+      updateStatus(`Imported ${parsed.project.name} from ${fileName}.`);
     } catch (importError) {
-      setError({
+      updateError({
         message: `Project import failed. Check that the file is valid JSON and try again. ${jsonParsePointer(importError, fileName)}`,
         recovery: true,
       });
@@ -78,7 +103,7 @@ export function BrowserProjectControls({
 
   async function exportFolder() {
     if (!supportsDirectoryPicker('readwrite')) {
-      setError({
+      updateError({
         message: 'Browser folder export requires a File System Access capable browser. Use Export bundle as a fallback.',
         recovery: false,
       });
@@ -87,7 +112,7 @@ export function BrowserProjectControls({
     try {
       const directory = await window.showDirectoryPicker?.({ mode: 'readwrite' });
       if (!directory) {
-        setError({
+        updateError({
           message: 'Browser folder export requires a File System Access capable browser. Use Export bundle as a fallback.',
           recovery: false,
         });
@@ -95,12 +120,12 @@ export function BrowserProjectControls({
       }
       await Promise.all(browserFolderArtifacts(project).map((artifact) => writeArtifact(directory, artifact.path, artifact.content)));
       setError(null);
-      setStatus(`Exported ${browserFolderArtifacts(project).length} files to the selected browser folder.`);
+      updateStatus(`Exported ${browserFolderArtifacts(project).length} files to the selected browser folder.`);
     } catch (exportError) {
       if (isAbortError(exportError)) {
-        setStatus('Folder export canceled.');
+        updateStatus('Folder export canceled.');
       } else {
-        setError({
+        updateError({
           message: exportError instanceof Error ? exportError.message : 'Browser folder export failed.',
           recovery: false,
         });
@@ -110,7 +135,7 @@ export function BrowserProjectControls({
 
   async function importFolder() {
     if (!supportsDirectoryPicker('read')) {
-      setError({
+      updateError({
         message: 'Browser folder import requires a File System Access capable browser. Use Import bundle as a fallback.',
         recovery: false,
       });
@@ -119,7 +144,7 @@ export function BrowserProjectControls({
     try {
       const directory = await window.showDirectoryPicker?.({ mode: 'read' });
       if (!directory) {
-        setError({
+        updateError({
           message: 'Browser folder import requires a File System Access capable browser. Use Import bundle as a fallback.',
           recovery: false,
         });
@@ -127,8 +152,8 @@ export function BrowserProjectControls({
       }
       const files = await readProjectFiles(directory);
       const projectFromFolder = projectFromBrowserFolder(files);
-      if (!projectFromFolder?.id || !Array.isArray(projectFromFolder.criteria)) {
-        setError({
+      if (!isRubricProjectShape(projectFromFolder)) {
+        updateError({
           message: 'Browser folder is missing project-bundle.json or rubric.json with criteria. First check project-bundle.json: line 1.',
           recovery: true,
         });
@@ -139,20 +164,20 @@ export function BrowserProjectControls({
       if (errors.length > 0) {
         const sourcePath = files['project-bundle.json'] ? 'project-bundle.json' : 'rubric.json';
         const sourceText = files[sourcePath] ?? '';
-        setError({
+        updateError({
           message: `Browser folder has ${errors.length} schema errors. Fix the folder and import again. ${schemaPointer(errors[0], sourceText, sourcePath)}`,
           recovery: true,
         });
         return;
       }
       setError(null);
-      setStatus(`Imported ${projectFromFolder.name} from browser folder.`);
+      updateStatus(`Imported ${projectFromFolder.name} from browser folder.`);
       onImport(projectFromFolder);
     } catch (importError) {
       if (isAbortError(importError)) {
-        setStatus('Folder import canceled.');
+        updateStatus('Folder import canceled.');
       } else {
-        setError({
+        updateError({
           message: importError instanceof Error ? importError.message : 'Browser folder import failed.',
           recovery: true,
         });
@@ -164,20 +189,28 @@ export function BrowserProjectControls({
     exportProject(`${project.id}.repair-template.rubric-project.json`);
   }
 
+  if (surface !== 'browser') {
+    return null;
+  }
+
   return (
-    <div className="rso-browser-controls" aria-label="Browser project import and export">
-      <button className="ghost-button" type="button" onClick={() => exportProject()}>
-        Export bundle
+    <div className="rso-browser-controls" aria-label="Browser project import and export" title={persistenceMessage}>
+      <button
+        className="ghost-button rso-project-transfer"
+        type="button"
+        aria-label="Export project bundle"
+        title="Export project bundle"
+        onClick={() => exportProject()}
+      >
+        <Download className="button-icon" aria-hidden="true" />
+        <span>Export</span>
       </button>
-      {surface === 'browser' ? (
-        <button className="ghost-button" type="button" onClick={() => void exportFolder()}>
-          Export folder
-        </button>
-      ) : null}
-      <label className="file-button">
-        <span>Import bundle</span>
+      <label className="file-button rso-project-transfer" title="Import project bundle">
+        <Upload className="button-icon" aria-hidden="true" />
+        <span>Import</span>
         <input
           type="file"
+          aria-label="Import project bundle"
           accept="application/json,.json,.rubric-project.json"
           onChange={(event) => {
             void importProject(event.target.files?.[0]);
@@ -185,11 +218,22 @@ export function BrowserProjectControls({
           }}
         />
       </label>
-      {surface === 'browser' ? (
-        <button className="ghost-button" type="button" onClick={() => void importFolder()}>
-          Import folder
-        </button>
-      ) : null}
+      <details className="rso-folder-menu">
+        <summary className="ghost-button icon-only" aria-label="Browser folder project actions" title="Browser folder project actions">
+          <MoreHorizontal className="button-icon" aria-hidden="true" />
+        </summary>
+        <div>
+          <button className="ghost-button" type="button" onClick={() => void importFolder()}>
+            <FolderDown className="button-icon" aria-hidden="true" />
+            Import folder
+          </button>
+          <button className="ghost-button" type="button" onClick={() => void exportFolder()}>
+            <FolderUp className="button-icon" aria-hidden="true" />
+            Export folder
+          </button>
+          <small>{persistenceMessage}</small>
+        </div>
+      </details>
       {error ? (
         <span className="inline-error import-error" role="alert">
           {error.message}
@@ -201,7 +245,7 @@ export function BrowserProjectControls({
         </span>
       ) : null}
       {status ? <span className="success-chip" role="status">{status}</span> : null}
-      {surface === 'browser' ? <small>Local browser storage only</small> : null}
+      <span className="rso-browser-persistence" aria-hidden="true">Local</span>
     </div>
   );
 }
@@ -284,6 +328,25 @@ function supportsDirectoryPicker(mode: FileSystemPermissionMode): boolean {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
+}
+
+function isRubricProjectShape(value: unknown): value is RubricProject {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as Partial<RubricProject>;
+  return (
+    typeof candidate.id === 'string' &&
+    candidate.id.trim().length > 0 &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.version === 'string' &&
+    typeof candidate.branch === 'string' &&
+    typeof candidate.commentsVisible === 'boolean' &&
+    Array.isArray(candidate.themes) &&
+    Array.isArray(candidate.criteria) &&
+    Array.isArray(candidate.samples) &&
+    Array.isArray(candidate.judges)
+  );
 }
 
 interface FileSystemDirectoryHandle {

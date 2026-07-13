@@ -1,5 +1,11 @@
 import type { RubricProject, RubricSample } from './rubric';
 
+export interface GoldImportResult {
+  samples: RubricSample[];
+  importedRows: number;
+  labeledDecisions: number;
+}
+
 export function parseJsonlSamples(text: string, project: RubricProject): RubricSample[] {
   const rows = text
     .split('\n')
@@ -21,7 +27,7 @@ export function parseJsonlSamples(text: string, project: RubricProject): RubricS
       prompt: parsed.prompt.trim(),
       response: parsed.response.trim(),
       metadata: isMetadata(parsed.metadata) ? parsed.metadata : { source: 'jsonl' },
-      goldScores: isGoldScores(parsed.goldScores) ? parsed.goldScores : defaultGoldScores(project),
+      goldScores: isGoldScores(parsed.goldScores) ? parsed.goldScores : {},
     };
   });
 }
@@ -41,7 +47,7 @@ export function parseScratchSamples(text: string, project: RubricProject, idSeed
         prompt: typeof parsed.prompt === 'string' && parsed.prompt.trim() ? parsed.prompt.trim() : 'Scratch sample',
         response: typeof parsed.response === 'string' && parsed.response.trim() ? parsed.response.trim() : candidate,
         metadata: isMetadata(parsed.metadata) ? parsed.metadata : { source: 'paste' },
-        goldScores: isGoldScores(parsed.goldScores) ? parsed.goldScores : defaultGoldScores(project),
+        goldScores: isGoldScores(parsed.goldScores) ? parsed.goldScores : {},
       };
     } catch {
       return {
@@ -49,10 +55,90 @@ export function parseScratchSamples(text: string, project: RubricProject, idSeed
         prompt: 'Scratch sample',
         response: candidate,
         metadata: { source: 'paste' },
-        goldScores: defaultGoldScores(project),
+        goldScores: {},
       };
     }
   });
+}
+
+export function parseGoldJsonl(text: string, project: RubricProject): GoldImportResult {
+  const rows = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (rows.length === 0) {
+    throw new Error('Gold JSONL is empty.');
+  }
+
+  const criterionIds = new Set(project.criteria.map((criterion) => criterion.id));
+  const samplesById = new Map(project.samples.map((sample) => [sample.id, { ...sample, goldScores: { ...sample.goldScores } }]));
+  let labeledDecisions = 0;
+
+  rows.forEach((row, index) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(row);
+    } catch {
+      throw new Error(`Gold JSONL row ${index + 1} is not valid JSON.`);
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`Gold JSONL row ${index + 1} must be an object.`);
+    }
+    const candidate = parsed as Record<string, unknown>;
+    const sampleId =
+      typeof candidate.sampleId === 'string'
+        ? candidate.sampleId.trim()
+        : typeof candidate.id === 'string'
+          ? candidate.id.trim()
+          : '';
+    if (!sampleId) {
+      throw new Error(`Gold JSONL row ${index + 1} must include sampleId or id.`);
+    }
+    const scores = isGoldScores(candidate.goldScores)
+      ? candidate.goldScores
+      : isGoldScores(candidate.scores)
+        ? candidate.scores
+        : null;
+    if (!scores || Object.keys(scores).length === 0) {
+      throw new Error(`Gold JSONL row ${index + 1} must include non-empty scores or goldScores.`);
+    }
+    for (const [criterionId, score] of Object.entries(scores)) {
+      if (!criterionIds.has(criterionId)) {
+        throw new Error(`Gold JSONL row ${index + 1} references unknown criterion ${criterionId}.`);
+      }
+      if (!Number.isFinite(score) || score < 0 || score > 1) {
+        throw new Error(`Gold JSONL row ${index + 1} score for ${criterionId} must be between 0 and 1.`);
+      }
+      labeledDecisions += 1;
+    }
+
+    const existing = samplesById.get(sampleId);
+    if (existing) {
+      samplesById.set(sampleId, {
+        ...existing,
+        goldScores: { ...existing.goldScores, ...scores },
+      });
+      return;
+    }
+    if (!isSampleShape(candidate)) {
+      throw new Error(
+        `Gold JSONL row ${index + 1} references new sample ${sampleId}; include id, prompt, and response to add it.`,
+      );
+    }
+    samplesById.set(sampleId, {
+      id: sampleId,
+      prompt: candidate.prompt.trim(),
+      response: candidate.response.trim(),
+      metadata: isMetadata(candidate.metadata) ? candidate.metadata : { source: 'gold-jsonl' },
+      goldScores: { ...scores },
+    });
+  });
+
+  return {
+    samples: [...samplesById.values()],
+    importedRows: rows.length,
+    labeledDecisions,
+  };
 }
 
 export function defaultGoldScores(project: RubricProject): Record<string, number> {
@@ -78,7 +164,7 @@ function isGoldScores(value: unknown): value is RubricSample['goldScores'] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
   }
-  return Object.values(value).every((entry) => Number.isFinite(entry));
+  return Object.values(value).every((entry) => typeof entry === 'number' && Number.isFinite(entry));
 }
 
 function hasText(value: unknown): value is string {

@@ -1,33 +1,52 @@
 {
   "name": "@auraone/rubric-studio-open",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "license": "MIT",
   "type": "module",
   "description": "Local-first IDE for authoring, validating, testing, calibrating, diffing, and exporting AI evaluation rubrics.",
+  "keywords": [
+    "ai-evaluation",
+    "llm-evaluation",
+    "evals",
+    "rubric",
+    "calibration",
+    "quality-gate",
+    "local-first",
+    "tauri"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/auraoneai/rubric-studio-open.git"
+  },
+  "homepage": "https://rubric-studio.auraone.ai/",
+  "bugs": {
+    "url": "https://github.com/auraoneai/rubric-studio-open/issues"
+  },
   "scripts": {
+    "prebuild": "pnpm run platform:build",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
+    "pretypecheck": "pnpm run platform:build",
     "typecheck": "tsc --noEmit",
+    "pretest": "pnpm run platform:build",
     "test": "tsx src/domain/self-test.ts",
-    "test:unit:ts": "tsx src/domain/self-test.ts",
-    "test:unit:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "test:suite": "node scripts/test-suite-contract.mjs",
     "test:a11y": "node scripts/a11y-smoke.mjs",
+    "test:geometry": "node scripts/geometry-smoke.mjs",
+    "capture:evidence": "node scripts/capture_screenshots.mjs",
+    "test:capture-evidence": "node scripts/capture_screenshots.mjs --verify",
     "test:e2e": "node scripts/browser-smoke.mjs",
     "test:design": "node scripts/design-contract.mjs",
     "test:privacy": "node scripts/privacy-contract.mjs",
     "test:readme": "node scripts/readme-contract.mjs",
     "test:roadmap": "node scripts/roadmap-rfc-contract.mjs",
-    "test:github-templates": "node scripts/github-template-contract.mjs",
-    "test:postlaunch": "node scripts/postlaunch-product-contract.mjs",
     "test:snapshot": "tsx src/domain/snapshot-test.ts",
     "test:perf": "tsx src/domain/performance-test.ts",
-    "test:product": "pnpm run test:unit:ts && pnpm run test:regression && pnpm run test:design && pnpm run test:privacy && pnpm run test:readme && pnpm run test:roadmap && pnpm run test:github-templates && pnpm run test:postlaunch && pnpm run vscode:validator && pnpm run vscode:webview && pnpm run vscode:contract && pnpm run vscode:typecheck && pnpm run vscode:build && pnpm run vscode:package-contract && pnpm run test:desktop && pnpm run test:suite && pnpm run test:a11y && pnpm run test:e2e",
-    "test:desktop": "pnpm run tauri:core:test && pnpm run tauri:check && pnpm run tauri:build:ci && pnpm run tauri:e2e:preflight",
+    "test:product": "pnpm run test && pnpm run test:regression && pnpm run test:design && pnpm run test:privacy && pnpm run test:readme && pnpm run test:roadmap && pnpm run vscode:validator && pnpm run vscode:webview && pnpm run vscode:contract && pnpm run vscode:typecheck && pnpm run test:a11y && pnpm run test:geometry && pnpm run test:e2e",
     "test:regression": "pnpm run test:snapshot && pnpm run test:perf",
     "tauri:e2e": "node scripts/tauri-native-smoke.mjs",
     "tauri:e2e:preflight": "node scripts/tauri-e2e-preflight.mjs",
+    "tauri:build:mac:signed": "tauri build --bundles dmg",
     "tauri:build:ci": "tauri build --debug --no-bundle --features tauri-runtime",
     "tauri:build:mac:debug": "tauri build --debug --bundles app",
     "tauri:core:test": "cargo test --manifest-path src-tauri/Cargo.toml",
@@ -36,27 +55,34 @@
     "vscode:webview": "tsx vscode-extension/src/webview-test.ts",
     "vscode:contract": "node scripts/vscode-extension-contract.mjs",
     "vscode:typecheck": "tsc -p vscode-extension/tsconfig.json --noEmit",
-    "vscode:build": "node -e \"require('fs').rmSync('vscode-extension/dist',{recursive:true,force:true})\" && tsc -p vscode-extension/tsconfig.build.json",
-    "vscode:package-contract": "node scripts/vscode-package-contract.mjs"
+    "platform:build": "pnpm --dir packages/platform-contracts build && pnpm --dir packages/proofline-oss build && pnpm --dir packages/aura-ide-kit build"
   },
   "dependencies": {
+    "@auraone/aura-ide-kit": "file:packages/aura-ide-kit",
+    "@auraone/platform-contracts": "file:packages/platform-contracts",
+    "@auraone/proofline-oss": "file:packages/proofline-oss",
     "@tauri-apps/api": "2.11.0",
     "@tauri-apps/plugin-dialog": "2.7.1",
     "@tauri-apps/plugin-updater": "2.10.1",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^4.0.0",
     "lucide-react": "0.554.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "tsx": "^4.19.2",
-    "typescript": "^6.0.3",
-    "vite": "^5.0.0"
+    "typescript": "^5.5.0",
+    "vite": "^6.4.3"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.11.2",
-    "@playwright/test": "1.60.0",
+    "@playwright/test": "1.56.0",
     "@tauri-apps/cli": "2.11.1",
-    "@types/node": "^25.9.1",
-    "@types/react": "^19.2.14",
+    "@types/node": "^20.17.9",
+    "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0"
-  }
+  },
+  "engines": {
+    "node": ">=20.19.5",
+    "pnpm": ">=10.18.0"
+  },
+  "packageManager": "pnpm@10.18.0"
 }

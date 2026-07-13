@@ -18,11 +18,16 @@ Provider keys are stored in the operating system keychain: macOS Keychain Servic
 
 ## Does telemetry run by default?
 
-No. Telemetry and crash reporting are off by default. The privacy settings page shows the exact event JSON that would be sent if telemetry is enabled.
+No. Telemetry preview and crash reporting are off by default. This build has no
+telemetry uploader. The privacy settings page shows local `local_preview` and
+`would_send` event JSON; neither status means uploaded.
 
 ## Can I use it without network access?
 
-Yes. No-network mode supports authoring, validation, mock-judge scoring, diffs, and local exports. Provider scoring, update checks, telemetry upload, crash upload, and intake upload are disabled.
+Yes. No-network mode supports authoring, validation, mock-judge scoring, diffs,
+and local exports. Provider scoring, update checks, crash upload, and intake
+upload are disabled. Telemetry remains a local-only preview because this build
+has no telemetry uploader.
 
 ## Which frameworks can I export to?
 

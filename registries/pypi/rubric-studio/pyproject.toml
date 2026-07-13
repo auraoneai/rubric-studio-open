@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rubric-studio"
+version = "0.0.2"
+description = "Install guidance and package-name reservation for Rubric Studio Open."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "AuraOne", email = "opensource@auraone.ai" }]
+keywords = ["ai", "evaluation", "evals", "rubric", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://rubric-studio.auraone.ai"
+Repository = "https://github.com/auraoneai/rubric-studio-open"
+Issues = "https://github.com/auraoneai/rubric-studio-open/issues"
+Documentation = "https://auraone.ai/open/rubric-studio-open"
+"Desktop Release" = "https://github.com/auraoneai/rubric-studio-open/releases/tag/v0.2.0"
+"npm Package" = "https://www.npmjs.com/package/@auraone/rubric-studio"
+Changelog = "https://github.com/auraoneai/rubric-studio-open/blob/main/registries/pypi/rubric-studio/CHANGELOG.md"
+
+[project.scripts]
+rubric-studio = "rubric_studio.cli:main"
+rubric = "rubric_studio.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rubric_studio"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]
+testpaths = ["tests"]

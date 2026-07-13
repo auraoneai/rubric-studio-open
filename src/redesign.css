@@ -2777,10 +2777,11 @@
     grid-row: 2;
     justify-content: stretch;
     gap: 1px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     border-top: 1px solid var(--rs-line-2);
     margin: 0 -8px;
-    padding: 0 8px;
+    padding: 0;
   }
 
   .tabbar::-webkit-scrollbar {
@@ -2789,12 +2790,12 @@
 
   .tab {
     width: auto;
-    flex: 1 1 0;
+    flex: 1 0 66px;
     min-height: 48px;
     flex-direction: column;
     gap: 2px;
     padding: 4px 1px 3px;
-    font-size: 13px;
+    font-size: 12px;
     line-height: 16px;
   }
 
@@ -2808,7 +2809,6 @@
 
   .tab.active {
     width: auto;
-    flex-basis: 0;
     padding: 4px 1px 3px;
   }
 
@@ -3850,6 +3850,7 @@
 
   .tab {
     min-width: 48px;
+    flex: 1 1 0;
   }
 
   .tab > span {

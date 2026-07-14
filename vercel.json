@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/fonts/:path*",
-      "destination": "https://www.auraone.ai/fonts/:path*"
+      "destination": "https://auraone.ai/fonts/:path*"
     },
     {
       "source": "/((?!assets/|fonts/|favicon.ico|favicon.svg|apple-touch-icon.png).*)",

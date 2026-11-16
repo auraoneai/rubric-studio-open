@@ -99,14 +99,6 @@ function verdictForScore(score: number): ScoreResult['verdict'] {
   return score >= 0.67 ? 'pass' : score >= 0.4 ? 'partial' : 'fail';
 }
 
-export function summarizeCatchView(results: ScoreResult[]): Record<string, ScoreResult[]> {
-  return results.reduce<Record<string, ScoreResult[]>>((byCriterion, result) => {
-    byCriterion[result.criterionId] = byCriterion[result.criterionId] ?? [];
-    byCriterion[result.criterionId].push(result);
-    return byCriterion;
-  }, {});
-}
-
 export function distributionForCriterion(results: ScoreResult[], criterionId: string): {
   pass: number;
   partial: number;

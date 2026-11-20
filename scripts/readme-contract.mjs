@@ -27,9 +27,13 @@ requiredPhrases.forEach((phrase) => {
   assert.ok(readme.includes(phrase), `README.md missing required phrase: ${phrase}`);
 });
 
-const readmeImages = [...readme.matchAll(/!\[[^\]]*]\(([^)]+)\)/g)].map(
-  ([, source]) => source,
-);
+// Status badges (shields.io, GitHub Actions badge.svg) are not screenshots.
+const isBadge = (source) =>
+  source.startsWith('https://img.shields.io/') ||
+  /^https:\/\/github\.com\/auraoneai\/[^/]+\/actions\/workflows\/[^/]+\/badge\.svg$/.test(source);
+const readmeImages = [...readme.matchAll(/!\[[^\]]*]\(([^)]+)\)/g)]
+  .map(([, source]) => source)
+  .filter((source) => !isBadge(source));
 assert.deepEqual(
   readmeImages,
   ['https://www.auraone.ai/open/rubric-studio-open/screenshots/preview-scoring.webp'],

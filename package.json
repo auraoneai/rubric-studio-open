@@ -4,10 +4,12 @@
   "private": false,
   "license": "MIT",
   "type": "module",
-  "description": "Local-first IDE for authoring, validating, testing, calibrating, diffing, and exporting AI evaluation rubrics.",
+  "description": "LLM evaluation rubric builder: local-first IDE for authoring, validating, calibrating, diffing, and exporting AI evaluation rubrics.",
   "keywords": [
     "ai-evaluation",
     "llm-evaluation",
+    "llm-evaluation-rubric",
+    "rubric-builder",
     "evals",
     "rubric",
     "calibration",
@@ -19,7 +21,7 @@
     "type": "git",
     "url": "git+https://github.com/auraoneai/rubric-studio-open.git"
   },
-  "homepage": "https://rubric-studio.auraone.ai/",
+  "homepage": "https://auraone.ai/open/rubric-studio-open",
   "bugs": {
     "url": "https://github.com/auraoneai/rubric-studio-open/issues"
   },

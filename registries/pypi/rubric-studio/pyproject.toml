@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "rubric-studio"
 version = "0.0.3"
-description = "Install guidance and package-name reservation for Rubric Studio Open."
+description = "LLM evaluation rubric builder: install guidance and package-name reservation for Rubric Studio Open."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "AuraOne", email = "opensource@auraone.ai" }]
-keywords = ["ai", "evaluation", "evals", "rubric", "cli"]
+keywords = ["ai", "evaluation", "evals", "rubric", "cli", "llm-evaluation", "rubric-builder"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -23,7 +23,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://rubric-studio.auraone.ai"
+Homepage = "https://auraone.ai/open/rubric-studio-open"
+Source = "https://github.com/auraoneai/rubric-studio-open"
+"Browser Editor" = "https://rubric-studio.auraone.ai"
 Repository = "https://github.com/auraoneai/rubric-studio-open"
 Issues = "https://github.com/auraoneai/rubric-studio-open/issues"
 Documentation = "https://auraone.ai/open/rubric-studio-open"

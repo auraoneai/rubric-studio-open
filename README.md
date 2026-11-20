@@ -1,5 +1,30 @@
 # Rubric Studio Open
 
+**LLM evaluation rubric builder:** author, validate, preview, calibrate, diff,
+and export criterion-level AI evaluation rubrics as local files.
+
+[![Try it in the browser](https://img.shields.io/badge/try_it-in_the_browser-2563eb)](https://rubric-studio.auraone.ai) [![npm](https://img.shields.io/npm/v/@auraone/rubric-studio.svg)](https://www.npmjs.com/package/@auraone/rubric-studio) [![DCO](https://github.com/auraoneai/rubric-studio-open/actions/workflows/dco.yml/badge.svg)](https://github.com/auraoneai/rubric-studio-open/actions/workflows/dco.yml) [![license](https://img.shields.io/github/license/auraoneai/rubric-studio-open.svg)](LICENSE)
+
+## Quick Start
+
+Open the hosted editor at [rubric-studio.auraone.ai](https://rubric-studio.auraone.ai),
+or validate a project bundle from the command line:
+
+```bash
+npm install @auraone/rubric-studio@0.2.1
+npx @auraone/rubric-studio validate ./project-bundle.json
+```
+
+```text
+{
+  "valid": true,
+  "issues": []
+}
+```
+
+Output from `@auraone/rubric-studio` 0.2.1 on the example project in the
+[npm package README](https://www.npmjs.com/package/@auraone/rubric-studio).
+
 Rubric Studio Open is a local-first IDE for authoring, validating, previewing,
 calibrating, diffing, and exporting criterion-level AI evaluation rubrics.
 
@@ -14,6 +39,39 @@ hosted project account.
 The app is intentionally single-user and file-based. A rubric is a folder on
 disk, so it can be reviewed in Git, shipped in CI, and exported into downstream
 evaluation runners without a hosted account.
+
+## What It Does And What It Doesn't Do
+
+It does:
+
+- Author stable criterion IDs, weights, examples, and evidence requirements in
+  a visual editor that stores the rubric as a folder on disk.
+- Preview responses with deterministic fixture scoring, or with OpenAI,
+  Anthropic, Google, or Ollama only after an explicit action with your own key
+  or endpoint.
+- Calibrate against gold labels, diff revisions with score-impact context, and
+  export runner-ready files plus an unsigned, checksummed evidence ZIP.
+
+It doesn't:
+
+- Provide hosted queues, payments, reviewer workforce management, multi-tenant
+  RBAC, adjudication operations, or Cloud approval chains.
+- Upload project content, assign reviewers, sign exports, or start an external
+  review workflow.
+- Ship the visual app on npm. `@auraone/rubric-studio` is only the validator,
+  CLI, and release metadata companion.
+- Publish Homebrew, Windows, Linux, or auto-update channels for `0.2.0`.
+
+## Part of the AuraOne LLM evaluation workflow
+
+- [Rubric Studio](https://auraone.ai/open/rubric-studio-open): this app.
+- [AuraOne EvalKit](https://auraone.ai/open/evalkit): the offline LLM
+  evaluation CLI that scores outputs against rubrics.
+- [EvalKit Playground](https://auraone.ai/open/evalkit-playground): try rubric
+  scoring in the browser.
+- Components: [prompt-rubric-drift](https://github.com/auraoneai/prompt-rubric-drift),
+  [rubric-pr-bot](https://github.com/auraoneai/rubric-pr-bot),
+  [rubric-spec](https://github.com/auraoneai/rubric-spec).
 
 ## Visual Workflow
 
@@ -211,3 +269,7 @@ behavior. Contributors should run the proof commands and include a
 non-sensitive fixture for behavioral changes. Treat Homebrew, Windows, Linux,
 and automatic updater paths as unavailable until destination-specific evidence
 is published.
+
+---
+
+Need expert reviewers to calibrate or score this evaluation? [Talk to AuraOne](https://auraone.ai/contact?from=open:rubric-studio-open)

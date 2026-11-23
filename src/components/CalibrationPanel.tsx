@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCw, WandSparkles } from 'lucide-react';
 import { calculateCalibration, runBiasProbes, runContaminationAudit, scoreSamples } from '../domain/engine';
-import type { RubricProject, RubricSample } from '../domain/rubric';
+import type { RubricProject, RubricSample, ScoreResult } from '../domain/rubric';
 import { parseGoldJsonl } from '../domain/samples';
 
 type CalibrationItems = ReturnType<typeof calculateCalibration>;
@@ -9,10 +9,14 @@ type CalibrationItems = ReturnType<typeof calculateCalibration>;
 export function CalibrationPanel({
   project,
   calibration,
+  judgeResults = [],
+  onSelectJudge,
   onReplaceSamples,
 }: {
   project: RubricProject;
   calibration: CalibrationItems;
+  judgeResults?: ScoreResult[];
+  onSelectJudge?: (judgeId: string) => void;
   onReplaceSamples: (samples: RubricSample[]) => void;
 }) {
   const [activeCalibration, setActiveCalibration] = useState(calibration);
@@ -22,6 +26,8 @@ export function CalibrationPanel({
   const [goldError, setGoldError] = useState('');
   const probes = useMemo(() => runBiasProbes(project), [project]);
   const contamination = useMemo(() => runContaminationAudit(project), [project]);
+  const enabledJudges = project.judges.filter((judge) => judge.enabled);
+  const calibrationJudgeId = activeCalibration[0]?.judgeId ?? '';
   const sorted = activeCalibration.slice().sort((a, b) => a.kappa - b.kappa);
   const meanKappa = activeCalibration.reduce((sum, item) => sum + item.kappa, 0) / Math.max(1, activeCalibration.length);
   const readyCount = activeCalibration.filter((item) => item.kappa >= 0.5).length;
@@ -36,7 +42,8 @@ export function CalibrationPanel({
   function runCalibration() {
     const next = calculateCalibration(
       project,
-      scoreSamples(project, project.samples, project.judges),
+      [...scoreSamples(project, project.samples, project.judges), ...judgeResults],
+      calibrationJudgeId || undefined,
     );
     const nextMean = next.reduce((sum, item) => sum + item.kappa, 0) / Math.max(1, next.length);
     const coverage = next.reduce((sum, item) => sum + item.coverage, 0);
@@ -74,6 +81,18 @@ export function CalibrationPanel({
           <span className="rs-view-state">{totalCoverage} labeled decisions · deterministic local analysis</span>
         </div>
         <div className="rs-header-actions">
+          <select
+            aria-label="Calibration judge"
+            value={calibrationJudgeId}
+            onChange={(event) => onSelectJudge?.(event.target.value)}
+          >
+            {calibrationJudgeId ? null : <option value="">No judge</option>}
+            {enabledJudges.map((judge) => (
+              <option key={judge.id} value={judge.id}>
+                {judge.label} ({judge.provider}/{judge.model})
+              </option>
+            ))}
+          </select>
           <label className="ghost-button file-button" aria-label="Load gold JSONL">
             Load gold JSONL
             <input

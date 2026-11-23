@@ -123,16 +123,29 @@ export function distributionForCriterion(results: ScoreResult[], criterionId: st
     );
 }
 
+export function resolveCalibrationJudgeId(
+  project: RubricProject,
+  results: ScoreResult[],
+  judgeId?: string,
+): string | null {
+  if (judgeId) {
+    return judgeId;
+  }
+  const judgedIds = new Set(results.map((result) => result.judgeId));
+  const candidates = project.judges.filter((judge) => judge.enabled && judgedIds.has(judge.id));
+  return (candidates.find((judge) => judge.provider !== 'mock') ?? candidates[0])?.id ?? null;
+}
+
 export function calculateCalibration(
   project: RubricProject,
   results: ScoreResult[],
+  judgeId?: string,
 ): CalibrationResult[] {
-  const localJudgeId = project.judges.find(
-    (judge) => judge.enabled && judge.provider === 'mock',
-  )?.id;
+  const calibrationJudgeId = resolveCalibrationJudgeId(project, results, judgeId);
+  const judge = project.judges.find((candidate) => candidate.id === calibrationJudgeId);
   return project.criteria.map((criterion) => {
     const criterionResults = results.filter(
-      (result) => result.criterionId === criterion.id && result.judgeId === localJudgeId,
+      (result) => result.criterionId === criterion.id && result.judgeId === calibrationJudgeId,
     );
     const pairs = criterionResults
       .map((result) => {
@@ -156,6 +169,9 @@ export function calculateCalibration(
 
     return {
       criterionId: criterion.id,
+      judgeId: calibrationJudgeId,
+      provider: judge?.provider ?? null,
+      model: judge?.model ?? null,
       kappa: boundedKappa,
       weightedKappa: Number(weightedCohenKappa(binaryPairs).toFixed(2)),
       krippendorffAlpha: Number(krippendorffAlphaNominal(binaryPairs).toFixed(2)),
@@ -370,6 +386,14 @@ export function generateExports(
     2,
   );
 
+  const calibrationJudge = calibration[0]
+    ? {
+        judge_id: calibration[0].judgeId,
+        provider: calibration[0].provider,
+        model: calibration[0].model,
+      }
+    : null;
+
   const judgeCard = [
     `# Judge Card: ${project.name}`,
     '',
@@ -377,6 +401,7 @@ export function generateExports(
     `Judges: ${project.judges.map((judge) => `${judge.provider}/${judge.model}`).join(', ')}`,
     `Known validation issues: ${issues.length}`,
     `Mean calibration kappa: ${mean(calibration.map((item) => item.kappa)).toFixed(2)}`,
+    `Calibration judge: ${calibrationJudge?.judge_id ? `${calibrationJudge.provider ?? 'unknown'}/${calibrationJudge.model ?? 'unknown'} (${calibrationJudge.judge_id})` : 'none'}`,
     '',
     'No rubric content, samples, judge prompts, or API keys are transmitted unless the user explicitly exports.',
   ].join('\n');
@@ -389,6 +414,7 @@ export function generateExports(
       deterministic_seed: 42,
       sample_count: project.samples.length,
       criterion_count: project.criteria.length,
+      calibration_judge: calibrationJudge,
       generated_at: new Date(0).toISOString(),
     },
     null,

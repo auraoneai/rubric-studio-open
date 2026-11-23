@@ -31,6 +31,7 @@ import {
   type Criterion,
   type RubricProject,
   type RubricSample,
+  type ScoreResult,
   type SurfaceMode,
 } from './domain/rubric';
 import {
@@ -365,6 +366,8 @@ export function App() {
   const [scoreResults, setScoreResults] = useState(() =>
     scoreSamples(initialProject, initialProject.samples, initialProject.judges),
   );
+  const [judgeResults, setJudgeResults] = useState<ScoreResult[]>([]);
+  const [calibrationJudgeId, setCalibrationJudgeId] = useState<string | undefined>(undefined);
   const [saveState, setSaveState] = useState<SaveState>({
     status: 'idle',
     message: `Ready to save in ${persistenceBackendLabel(initialSurface, null)}`,
@@ -383,7 +386,10 @@ export function App() {
   const deleteCriterion = state.project.criteria.find((criterion) => criterion.id === deleteCriterionId);
   const selectedSample = state.project.samples.find((sample) => sample.id === state.selectedSampleId) ?? state.project.samples[0];
   const issues = useMemo(() => validateProject(state.project), [state.project]);
-  const calibration = useMemo(() => calculateCalibration(state.project, scoreResults), [state.project, scoreResults]);
+  const calibration = useMemo(
+    () => calculateCalibration(state.project, [...scoreResults, ...judgeResults], calibrationJudgeId),
+    [state.project, scoreResults, judgeResults, calibrationJudgeId],
+  );
   const diff = useMemo(() => semanticDiff(state.project, baselineProject), [state.project, baselineProject]);
   const exports = useMemo(() => generateExports(state.project, issues, calibration), [state.project, issues, calibration]);
   const health = useMemo(() => projectHealth(state.project), [state.project]);
@@ -1073,12 +1079,25 @@ export function App() {
                 dispatch({ type: 'addSample', sample });
                 setToast(`Loaded sample ${sample.id}`);
               }}
+              onJudgeResult={(result) =>
+                setJudgeResults((current) => [
+                  ...current.filter(
+                    (item) =>
+                      item.judgeId !== result.judgeId ||
+                      item.sampleId !== result.sampleId ||
+                      item.criterionId !== result.criterionId,
+                  ),
+                  result,
+                ])
+              }
             />
           ) : null}
           {activeTab === 'calibration' ? (
             <CalibrationPanel
               project={state.project}
               calibration={calibration}
+              judgeResults={judgeResults}
+              onSelectJudge={setCalibrationJudgeId}
               onReplaceSamples={(samples) => {
                 const project = { ...state.project, samples };
                 dispatch({ type: 'replaceSamples', samples });

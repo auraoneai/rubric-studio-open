@@ -103,6 +103,9 @@ export interface ScoreResult {
 
 export interface CalibrationResult {
   criterionId: string;
+  judgeId: string | null;
+  provider: JudgeConfig['provider'] | null;
+  model: string | null;
   kappa: number;
   weightedKappa: number;
   krippendorffAlpha: number;

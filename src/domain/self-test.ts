@@ -3,7 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { createCriterionVariantWorkspace } from './branching';
 import { browserFolderArtifacts, projectFromBrowserFolder } from './browserFolder';
 import { catchViewRows } from './catchView';
-import { calculateCalibration, generateExports, scoreSamples, semanticDiff } from './engine';
+import { calculateCalibration, generateExports, resolveCalibrationJudgeId, scoreSamples, semanticDiff } from './engine';
 import {
   configureProviderKey,
   keychainKeyForJudge,
@@ -401,6 +401,93 @@ const renamedMockResults = scoreSamples(
   renamedMockProject.judges,
 );
 assert.ok(calculateCalibration(renamedMockProject, renamedMockResults).every((item) => item.coverage > 0));
+
+// D20: calibration prefers an enabled non-mock judge that has results.
+const realJudgeProject = {
+  ...sampleProject,
+  judges: [
+    ...sampleProject.judges.filter((judge) => judge.provider === 'mock'),
+    {
+      id: 'real-openai',
+      label: 'OpenAI judge',
+      provider: 'openai' as const,
+      model: 'gpt-5.5',
+      enabled: true,
+      keyConfigured: true,
+    },
+  ],
+};
+// Real judge disagrees with gold on every labeled decision.
+const invertedRealResults = realJudgeProject.samples.flatMap((sample) =>
+  realJudgeProject.criteria
+    .filter((criterion) => sample.goldScores[criterion.id] !== undefined)
+    .map((criterion) => {
+      const score = sample.goldScores[criterion.id] >= 0.5 ? 0 : 1;
+      return {
+        criterionId: criterion.id,
+        judgeId: 'real-openai',
+        sampleId: sample.id,
+        verdict: score ? ('pass' as const) : ('fail' as const),
+        score,
+        confidence: 0.9,
+        reasoning: 'provider',
+      };
+    }),
+);
+const realJudgeMockResults = scoreSamples(realJudgeProject, realJudgeProject.samples, realJudgeProject.judges);
+const realJudgeMock = realJudgeProject.judges.find((judge) => judge.provider === 'mock');
+assert.ok(realJudgeMock);
+assert.ok(invertedRealResults.length > 0);
+
+const selectedRealCalibration = calculateCalibration(
+  realJudgeProject,
+  [...realJudgeMockResults, ...invertedRealResults],
+  'real-openai',
+);
+for (const item of selectedRealCalibration) {
+  const realForCriterion = invertedRealResults.filter((result) => result.criterionId === item.criterionId);
+  assert.equal(item.judgeId, 'real-openai');
+  assert.equal(item.provider, 'openai');
+  assert.equal(item.model, 'gpt-5.5');
+  // Coverage counts only the real judge's results, not the mock's.
+  assert.equal(item.coverage, realForCriterion.length);
+  assert.deepEqual(
+    [...item.mostDisagreedSampleIds].sort(),
+    realForCriterion.map((result) => result.sampleId).sort(),
+  );
+}
+
+assert.ok(
+  calculateCalibration(realJudgeProject, [...realJudgeMockResults, ...invertedRealResults]).every(
+    (item) => item.judgeId === 'real-openai',
+  ),
+);
+const mockOnlyCalibration = calculateCalibration(realJudgeProject, realJudgeMockResults);
+assert.ok(mockOnlyCalibration.every((item) => item.judgeId === realJudgeMock.id && item.provider === 'mock'));
+
+const disabledRealProject = {
+  ...realJudgeProject,
+  judges: realJudgeProject.judges.map((judge) => (judge.id === 'real-openai' ? { ...judge, enabled: false } : judge)),
+};
+assert.equal(
+  resolveCalibrationJudgeId(disabledRealProject, [...realJudgeMockResults, ...invertedRealResults]),
+  realJudgeMock.id,
+);
+// An enabled real judge that produced no results is not chosen.
+assert.equal(resolveCalibrationJudgeId(realJudgeProject, realJudgeMockResults), realJudgeMock.id);
+// No enabled judge with results: nothing to calibrate against.
+assert.equal(resolveCalibrationJudgeId(realJudgeProject, []), null);
+assert.ok(calculateCalibration(realJudgeProject, []).every((item) => item.judgeId === null));
+// An explicit selection always wins.
+assert.equal(resolveCalibrationJudgeId(realJudgeProject, realJudgeMockResults, 'real-openai'), 'real-openai');
+
+const realJudgeExports = generateExports(realJudgeProject, validateProject(realJudgeProject), selectedRealCalibration);
+assert.ok(realJudgeExports['judge-card.md'].includes('Calibration judge: openai/gpt-5.5 (real-openai)'));
+assert.deepEqual(JSON.parse(realJudgeExports['eval-run-manifest.json']).calibration_judge, {
+  judge_id: 'real-openai',
+  provider: 'openai',
+  model: 'gpt-5.5',
+});
 
 const baselineProject = JSON.parse(JSON.stringify(sampleProject));
 const changedProject = {

@@ -20,6 +20,7 @@ export function PreviewPanel(props: {
   onOpenSettings: () => void;
   onSelectSample: (sampleId: string) => void;
   onAddSample: (sample: RubricSample) => void;
+  onJudgeResult?: (result: ScoreResult) => void;
 }) {
   const [failuresOnly, setFailuresOnly] = useState(false);
   const [disagreementsOnly, setDisagreementsOnly] = useState(false);
@@ -85,6 +86,7 @@ export function PreviewPanel(props: {
         onToken: (token) => setOllamaTraces((current) => ({ ...current, [key]: `${current[key] ?? ''}${token}` })),
       });
       setOllamaScores((current) => ({ ...current, [key]: { ...score, judgeId: judge.id } }));
+      props.onJudgeResult?.({ ...score, judgeId: judge.id });
     } catch (error) {
       setOllamaError(error instanceof Error ? error.message : 'Ollama stream failed.');
     } finally {
@@ -126,6 +128,7 @@ export function PreviewPanel(props: {
         apiKey,
       });
       setProviderScores((current) => ({ ...current, [key]: score }));
+      props.onJudgeResult?.(score);
     } catch (error) {
       setProviderErrors((current) => ({
         ...current,
